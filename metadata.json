@@ -1,0 +1,6 @@
+{
+  "name": "Image to PDF",
+  "description": "Convert JPG and PNG images into compressed, professional PDF documents with customizable page sizing, margins, and quality controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
