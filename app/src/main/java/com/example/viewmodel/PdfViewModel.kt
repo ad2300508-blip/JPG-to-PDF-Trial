@@ -57,6 +57,9 @@ class PdfViewModel : ViewModel() {
   private val _isReadingImages = MutableStateFlow(false)
   val isReadingImages: StateFlow<Boolean> = _isReadingImages.asStateFlow()
 
+  private val _selectedImageIds = MutableStateFlow<Set<String>>(emptySet())
+  val selectedImageIds: StateFlow<Set<String>> = _selectedImageIds.asStateFlow()
+
   // Dynamic estimated PDF output size
   val estimatedPdfSize: StateFlow<Long> = combine(_images, _settings) { imgs, currentSettings ->
     ImageUtils.estimatePdfSize(imgs, currentSettings)
@@ -85,8 +88,79 @@ class PdfViewModel : ViewModel() {
 
   fun removeImage(id: String) {
     _images.value = _images.value.filterNot { it.id == id }
+    _selectedImageIds.value = _selectedImageIds.value - id
     if (_conversionState.value is ConversionState.Success) {
       _conversionState.value = ConversionState.Idle
+    }
+  }
+
+  fun toggleSelectImage(id: String) {
+    val current = _selectedImageIds.value
+    _selectedImageIds.value = if (id in current) current - id else current + id
+  }
+
+  fun selectAll() {
+    _selectedImageIds.value = _images.value.map { it.id }.toSet()
+  }
+
+  fun deselectAll() {
+    _selectedImageIds.value = emptySet()
+  }
+
+  fun deleteSelected() {
+    val selected = _selectedImageIds.value
+    if (selected.isEmpty()) return
+    _images.value = _images.value.filterNot { it.id in selected }
+    _selectedImageIds.value = emptySet()
+    if (_conversionState.value is ConversionState.Success) {
+      _conversionState.value = ConversionState.Idle
+    }
+  }
+
+  fun reverseOrder() {
+    _images.value = _images.value.reversed()
+    if (_conversionState.value is ConversionState.Success) {
+      _conversionState.value = ConversionState.Idle
+    }
+  }
+
+  fun rotateImage(id: String, clockwise: Boolean = true) {
+    val delta = if (clockwise) 90 else -90
+    _images.value = _images.value.map { item ->
+      if (item.id == id) {
+        val newRot = (item.rotationDegrees + delta + 360) % 360
+        item.copy(rotationDegrees = newRot)
+      } else {
+        item
+      }
+    }
+    if (_conversionState.value is ConversionState.Success) {
+      _conversionState.value = ConversionState.Idle
+    }
+  }
+
+  fun rotateSelected(clockwise: Boolean = true) {
+    val selected = _selectedImageIds.value
+    if (selected.isEmpty()) return
+    val delta = if (clockwise) 90 else -90
+    _images.value = _images.value.map { item ->
+      if (item.id in selected) {
+        val newRot = (item.rotationDegrees + delta + 360) % 360
+        item.copy(rotationDegrees = newRot)
+      } else {
+        item
+      }
+    }
+    if (_conversionState.value is ConversionState.Success) {
+      _conversionState.value = ConversionState.Idle
+    }
+  }
+
+  fun sortByName(ascending: Boolean = true) {
+    _images.value = if (ascending) {
+      _images.value.sortedBy { it.fileName.lowercase() }
+    } else {
+      _images.value.sortedByDescending { it.fileName.lowercase() }
     }
   }
 
@@ -108,6 +182,7 @@ class PdfViewModel : ViewModel() {
 
   fun clearAll() {
     _images.value = emptyList()
+    _selectedImageIds.value = emptySet()
     _conversionState.value = ConversionState.Idle
   }
 

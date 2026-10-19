@@ -10,12 +10,19 @@ data class ImageItem(
   val width: Int,
   val height: Int,
   val mimeType: String,
+  val rotationDegrees: Int = 0,
 ) {
   val formattedSize: String
     get() = formatBytes(sizeBytes)
 
+  val effectiveWidth: Int
+    get() = if (rotationDegrees % 180 != 0) height else width
+
+  val effectiveHeight: Int
+    get() = if (rotationDegrees % 180 != 0) width else height
+
   val dimensionsText: String
-    get() = if (width > 0 && height > 0) "${width} × ${height}" else "Unknown"
+    get() = if (effectiveWidth > 0 && effectiveHeight > 0) "${effectiveWidth} × ${effectiveHeight}" else "Unknown"
 
   companion object {
     fun formatBytes(bytes: Long): String {

@@ -66,8 +66,8 @@ object PdfGeneratorService {
         val item = images[index]
         onProgress(index, total, "Processing page ${index + 1} of $total...")
 
-        // Process image with downsampling, EXIF rotation, and genuine JPEG compression
-        val processed = ImageUtils.processImage(context, item.uri, settings)
+        // Process image with downsampling, EXIF rotation, user rotation, and genuine JPEG compression
+        val processed = ImageUtils.processImage(context, item.uri, item.rotationDegrees, settings)
         val bitmap = processed.bitmap
 
         val (pageWidth, pageHeight, destRect) = calculatePageLayout(

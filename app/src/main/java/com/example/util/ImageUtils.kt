@@ -133,6 +133,7 @@ object ImageUtils {
   suspend fun processImage(
     context: Context,
     uri: Uri,
+    userRotation: Int = 0,
     settings: PdfSettings,
   ): ProcessedImage = withContext(Dispatchers.IO) {
     // 1. Decode bounds
@@ -143,7 +144,7 @@ object ImageUtils {
 
     val origWidth = boundsOptions.outWidth
     val origHeight = boundsOptions.outHeight
-    val maxLongEdge = if (settings.enableCompression) settings.downscaleResolution.maxLongEdge else null
+    val maxLongEdge = if (settings.enableCompression) settings.downscaleResolution.maxLongEdge else 4096
 
     // 2. Compute inSampleSize
     val inSampleSize = calculateInSampleSize(origWidth, origHeight, maxLongEdge)
@@ -158,10 +159,11 @@ object ImageUtils {
       BitmapFactory.decodeStream(stream, null, decodeOptions)
     } ?: throw IllegalStateException("Unable to decode image from $uri")
 
-    // 4. Apply EXIF orientation
+    // 4. Apply combined EXIF and user orientation
     val exifRotation = getExifOrientationDegrees(context, uri)
-    if (exifRotation != 0) {
-      val matrix = Matrix().apply { postRotate(exifRotation.toFloat()) }
+    val totalRotation = (exifRotation + userRotation) % 360
+    if (totalRotation != 0) {
+      val matrix = Matrix().apply { postRotate(totalRotation.toFloat()) }
       val rotatedBitmap = Bitmap.createBitmap(
         decodedBitmap!!,
         0,

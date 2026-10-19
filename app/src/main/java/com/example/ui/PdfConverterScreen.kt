@@ -1,11 +1,15 @@
 package com.example.ui
 
-import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,29 +37,38 @@ import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Collections
+import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Deselect
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.RotateRight
+import androidx.compose.material.icons.filled.SelectAll
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.SwapVert
 import androidx.compose.material.icons.filled.Tablet
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.SnackbarDuration
-import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -96,6 +109,7 @@ fun PdfConverterScreen(
   val snackbarHostState = remember { SnackbarHostState() }
 
   val images by viewModel.images.collectAsState()
+  val selectedImageIds by viewModel.selectedImageIds.collectAsState()
   val settings by viewModel.settings.collectAsState()
   val conversionState by viewModel.conversionState.collectAsState()
   val rawSizeBytes by viewModel.totalRawSize.collectAsState()
@@ -188,8 +202,8 @@ fun PdfConverterScreen(
           Row(verticalAlignment = Alignment.CenterVertically) {
             Box(
               modifier = Modifier
-                .size(36.dp)
-                .clip(RoundedCornerShape(8.dp))
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
                 .background(PdfRed),
               contentAlignment = Alignment.Center
             ) {
@@ -197,18 +211,18 @@ fun PdfConverterScreen(
                 imageVector = Icons.Default.PictureAsPdf,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(22.dp)
+                modifier = Modifier.size(24.dp)
               )
             }
             Spacer(modifier = Modifier.width(12.dp))
             Column {
               Text(
-                text = "Image to PDF",
+                text = "Image to PDF Studio",
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
               )
               Text(
-                text = "Native Converter & Compressor",
+                text = "Desktop-Grade Tablet Document Suite",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
@@ -218,25 +232,25 @@ fun PdfConverterScreen(
         actions = {
           Surface(
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
             modifier = Modifier.padding(end = 12.dp)
           ) {
             Row(
-              modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+              modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
               verticalAlignment = Alignment.CenterVertically
             ) {
               Icon(
                 imageVector = Icons.Default.Tablet,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.secondary,
+                tint = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(16.dp)
               )
               Spacer(modifier = Modifier.width(6.dp))
               Text(
-                text = "Tablet Optimized",
+                text = "iPadOS & DeX Optimized",
                 style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
               )
             }
           }
@@ -257,44 +271,54 @@ fun PdfConverterScreen(
       val isWideScreen = screenWidth >= 720.dp
 
       if (isWideScreen) {
-        // Tablet Large Screen Layout: Side-by-side Two-Pane
+        // High-End Tablet Dashboard: True 52/48 Dual-Pane Master-Detail Split
         Row(
           modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
           horizontalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-          // Left Pane: Image selection, grid preview, reordering, photo picker (56% width)
+          // Left Pane: Pages & Layout Manager (52% width)
           Box(
             modifier = Modifier
-              .weight(1.25f)
+              .weight(1.15f)
               .fillMaxHeight()
           ) {
-            LeftImagePane(
+            PagesLayoutManagerPane(
               images = images,
+              selectedIds = selectedImageIds,
               isReadingImages = isReadingImages,
               onAddImagesClick = {
                 photoPickerLauncher.launch(
                   PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                 )
               },
+              onToggleSelect = { id -> viewModel.toggleSelectImage(id) },
+              onSelectAll = { viewModel.selectAll() },
+              onDeselectAll = { viewModel.deselectAll() },
+              onDeleteSelected = { viewModel.deleteSelected() },
+              onReverseOrder = { viewModel.reverseOrder() },
+              onRotateImageCw = { id -> viewModel.rotateImage(id, clockwise = true) },
+              onRotateImageCcw = { id -> viewModel.rotateImage(id, clockwise = false) },
+              onRotateSelected = { viewModel.rotateSelected(clockwise = true) },
+              onSortByName = { ascending -> viewModel.sortByName(ascending) },
               onRemoveImage = { id -> viewModel.removeImage(id) },
               onMoveUp = { idx -> viewModel.moveUp(idx) },
               onMoveDown = { idx -> viewModel.moveDown(idx) },
               onClearAll = { viewModel.clearAll() },
-              gridColumns = if (screenWidth > 1050.dp) 3 else 2
+              gridColumns = if (screenWidth > 1100.dp) 3 else 2
             )
           }
 
-          // Vertical divider line
+          // Refined divider separator
           Box(
             modifier = Modifier
               .width(1.dp)
               .fillMaxHeight()
-              .background(MaterialTheme.colorScheme.outlineVariant)
+              .background(MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
           )
 
-          // Right Pane: Settings, Live Estimator, Convert & Export actions (44% width)
+          // Right Pane: Command & Export Center (48% width)
           Column(
             modifier = Modifier
               .weight(1.0f)
@@ -302,6 +326,34 @@ fun PdfConverterScreen(
               .verticalScroll(rememberScrollState())
               .padding(bottom = 24.dp)
           ) {
+            // Header Tag for Command Center
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(bottom = 12.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = "Command & Export Center",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f)
+              ) {
+                Text(
+                  text = "Live Dashboard",
+                  style = MaterialTheme.typography.labelSmall,
+                  fontWeight = FontWeight.SemiBold,
+                  color = MaterialTheme.colorScheme.onSecondaryContainer,
+                  modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+              }
+            }
+
             when (val state = conversionState) {
               is ConversionState.Success -> {
                 PdfSuccessCard(
@@ -311,12 +363,8 @@ fun PdfConverterScreen(
                   onDownloadToDownloads = {
                     viewModel.downloadToDownloads(
                       context = context,
-                      onSuccess = { msg ->
-                        scope.launch { snackbarHostState.showSnackbar(msg) }
-                      },
-                      onError = { err ->
-                        scope.launch { snackbarHostState.showSnackbar(err) }
-                      }
+                      onSuccess = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                      onError = { err -> scope.launch { snackbarHostState.showSnackbar(err) } }
                     )
                   },
                   onSaveToDevice = {
@@ -351,7 +399,7 @@ fun PdfConverterScreen(
           }
         }
       } else {
-        // Compact Phone / Split view: Tabbed Layout
+        // Compact Phone / Narrow Split View: Tabbed Architecture
         var selectedTab by remember { mutableIntStateOf(0) }
         Column(modifier = Modifier.fillMaxSize()) {
           PrimaryTabRow(
@@ -361,13 +409,13 @@ fun PdfConverterScreen(
             Tab(
               selected = selectedTab == 0,
               onClick = { selectedTab = 0 },
-              text = { Text("Images (${images.size})") },
+              text = { Text("Pages (${images.size})", fontWeight = FontWeight.Bold) },
               icon = { Icon(Icons.Default.Collections, contentDescription = null) }
             )
             Tab(
               selected = selectedTab == 1,
               onClick = { selectedTab = 1 },
-              text = { Text("Settings & Export") },
+              text = { Text("Command & Export", fontWeight = FontWeight.Bold) },
               icon = { Icon(Icons.Default.Settings, contentDescription = null) }
             )
           }
@@ -378,14 +426,24 @@ fun PdfConverterScreen(
               .padding(16.dp)
           ) {
             if (selectedTab == 0) {
-              LeftImagePane(
+              PagesLayoutManagerPane(
                 images = images,
+                selectedIds = selectedImageIds,
                 isReadingImages = isReadingImages,
                 onAddImagesClick = {
                   photoPickerLauncher.launch(
                     PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
                   )
                 },
+                onToggleSelect = { id -> viewModel.toggleSelectImage(id) },
+                onSelectAll = { viewModel.selectAll() },
+                onDeselectAll = { viewModel.deselectAll() },
+                onDeleteSelected = { viewModel.deleteSelected() },
+                onReverseOrder = { viewModel.reverseOrder() },
+                onRotateImageCw = { id -> viewModel.rotateImage(id, clockwise = true) },
+                onRotateImageCcw = { id -> viewModel.rotateImage(id, clockwise = false) },
+                onRotateSelected = { viewModel.rotateSelected(clockwise = true) },
+                onSortByName = { ascending -> viewModel.sortByName(ascending) },
                 onRemoveImage = { id -> viewModel.removeImage(id) },
                 onMoveUp = { idx -> viewModel.moveUp(idx) },
                 onMoveDown = { idx -> viewModel.moveDown(idx) },
@@ -407,12 +465,8 @@ fun PdfConverterScreen(
                       onDownloadToDownloads = {
                         viewModel.downloadToDownloads(
                           context = context,
-                          onSuccess = { msg ->
-                            scope.launch { snackbarHostState.showSnackbar(msg) }
-                          },
-                          onError = { err ->
-                            scope.launch { snackbarHostState.showSnackbar(err) }
-                          }
+                          onSuccess = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                          onError = { err -> scope.launch { snackbarHostState.showSnackbar(err) } }
                         )
                       },
                       onSaveToDevice = {
@@ -466,12 +520,8 @@ fun PdfConverterScreen(
         onDownloadAgain = {
           viewModel.downloadToDownloads(
             context = context,
-            onSuccess = { msg ->
-              scope.launch { snackbarHostState.showSnackbar(msg) }
-            },
-            onError = { err ->
-              scope.launch { snackbarHostState.showSnackbar(err) }
-            }
+            onSuccess = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+            onError = { err -> scope.launch { snackbarHostState.showSnackbar(err) } }
           )
         },
         onSaveAs = {
@@ -498,10 +548,20 @@ fun PdfConverterScreen(
 }
 
 @Composable
-private fun LeftImagePane(
+private fun PagesLayoutManagerPane(
   images: List<ImageItem>,
+  selectedIds: Set<String>,
   isReadingImages: Boolean,
   onAddImagesClick: () -> Unit,
+  onToggleSelect: (String) -> Unit,
+  onSelectAll: () -> Unit,
+  onDeselectAll: () -> Unit,
+  onDeleteSelected: () -> Unit,
+  onReverseOrder: () -> Unit,
+  onRotateImageCw: (String) -> Unit,
+  onRotateImageCcw: (String) -> Unit,
+  onRotateSelected: () -> Unit,
+  onSortByName: (Boolean) -> Unit,
   onRemoveImage: (String) -> Unit,
   onMoveUp: (Int) -> Unit,
   onMoveDown: (Int) -> Unit,
@@ -509,8 +569,10 @@ private fun LeftImagePane(
   gridColumns: Int,
   modifier: Modifier = Modifier,
 ) {
+  var showSortMenu by remember { mutableStateOf(false) }
+
   Column(modifier = modifier.fillMaxSize()) {
-    // Toolbar Header: Image Count & Action Buttons
+    // Top Bar: Title & Primary Management Actions
     Row(
       modifier = Modifier
         .fillMaxWidth()
@@ -520,85 +582,204 @@ private fun LeftImagePane(
     ) {
       Column {
         Text(
-          text = "Selected Images (${images.size})",
-          style = MaterialTheme.typography.titleLarge,
+          text = "Pages & Layout Manager",
+          style = MaterialTheme.typography.titleMedium,
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
         )
-        if (images.isNotEmpty()) {
-          Text(
-            text = "Total raw: ${ImageItem.formatBytes(images.sumOf { it.sizeBytes })}",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
+        Text(
+          text = if (images.isNotEmpty()) "${images.size} pages • ${ImageItem.formatBytes(images.sumOf { it.sizeBytes })} raw" else "No pages added yet",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
       }
 
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         if (images.isNotEmpty()) {
+          // Sort Menu Trigger
+          Box {
+            FilledTonalButton(
+              onClick = { showSortMenu = true },
+              shape = RoundedCornerShape(12.dp),
+            ) {
+              Icon(Icons.Default.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Sort")
+            }
+
+            DropdownMenu(
+              expanded = showSortMenu,
+              onDismissRequest = { showSortMenu = false }
+            ) {
+              DropdownMenuItem(
+                text = { Text("Sort by Name (A-Z)") },
+                onClick = {
+                  onSortByName(true)
+                  showSortMenu = false
+                }
+              )
+              DropdownMenuItem(
+                text = { Text("Sort by Name (Z-A)") },
+                onClick = {
+                  onSortByName(false)
+                  showSortMenu = false
+                }
+              )
+              DropdownMenuItem(
+                text = { Text("Reverse Page Order") },
+                onClick = {
+                  onReverseOrder()
+                  showSortMenu = false
+                }
+              )
+            }
+          }
+
           FilledTonalButton(
             onClick = onClearAll,
             shape = RoundedCornerShape(12.dp),
             modifier = Modifier.testTag("clear_all_images_button")
           ) {
-            Icon(
-              imageVector = Icons.Default.ClearAll,
-              contentDescription = null,
-              modifier = Modifier.size(18.dp)
-            )
+            Icon(Icons.Default.ClearAll, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Clear All")
+            Text("Clear")
           }
         }
 
         Button(
           onClick = onAddImagesClick,
           shape = RoundedCornerShape(12.dp),
-          colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary
-          ),
+          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
           modifier = Modifier.testTag("add_images_button")
         ) {
-          Icon(
-            imageVector = Icons.Default.AddPhotoAlternate,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp)
-          )
+          Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(20.dp))
           Spacer(modifier = Modifier.width(6.dp))
           Text("Add Images", fontWeight = FontWeight.Bold)
         }
       }
     }
 
-    if (images.isEmpty()) {
-      // Empty State
-      EmptyImagesPlaceholder(
-        onAddImagesClick = onAddImagesClick,
-        modifier = Modifier.fillMaxSize()
-      )
-    } else {
-      // Images Grid
-      LazyVerticalGrid(
-        columns = GridCells.Fixed(gridColumns),
-        contentPadding = PaddingValues(bottom = 24.dp),
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-        verticalArrangement = Arrangement.spacedBy(14.dp),
-        modifier = Modifier
-          .fillMaxSize()
-          .testTag("images_grid")
-      ) {
-        itemsIndexed(
-          items = images,
-          key = { _, item -> item.id }
-        ) { index, item ->
-          ImageGridItem(
-            item = item,
-            index = index,
-            totalCount = images.size,
-            onMoveUp = { onMoveUp(index) },
-            onMoveDown = { onMoveDown(index) },
-            onRemove = { onRemoveImage(item.id) },
-          )
+    // Grid or Empty State
+    Box(modifier = Modifier.weight(1f)) {
+      if (images.isEmpty()) {
+        EmptyImagesPlaceholder(
+          onAddImagesClick = onAddImagesClick,
+          modifier = Modifier.fillMaxSize()
+        )
+      } else {
+        LazyVerticalGrid(
+          columns = GridCells.Fixed(gridColumns),
+          contentPadding = PaddingValues(bottom = 80.dp),
+          horizontalArrangement = Arrangement.spacedBy(14.dp),
+          verticalArrangement = Arrangement.spacedBy(14.dp),
+          modifier = Modifier
+            .fillMaxSize()
+            .testTag("images_grid")
+        ) {
+          itemsIndexed(
+            items = images,
+            key = { _, item -> item.id }
+          ) { index, item ->
+            ImageGridItem(
+              item = item,
+              index = index,
+              totalCount = images.size,
+              isSelected = item.id in selectedIds,
+              onToggleSelect = { onToggleSelect(item.id) },
+              onRotateClockwise = { onRotateImageCw(item.id) },
+              onRotateCounterClockwise = { onRotateImageCcw(item.id) },
+              onMoveUp = { onMoveUp(index) },
+              onMoveDown = { onMoveDown(index) },
+              onRemove = { onRemoveImage(item.id) },
+            )
+          }
+        }
+      }
+
+      // Quick Batch Action Bottom Bar
+      if (images.isNotEmpty()) {
+        Surface(
+          shape = RoundedCornerShape(16.dp),
+          color = MaterialTheme.colorScheme.surface,
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)),
+          shadowElevation = 8.dp,
+          modifier = Modifier
+            .align(Alignment.BottomCenter)
+            .fillMaxWidth()
+            .padding(bottom = 8.dp)
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 12.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            // Select All / Deselect Toggle
+            val allSelected = selectedIds.size == images.size && images.isNotEmpty()
+            FilledTonalButton(
+              onClick = if (allSelected) onDeselectAll else onSelectAll,
+              shape = RoundedCornerShape(10.dp)
+            ) {
+              Icon(
+                imageVector = if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text(
+                text = if (allSelected) "Deselect (${selectedIds.size})" else if (selectedIds.isNotEmpty()) "Select All (${selectedIds.size})" else "Select All",
+                style = MaterialTheme.typography.labelMedium
+              )
+            }
+
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+              // Rotate Selected
+              FilledTonalButton(
+                onClick = onRotateSelected,
+                enabled = selectedIds.isNotEmpty(),
+                shape = RoundedCornerShape(10.dp)
+              ) {
+                Icon(Icons.Default.RotateRight, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Rotate 90°", style = MaterialTheme.typography.labelMedium)
+              }
+
+              // Reverse Order
+              FilledTonalButton(
+                onClick = onReverseOrder,
+                shape = RoundedCornerShape(10.dp)
+              ) {
+                Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("Reverse", style = MaterialTheme.typography.labelMedium)
+              }
+
+              // Delete Selected
+              OutlinedButton(
+                onClick = onDeleteSelected,
+                enabled = selectedIds.isNotEmpty(),
+                shape = RoundedCornerShape(10.dp),
+                border = BorderStroke(
+                  1.dp,
+                  if (selectedIds.isNotEmpty()) PdfRed else MaterialTheme.colorScheme.outlineVariant
+                )
+              ) {
+                Icon(
+                  Icons.Default.DeleteSweep,
+                  contentDescription = null,
+                  tint = if (selectedIds.isNotEmpty()) PdfRed else MaterialTheme.colorScheme.outline,
+                  modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                  text = "Delete (${selectedIds.size})",
+                  color = if (selectedIds.isNotEmpty()) PdfRed else MaterialTheme.colorScheme.outline,
+                  style = MaterialTheme.typography.labelMedium
+                )
+              }
+            }
+          }
         }
       }
     }
@@ -614,8 +795,9 @@ private fun EmptyImagesPlaceholder(
     modifier = modifier,
     shape = RoundedCornerShape(24.dp),
     colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-    )
+      containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+    ),
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
   ) {
     Box(
       modifier = Modifier
@@ -638,14 +820,14 @@ private fun EmptyImagesPlaceholder(
             imageVector = Icons.Default.AddPhotoAlternate,
             contentDescription = null,
             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.size(52.dp)
+            modifier = Modifier.size(50.dp)
           )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-          text = "No Images Added Yet",
+          text = "Pages & Layout Manager",
           style = MaterialTheme.typography.headlineSmall,
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
@@ -654,10 +836,10 @@ private fun EmptyImagesPlaceholder(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-          text = "Choose JPG or PNG photos from your gallery to assemble into a crisp, compressed PDF document.",
+          text = "Select JPG or PNG photos to assemble your PDF document. Rotate pages, reorder visually, and fine-tune downscaling in real time.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.fillMaxWidth(0.7f),
+          modifier = Modifier.fillMaxWidth(0.75f),
           textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
@@ -670,7 +852,7 @@ private fun EmptyImagesPlaceholder(
             containerColor = MaterialTheme.colorScheme.primary
           ),
           modifier = Modifier
-            .height(50.dp)
+            .height(52.dp)
             .testTag("empty_state_add_button")
         ) {
           Icon(
@@ -680,22 +862,21 @@ private fun EmptyImagesPlaceholder(
           )
           Spacer(modifier = Modifier.width(8.dp))
           Text(
-            text = "Select Images via Photo Picker",
+            text = "Choose Images via Photo Picker",
             style = MaterialTheme.typography.bodyLarge,
             fontWeight = FontWeight.Bold
           )
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(30.dp))
 
-        // Feature highlight chips
         Row(
-          horizontalArrangement = Arrangement.spacedBy(16.dp),
+          horizontalArrangement = Arrangement.spacedBy(14.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          HighlightPill("EXIF Auto-Rotate")
-          HighlightPill("Smart Compression")
-          HighlightPill("A4 & Fit Layouts")
+          HighlightPill("Visual Rotation")
+          HighlightPill("Multi-Select Batching")
+          HighlightPill("Instant Savings Gauge")
         }
       }
     }
@@ -707,6 +888,7 @@ private fun HighlightPill(text: String) {
   Surface(
     shape = RoundedCornerShape(20.dp),
     color = MaterialTheme.colorScheme.surface,
+    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
   ) {
     Row(
       modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),

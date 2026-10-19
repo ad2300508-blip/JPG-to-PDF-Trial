@@ -41,6 +41,30 @@ class PdfConverterUnitTest {
   }
 
   @Test
+  fun testRotationEffectiveDimensions() {
+    val unrotated = ImageItem(
+      id = "1",
+      uri = Uri.parse("content://media/1"),
+      fileName = "photo.jpg",
+      sizeBytes = 1000,
+      width = 4000,
+      height = 3000,
+      mimeType = "image/jpeg",
+      rotationDegrees = 0
+    )
+    assertEquals(4000, unrotated.effectiveWidth)
+    assertEquals(3000, unrotated.effectiveHeight)
+
+    val rotated90 = unrotated.copy(rotationDegrees = 90)
+    assertEquals(3000, rotated90.effectiveWidth)
+    assertEquals(4000, rotated90.effectiveHeight)
+
+    val rotated180 = unrotated.copy(rotationDegrees = 180)
+    assertEquals(4000, rotated180.effectiveWidth)
+    assertEquals(3000, rotated180.effectiveHeight)
+  }
+
+  @Test
   fun testPdfSettingsDefaults() {
     val settings = PdfSettings()
     assertTrue(settings.enableCompression)
