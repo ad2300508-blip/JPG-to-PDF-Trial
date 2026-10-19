@@ -16,6 +16,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
@@ -45,6 +46,9 @@ import com.example.ui.theme.SuccessGreen
 @Composable
 fun PdfSuccessCard(
   result: PdfGeneratorService.GenerationResult,
+  savedPathDisplay: String,
+  autoDownloaded: Boolean,
+  onDownloadToDownloads: () -> Unit,
   onSaveToDevice: () -> Unit,
   onSharePdf: () -> Unit,
   onViewPdf: () -> Unit,
@@ -127,7 +131,44 @@ fun PdfSuccessCard(
         }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
+
+      // Downloaded Status Banner
+      Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = if (autoDownloaded) SuccessGreen.copy(alpha = 0.12f) else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+        modifier = Modifier.fillMaxWidth()
+      ) {
+        Row(
+          modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Icon(
+            imageVector = if (autoDownloaded) Icons.Default.Check else Icons.Default.Download,
+            contentDescription = null,
+            tint = if (autoDownloaded) SuccessGreen else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(20.dp)
+          )
+          Spacer(modifier = Modifier.width(10.dp))
+          Column(modifier = Modifier.weight(1f)) {
+            Text(
+              text = if (autoDownloaded) "Saved to Device Downloads" else "PDF Ready for Download",
+              style = MaterialTheme.typography.labelLarge,
+              fontWeight = FontWeight.Bold,
+              color = if (autoDownloaded) SuccessGreen else MaterialTheme.colorScheme.onPrimaryContainer
+            )
+            Text(
+              text = savedPathDisplay,
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
+            )
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(14.dp))
 
       // Stats row
       Row(
@@ -174,22 +215,39 @@ fun PdfSuccessCard(
         }
       }
 
-      Spacer(modifier = Modifier.height(20.dp))
+      Spacer(modifier = Modifier.height(18.dp))
 
-      // Action Buttons
+      // Primary Action Row: Open PDF & Download Again
       Row(
         modifier = Modifier.fillMaxWidth(),
         horizontalArrangement = Arrangement.spacedBy(10.dp)
       ) {
         Button(
-          onClick = onSaveToDevice,
+          onClick = onViewPdf,
           modifier = Modifier
             .weight(1f)
             .height(48.dp)
-            .testTag("save_to_device_button"),
+            .testTag("view_pdf_button"),
           colors = ButtonDefaults.buttonColors(
             containerColor = MaterialTheme.colorScheme.primary
           ),
+          shape = RoundedCornerShape(12.dp)
+        ) {
+          Icon(
+            imageVector = Icons.Default.OpenInNew,
+            contentDescription = null,
+            modifier = Modifier.size(20.dp)
+          )
+          Spacer(modifier = Modifier.width(8.dp))
+          Text("Open PDF", fontWeight = FontWeight.Bold)
+        }
+
+        FilledTonalButton(
+          onClick = onDownloadToDownloads,
+          modifier = Modifier
+            .weight(1f)
+            .height(48.dp)
+            .testTag("download_to_downloads_button"),
           shape = RoundedCornerShape(12.dp)
         ) {
           Icon(
@@ -198,60 +256,64 @@ fun PdfSuccessCard(
             modifier = Modifier.size(20.dp)
           )
           Spacer(modifier = Modifier.width(8.dp))
-          Text("Save to Device", fontWeight = FontWeight.SemiBold)
+          Text(if (autoDownloaded) "Download Again" else "Download", fontWeight = FontWeight.SemiBold)
         }
+      }
 
+      Spacer(modifier = Modifier.height(10.dp))
+
+      // Secondary Actions: Share & Save As (SAF Picker)
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+      ) {
         OutlinedButton(
           onClick = onSharePdf,
           modifier = Modifier
             .weight(1f)
-            .height(48.dp)
+            .height(44.dp)
             .testTag("share_pdf_button"),
           shape = RoundedCornerShape(12.dp)
         ) {
           Icon(
             imageVector = Icons.Default.Share,
             contentDescription = null,
-            modifier = Modifier.size(20.dp)
+            modifier = Modifier.size(18.dp)
           )
-          Spacer(modifier = Modifier.width(8.dp))
-          Text("Share PDF", fontWeight = FontWeight.SemiBold)
+          Spacer(modifier = Modifier.width(6.dp))
+          Text("Share PDF", style = MaterialTheme.typography.labelLarge)
+        }
+
+        OutlinedButton(
+          onClick = onSaveToDevice,
+          modifier = Modifier
+            .weight(1f)
+            .height(44.dp)
+            .testTag("save_to_device_button"),
+          shape = RoundedCornerShape(12.dp)
+        ) {
+          Icon(
+            imageVector = Icons.Default.FolderOpen,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+          )
+          Spacer(modifier = Modifier.width(6.dp))
+          Text("Save As...", style = MaterialTheme.typography.labelLarge)
         }
       }
 
       Spacer(modifier = Modifier.height(10.dp))
 
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(10.dp)
+      // Convert Another Button
+      FilledTonalButton(
+        onClick = onReset,
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(40.dp)
+          .testTag("convert_another_button"),
+        shape = RoundedCornerShape(12.dp)
       ) {
-        FilledTonalButton(
-          onClick = onViewPdf,
-          modifier = Modifier
-            .weight(1f)
-            .height(42.dp)
-            .testTag("view_pdf_button"),
-          shape = RoundedCornerShape(12.dp)
-        ) {
-          Icon(
-            imageVector = Icons.Default.OpenInNew,
-            contentDescription = null,
-            modifier = Modifier.size(18.dp)
-          )
-          Spacer(modifier = Modifier.width(6.dp))
-          Text("Open & View", style = MaterialTheme.typography.labelLarge)
-        }
-
-        FilledTonalButton(
-          onClick = onReset,
-          modifier = Modifier
-            .weight(0.7f)
-            .height(42.dp)
-            .testTag("convert_another_button"),
-          shape = RoundedCornerShape(12.dp)
-        ) {
-          Text("Convert Again", style = MaterialTheme.typography.labelLarge)
-        }
+        Text("Convert More Images", style = MaterialTheme.typography.labelLarge)
       }
     }
   }

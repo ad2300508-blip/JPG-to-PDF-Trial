@@ -50,6 +50,9 @@ object PdfGeneratorService {
     }
     val finalFileName = "$baseName.pdf"
     val outputFile = File(pdfDir, finalFileName)
+    if (outputFile.exists()) {
+      outputFile.delete()
+    }
 
     val pdfDocument = PdfDocument()
     val paint = Paint().apply {

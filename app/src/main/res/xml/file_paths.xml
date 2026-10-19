@@ -2,4 +2,6 @@
 <paths>
     <cache-path name="cached_pdfs" path="pdfs/" />
     <files-path name="files_pdfs" path="pdfs/" />
+    <external-path name="external_downloads" path="Download/" />
+    <external-files-path name="external_files_pdfs" path="pdfs/" />
 </paths>

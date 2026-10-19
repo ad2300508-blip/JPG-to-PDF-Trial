@@ -8,6 +8,7 @@ import androidx.lifecycle.viewModelScope
 import com.example.model.ImageItem
 import com.example.model.PdfSettings
 import com.example.service.PdfGeneratorService
+import com.example.util.DownloadUtils
 import com.example.util.ImageUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -31,6 +32,9 @@ sealed interface ConversionState {
   data class Success(
     val result: PdfGeneratorService.GenerationResult,
     val contentUri: Uri,
+    val downloadUri: Uri? = null,
+    val savedPathDisplay: String = "Downloads/${result.fileName}",
+    val autoDownloaded: Boolean = false,
   ) : ConversionState
   data class Error(val message: String) : ConversionState
 }
@@ -133,10 +137,47 @@ class PdfViewModel : ViewModel() {
         val authority = "${context.packageName}.fileprovider"
         val contentUri = FileProvider.getUriForFile(context, authority, result.file)
 
-        _conversionState.value = ConversionState.Success(result, contentUri)
+        // Automatically save directly to public Downloads folder
+        val downloadRes = DownloadUtils.savePdfToDownloads(context, result.file, result.fileName)
+        val downloadUri = downloadRes.getOrNull()?.uri
+        val displayPath = downloadRes.getOrNull()?.displayPath ?: "Downloads/${result.fileName}"
+        val autoDownloaded = downloadRes.isSuccess
+
+        _conversionState.value = ConversionState.Success(
+          result = result,
+          contentUri = contentUri,
+          downloadUri = downloadUri,
+          savedPathDisplay = displayPath,
+          autoDownloaded = autoDownloaded,
+        )
       } catch (e: Exception) {
         _conversionState.value = ConversionState.Error(e.message ?: "Failed to generate PDF")
       }
+    }
+  }
+
+  fun downloadToDownloads(context: Context, onSuccess: (String) -> Unit, onError: (String) -> Unit) {
+    val currentState = _conversionState.value
+    if (currentState !is ConversionState.Success) {
+      onError("No generated PDF ready to download")
+      return
+    }
+
+    viewModelScope.launch {
+      val res = DownloadUtils.savePdfToDownloads(context, currentState.result.file, currentState.result.fileName)
+      res.fold(
+        onSuccess = { downloadResult ->
+          _conversionState.value = currentState.copy(
+            downloadUri = downloadResult.uri,
+            savedPathDisplay = downloadResult.displayPath,
+            autoDownloaded = true
+          )
+          onSuccess("PDF successfully downloaded to ${downloadResult.displayPath}!")
+        },
+        onFailure = { ex ->
+          onError(ex.message ?: "Failed to save PDF to Downloads")
+        }
+      )
     }
   }
 
@@ -150,10 +191,11 @@ class PdfViewModel : ViewModel() {
     viewModelScope.launch(Dispatchers.IO) {
       try {
         val sourceFile = currentState.result.file
-        context.contentResolver.openOutputStream(destinationUri)?.use { outputStream ->
+        context.contentResolver.openOutputStream(destinationUri, "w")?.use { outputStream ->
           FileInputStream(sourceFile).use { inputStream ->
             inputStream.copyTo(outputStream)
           }
+          outputStream.flush()
         } ?: throw IllegalStateException("Could not open destination stream")
 
         withContext(Dispatchers.Main) {

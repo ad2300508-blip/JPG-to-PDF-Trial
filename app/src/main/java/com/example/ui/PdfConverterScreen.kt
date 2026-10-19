@@ -54,10 +54,14 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -71,10 +75,12 @@ import androidx.compose.ui.unit.dp
 import com.example.model.ImageItem
 import com.example.service.PdfGeneratorService
 import com.example.ui.components.ConversionProgressDialog
+import com.example.ui.components.DownloadSuccessDialog
 import com.example.ui.components.ImageGridItem
 import com.example.ui.components.PdfSuccessCard
 import com.example.ui.components.SettingsPanel
 import com.example.ui.theme.PdfRed
+import com.example.util.DownloadUtils
 import com.example.viewmodel.ConversionState
 import com.example.viewmodel.PdfViewModel
 import kotlinx.coroutines.launch
@@ -96,6 +102,33 @@ fun PdfConverterScreen(
   val estimatedPdfBytes by viewModel.estimatedPdfSize.collectAsState()
   val isReadingImages by viewModel.isReadingImages.collectAsState()
 
+  var showSuccessDialog by remember { mutableStateOf(false) }
+
+  // Listen to conversion state changes
+  LaunchedEffect(conversionState) {
+    when (val state = conversionState) {
+      is ConversionState.Success -> {
+        showSuccessDialog = true
+        val result = snackbarHostState.showSnackbar(
+          message = "PDF saved to ${state.savedPathDisplay}!",
+          actionLabel = "OPEN",
+          duration = SnackbarDuration.Long
+        )
+        if (result == SnackbarResult.ActionPerformed) {
+          DownloadUtils.openPdf(context, state.contentUri)
+        }
+      }
+      is ConversionState.Error -> {
+        snackbarHostState.showSnackbar(
+          message = "Error: ${state.message}",
+          duration = SnackbarDuration.Long
+        )
+        viewModel.dismissDialog()
+      }
+      else -> {}
+    }
+  }
+
   // Native Photo Picker launcher (multiple photos selection)
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickMultipleVisualMedia()
@@ -105,7 +138,7 @@ fun PdfConverterScreen(
     }
   }
 
-  // Create document launcher for Save to Device
+  // Create document launcher for Save As (custom folder)
   val createDocumentLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.CreateDocument("application/pdf")
   ) { destinationUri: Uri? ->
@@ -115,7 +148,7 @@ fun PdfConverterScreen(
         destinationUri = destinationUri,
         onSuccess = {
           scope.launch {
-            snackbarHostState.showSnackbar("PDF successfully saved to device!")
+            snackbarHostState.showSnackbar("PDF successfully saved to selected folder!")
           }
         },
         onError = { msg ->
@@ -129,25 +162,20 @@ fun PdfConverterScreen(
 
   // Share action helper
   val sharePdf: (Uri) -> Unit = { contentUri ->
-    val sendIntent = Intent(Intent.ACTION_SEND).apply {
-      type = "application/pdf"
-      putExtra(Intent.EXTRA_STREAM, contentUri)
-      addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    val success = DownloadUtils.sharePdf(context, contentUri)
+    if (!success) {
+      scope.launch {
+        snackbarHostState.showSnackbar("Unable to open share sheet")
+      }
     }
-    context.startActivity(Intent.createChooser(sendIntent, "Share Generated PDF"))
   }
 
   // View action helper
   val viewPdf: (Uri) -> Unit = { contentUri ->
-    try {
-      val viewIntent = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(contentUri, "application/pdf")
-        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-      }
-      context.startActivity(Intent.createChooser(viewIntent, "Open PDF"))
-    } catch (_: Exception) {
+    val success = DownloadUtils.openPdf(context, contentUri)
+    if (!success) {
       scope.launch {
-        snackbarHostState.showSnackbar("No PDF viewer app found on device")
+        snackbarHostState.showSnackbar("No PDF viewer app found. PDF is saved to Downloads folder.")
       }
     }
   }
@@ -278,6 +306,19 @@ fun PdfConverterScreen(
               is ConversionState.Success -> {
                 PdfSuccessCard(
                   result = state.result,
+                  savedPathDisplay = state.savedPathDisplay,
+                  autoDownloaded = state.autoDownloaded,
+                  onDownloadToDownloads = {
+                    viewModel.downloadToDownloads(
+                      context = context,
+                      onSuccess = { msg ->
+                        scope.launch { snackbarHostState.showSnackbar(msg) }
+                      },
+                      onError = { err ->
+                        scope.launch { snackbarHostState.showSnackbar(err) }
+                      }
+                    )
+                  },
                   onSaveToDevice = {
                     createDocumentLauncher.launch(state.result.fileName)
                   },
@@ -361,6 +402,19 @@ fun PdfConverterScreen(
                   is ConversionState.Success -> {
                     PdfSuccessCard(
                       result = state.result,
+                      savedPathDisplay = state.savedPathDisplay,
+                      autoDownloaded = state.autoDownloaded,
+                      onDownloadToDownloads = {
+                        viewModel.downloadToDownloads(
+                          context = context,
+                          onSuccess = { msg ->
+                            scope.launch { snackbarHostState.showSnackbar(msg) }
+                          },
+                          onError = { err ->
+                            scope.launch { snackbarHostState.showSnackbar(err) }
+                          }
+                        )
+                      },
                       onSaveToDevice = {
                         createDocumentLauncher.launch(state.result.fileName)
                       },
@@ -397,6 +451,38 @@ fun PdfConverterScreen(
       }
     }
 
+    // Modal Success Dialog when conversion completes
+    if (showSuccessDialog && conversionState is ConversionState.Success) {
+      val successState = conversionState as ConversionState.Success
+      DownloadSuccessDialog(
+        result = successState.result,
+        savedPathDisplay = successState.savedPathDisplay,
+        onOpenPdf = {
+          viewPdf(successState.contentUri)
+        },
+        onSharePdf = {
+          sharePdf(successState.contentUri)
+        },
+        onDownloadAgain = {
+          viewModel.downloadToDownloads(
+            context = context,
+            onSuccess = { msg ->
+              scope.launch { snackbarHostState.showSnackbar(msg) }
+            },
+            onError = { err ->
+              scope.launch { snackbarHostState.showSnackbar(err) }
+            }
+          )
+        },
+        onSaveAs = {
+          createDocumentLauncher.launch(successState.result.fileName)
+        },
+        onDismiss = {
+          showSuccessDialog = false
+        }
+      )
+    }
+
     // Progress Dialog during generation
     when (val state = conversionState) {
       is ConversionState.Processing -> {
@@ -405,12 +491,6 @@ fun PdfConverterScreen(
           total = state.total,
           status = state.status
         )
-      }
-      is ConversionState.Error -> {
-        scope.launch {
-          snackbarHostState.showSnackbar("Error: ${state.message}")
-          viewModel.dismissDialog()
-        }
       }
       else -> {}
     }
