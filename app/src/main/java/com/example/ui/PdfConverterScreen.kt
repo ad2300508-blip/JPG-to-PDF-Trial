@@ -89,6 +89,7 @@ import com.example.model.ImageItem
 import com.example.service.PdfGeneratorService
 import com.example.ui.components.ConversionProgressDialog
 import com.example.ui.components.DownloadSuccessDialog
+import com.example.ui.components.ExtractedTextDialog
 import com.example.ui.components.ImageGridItem
 import com.example.ui.components.PdfSuccessCard
 import com.example.ui.components.SettingsPanel
@@ -117,6 +118,7 @@ fun PdfConverterScreen(
   val isReadingImages by viewModel.isReadingImages.collectAsState()
 
   var showSuccessDialog by remember { mutableStateOf(false) }
+  var viewingOcrItem by remember { mutableStateOf<Pair<ImageItem, Int>?>(null) }
 
   // Listen to conversion state changes
   LaunchedEffect(conversionState) {
@@ -298,14 +300,15 @@ fun PdfConverterScreen(
               onDeselectAll = { viewModel.deselectAll() },
               onDeleteSelected = { viewModel.deleteSelected() },
               onReverseOrder = { viewModel.reverseOrder() },
-              onRotateImageCw = { id -> viewModel.rotateImage(id, clockwise = true) },
-              onRotateImageCcw = { id -> viewModel.rotateImage(id, clockwise = false) },
-              onRotateSelected = { viewModel.rotateSelected(clockwise = true) },
+              onRotateImageCw = { id -> viewModel.rotateImage(context, id, clockwise = true) },
+              onRotateImageCcw = { id -> viewModel.rotateImage(context, id, clockwise = false) },
+              onRotateSelected = { viewModel.rotateSelected(context, clockwise = true) },
               onSortByName = { ascending -> viewModel.sortByName(ascending) },
               onRemoveImage = { id -> viewModel.removeImage(id) },
               onMoveUp = { idx -> viewModel.moveUp(idx) },
               onMoveDown = { idx -> viewModel.moveDown(idx) },
               onClearAll = { viewModel.clearAll() },
+              onViewExtractedText = { item, index -> viewingOcrItem = item to index },
               gridColumns = if (screenWidth > 1100.dp) 3 else 2
             )
           }
@@ -440,14 +443,15 @@ fun PdfConverterScreen(
                 onDeselectAll = { viewModel.deselectAll() },
                 onDeleteSelected = { viewModel.deleteSelected() },
                 onReverseOrder = { viewModel.reverseOrder() },
-                onRotateImageCw = { id -> viewModel.rotateImage(id, clockwise = true) },
-                onRotateImageCcw = { id -> viewModel.rotateImage(id, clockwise = false) },
-                onRotateSelected = { viewModel.rotateSelected(clockwise = true) },
+                onRotateImageCw = { id -> viewModel.rotateImage(context, id, clockwise = true) },
+                onRotateImageCcw = { id -> viewModel.rotateImage(context, id, clockwise = false) },
+                onRotateSelected = { viewModel.rotateSelected(context, clockwise = true) },
                 onSortByName = { ascending -> viewModel.sortByName(ascending) },
                 onRemoveImage = { id -> viewModel.removeImage(id) },
                 onMoveUp = { idx -> viewModel.moveUp(idx) },
                 onMoveDown = { idx -> viewModel.moveDown(idx) },
                 onClearAll = { viewModel.clearAll() },
+                onViewExtractedText = { item, index -> viewingOcrItem = item to index },
                 gridColumns = 2
               )
             } else {
@@ -503,6 +507,15 @@ fun PdfConverterScreen(
           }
         }
       }
+    }
+
+    // Modal OCR Extracted Text Dialog
+    viewingOcrItem?.let { (item, index) ->
+      ExtractedTextDialog(
+        item = item,
+        pageIndex = index,
+        onDismiss = { viewingOcrItem = null }
+      )
     }
 
     // Modal Success Dialog when conversion completes
@@ -566,6 +579,7 @@ private fun PagesLayoutManagerPane(
   onMoveUp: (Int) -> Unit,
   onMoveDown: (Int) -> Unit,
   onClearAll: () -> Unit,
+  onViewExtractedText: (ImageItem, Int) -> Unit,
   gridColumns: Int,
   modifier: Modifier = Modifier,
 ) {
@@ -691,6 +705,7 @@ private fun PagesLayoutManagerPane(
               onMoveUp = { onMoveUp(index) },
               onMoveDown = { onMoveDown(index) },
               onRemove = { onRemoveImage(item.id) },
+              onViewExtractedText = { onViewExtractedText(item, index) },
             )
           }
         }
@@ -836,7 +851,7 @@ private fun EmptyImagesPlaceholder(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-          text = "Select JPG or PNG photos to assemble your PDF document. Rotate pages, reorder visually, and fine-tune downscaling in real time.",
+          text = "Select JPG or PNG photos to assemble your PDF document. Rotate pages, reorder visually, and extract on-device OCR text in real time.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
           modifier = Modifier.fillMaxWidth(0.75f),
@@ -874,9 +889,9 @@ private fun EmptyImagesPlaceholder(
           horizontalArrangement = Arrangement.spacedBy(14.dp),
           verticalAlignment = Alignment.CenterVertically
         ) {
-          HighlightPill("Visual Rotation")
-          HighlightPill("Multi-Select Batching")
-          HighlightPill("Instant Savings Gauge")
+          HighlightPill("On-Device OCR")
+          HighlightPill("128-bit Encryption")
+          HighlightPill("Batch Processing")
         }
       }
     }

@@ -10,6 +10,7 @@ import com.example.model.PdfSettings
 import com.example.service.PdfGeneratorService
 import com.example.util.DownloadUtils
 import com.example.util.ImageUtils
+import com.example.util.OcrUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -77,12 +78,64 @@ class PdfViewModel : ViewModel() {
       val newItems = mutableListOf<ImageItem>()
       for (uri in uris) {
         try {
-          val item = ImageUtils.extractImageItem(context, uri)
+          // Initialize with isOcrScanning = true so user gets immediate visual feedback
+          val item = ImageUtils.extractImageItem(context, uri).copy(isOcrScanning = true)
           newItems.add(item)
         } catch (_: Exception) {}
       }
       _images.value = _images.value + newItems
       _isReadingImages.value = false
+
+      // Background asynchronous OCR extraction using ML Kit without blocking UI
+      newItems.forEach { item ->
+        launch(Dispatchers.IO) {
+          try {
+            val ocrResult = OcrUtils.processImageOcr(context, item.uri, item.rotationDegrees)
+            _images.value = _images.value.map { current ->
+              if (current.id == item.id) {
+                current.copy(
+                  ocrText = ocrResult.fullText.ifBlank { null },
+                  ocrBlocks = ocrResult.blocks,
+                  isOcrScanning = false
+                )
+              } else {
+                current
+              }
+            }
+          } catch (_: Exception) {
+            _images.value = _images.value.map { current ->
+              if (current.id == item.id) current.copy(isOcrScanning = false) else current
+            }
+          }
+        }
+      }
+    }
+  }
+
+  fun triggerOcrScan(context: Context, id: String) {
+    val item = _images.value.find { it.id == id } ?: return
+    _images.value = _images.value.map {
+      if (it.id == id) it.copy(isOcrScanning = true) else it
+    }
+    viewModelScope.launch(Dispatchers.IO) {
+      try {
+        val ocrResult = OcrUtils.processImageOcr(context, item.uri, item.rotationDegrees)
+        _images.value = _images.value.map { current ->
+          if (current.id == id) {
+            current.copy(
+              ocrText = ocrResult.fullText.ifBlank { null },
+              ocrBlocks = ocrResult.blocks,
+              isOcrScanning = false
+            )
+          } else {
+            current
+          }
+        }
+      } catch (_: Exception) {
+        _images.value = _images.value.map { current ->
+          if (current.id == id) current.copy(isOcrScanning = false) else current
+        }
+      }
     }
   }
 
@@ -124,35 +177,88 @@ class PdfViewModel : ViewModel() {
     }
   }
 
-  fun rotateImage(id: String, clockwise: Boolean = true) {
+  fun rotateImage(context: Context, id: String, clockwise: Boolean = true) {
     val delta = if (clockwise) 90 else -90
+    var targetItem: ImageItem? = null
     _images.value = _images.value.map { item ->
       if (item.id == id) {
         val newRot = (item.rotationDegrees + delta + 360) % 360
-        item.copy(rotationDegrees = newRot)
+        val updated = item.copy(rotationDegrees = newRot, isOcrScanning = true)
+        targetItem = updated
+        updated
       } else {
         item
       }
     }
     if (_conversionState.value is ConversionState.Success) {
       _conversionState.value = ConversionState.Idle
+    }
+
+    targetItem?.let { item ->
+      viewModelScope.launch(Dispatchers.IO) {
+        try {
+          val ocrResult = OcrUtils.processImageOcr(context, item.uri, item.rotationDegrees)
+          _images.value = _images.value.map { current ->
+            if (current.id == item.id) {
+              current.copy(
+                ocrText = ocrResult.fullText.ifBlank { null },
+                ocrBlocks = ocrResult.blocks,
+                isOcrScanning = false
+              )
+            } else {
+              current
+            }
+          }
+        } catch (_: Exception) {
+          _images.value = _images.value.map { current ->
+            if (current.id == item.id) current.copy(isOcrScanning = false) else current
+          }
+        }
+      }
     }
   }
 
-  fun rotateSelected(clockwise: Boolean = true) {
+  fun rotateSelected(context: Context, clockwise: Boolean = true) {
     val selected = _selectedImageIds.value
     if (selected.isEmpty()) return
     val delta = if (clockwise) 90 else -90
+    val updatedList = mutableListOf<ImageItem>()
+
     _images.value = _images.value.map { item ->
       if (item.id in selected) {
         val newRot = (item.rotationDegrees + delta + 360) % 360
-        item.copy(rotationDegrees = newRot)
+        val updated = item.copy(rotationDegrees = newRot, isOcrScanning = true)
+        updatedList.add(updated)
+        updated
       } else {
         item
       }
     }
     if (_conversionState.value is ConversionState.Success) {
       _conversionState.value = ConversionState.Idle
+    }
+
+    updatedList.forEach { item ->
+      viewModelScope.launch(Dispatchers.IO) {
+        try {
+          val ocrResult = OcrUtils.processImageOcr(context, item.uri, item.rotationDegrees)
+          _images.value = _images.value.map { current ->
+            if (current.id == item.id) {
+              current.copy(
+                ocrText = ocrResult.fullText.ifBlank { null },
+                ocrBlocks = ocrResult.blocks,
+                isOcrScanning = false
+              )
+            } else {
+              current
+            }
+          }
+        } catch (_: Exception) {
+          _images.value = _images.value.map { current ->
+            if (current.id == item.id) current.copy(isOcrScanning = false) else current
+          }
+        }
+      }
     }
   }
 

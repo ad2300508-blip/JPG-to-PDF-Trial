@@ -24,15 +24,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Surface
@@ -40,6 +45,10 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -47,6 +56,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.model.DownscaleResolution
 import com.example.model.PageMargin
@@ -64,6 +75,9 @@ fun SettingsPanel(
   isConverting: Boolean,
   modifier: Modifier = Modifier,
 ) {
+  var showUserPassword by remember { mutableStateOf(false) }
+  var showOwnerPassword by remember { mutableStateOf(false) }
+
   Column(
     modifier = modifier.fillMaxWidth(),
     verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -71,9 +85,7 @@ fun SettingsPanel(
     // 1. Compression Engine Card
     Card(
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surface
-      ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
       elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
       modifier = Modifier.fillMaxWidth()
@@ -240,9 +252,7 @@ fun SettingsPanel(
     // 2. Page Configuration Card
     Card(
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surface
-      ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
       elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
       modifier = Modifier.fillMaxWidth()
@@ -315,12 +325,233 @@ fun SettingsPanel(
       }
     }
 
-    // 3. Document Name Card
+    // 3. Password & Enterprise Encryption Card
     Card(
       shape = RoundedCornerShape(20.dp),
-      colors = CardDefaults.cardColors(
-        containerColor = MaterialTheme.colorScheme.surface
-      ),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+      elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(18.dp)
+      ) {
+        SectionHeader(
+          icon = Icons.Default.Lock,
+          title = "Document Security & Encryption",
+          badge = if (settings.enableEncryption) "128-bit Encrypted" else "No Password",
+          badgeColor = if (settings.enableEncryption) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Secure PDF with Password Switch
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Secure PDF with Password",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Text(
+                text = "Requires password verification in Adobe Acrobat, Samsung Notes, and PDF readers",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Switch(
+              checked = settings.enableEncryption,
+              onCheckedChange = { isEnabled ->
+                onSettingsChanged { it.copy(enableEncryption = isEnabled) }
+              },
+              colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onError,
+                checkedTrackColor = MaterialTheme.colorScheme.error,
+              ),
+              modifier = Modifier.testTag("enable_encryption_switch")
+            )
+          }
+        }
+
+        AnimatedVisibility(
+          visible = settings.enableEncryption,
+          enter = fadeIn() + expandVertically(),
+          exit = fadeOut() + shrinkVertically()
+        ) {
+          Column(modifier = Modifier.fillMaxWidth()) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // User Password Field
+            OutlinedTextField(
+              value = settings.userPassword,
+              onValueChange = { newPass ->
+                onSettingsChanged { it.copy(userPassword = newPass) }
+              },
+              label = { Text("User Password (Required to Open)") },
+              placeholder = { Text("e.g. Secret123") },
+              singleLine = true,
+              visualTransformation = if (showUserPassword) VisualTransformation.None else PasswordVisualTransformation(),
+              trailingIcon = {
+                IconButton(onClick = { showUserPassword = !showUserPassword }) {
+                  Icon(
+                    imageVector = if (showUserPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (showUserPassword) "Hide password" else "Show password"
+                  )
+                }
+              },
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier
+                .fillMaxWidth()
+                .testTag("user_password_input")
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Owner / Admin Password Field
+            OutlinedTextField(
+              value = settings.ownerPassword,
+              onValueChange = { newPass ->
+                onSettingsChanged { it.copy(ownerPassword = newPass) }
+              },
+              label = { Text("Owner Password (Optional / Permission Admin)") },
+              placeholder = { Text("Leaves blank to use User Password") },
+              singleLine = true,
+              visualTransformation = if (showOwnerPassword) VisualTransformation.None else PasswordVisualTransformation(),
+              trailingIcon = {
+                IconButton(onClick = { showOwnerPassword = !showOwnerPassword }) {
+                  Icon(
+                    imageVector = if (showOwnerPassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                    contentDescription = if (showOwnerPassword) "Hide password" else "Show password"
+                  )
+                }
+              },
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier
+                .fillMaxWidth()
+                .testTag("owner_password_input")
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Security Information Banner
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+              border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f)),
+              modifier = Modifier.fillMaxWidth()
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Security,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.error,
+                  modifier = Modifier.size(20.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                  text = "Enterprise Standard 128-bit AES encryption protects pages from unauthorized viewing, printing, and extraction.",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onErrorContainer
+                )
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // 4. Local OCR Text Recognition & Searchable PDF Card
+    Card(
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+      elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(18.dp)
+      ) {
+        SectionHeader(
+          icon = Icons.Default.TextFields,
+          title = "Searchable PDF (OCR Engine)",
+          badge = if (settings.embedSearchableText) "OCR Active" else "Off",
+          badgeColor = if (settings.embedSearchableText) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Embed Searchable OCR Layer",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Text(
+                text = "Bakes recognized text invisibly beneath images so you can highlight, search, and copy text in PDF viewers",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Switch(
+              checked = settings.embedSearchableText,
+              onCheckedChange = { isEnabled ->
+                onSettingsChanged { it.copy(embedSearchableText = isEnabled) }
+              },
+              colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onTertiary,
+                checkedTrackColor = MaterialTheme.colorScheme.tertiary,
+              ),
+              modifier = Modifier.testTag("embed_searchable_ocr_switch")
+            )
+          }
+        }
+      }
+    }
+
+    // 5. Document Name Card
+    Card(
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
       border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
       elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
       modifier = Modifier.fillMaxWidth()
@@ -334,7 +565,7 @@ fun SettingsPanel(
           icon = Icons.Default.Edit,
           title = "Document File Name",
           badge = ".pdf",
-          badgeColor = MaterialTheme.colorScheme.tertiary
+          badgeColor = MaterialTheme.colorScheme.primary
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -369,7 +600,7 @@ fun SettingsPanel(
       }
     }
 
-    // 4. Live Compression Savings Gauge
+    // 6. Live Compression Savings Gauge
     LiveSizeEstimatorCard(
       imageCount = imageCount,
       rawSizeBytes = rawSizeBytes,
@@ -377,10 +608,10 @@ fun SettingsPanel(
       settings = settings
     )
 
-    // 5. High-Impact Convert & Export Action
+    // 7. High-Impact Convert & Export Action
     Button(
       onClick = onConvertClick,
-      enabled = imageCount > 0 && !isConverting,
+      enabled = imageCount > 0 && !isConverting && settings.hasValidPassword,
       shape = RoundedCornerShape(18.dp),
       colors = ButtonDefaults.buttonColors(
         containerColor = MaterialTheme.colorScheme.primary
@@ -391,13 +622,17 @@ fun SettingsPanel(
         .testTag("convert_to_pdf_primary_button")
     ) {
       Icon(
-        imageVector = Icons.Default.PictureAsPdf,
+        imageVector = if (settings.enableEncryption) Icons.Default.Lock else Icons.Default.PictureAsPdf,
         contentDescription = null,
         modifier = Modifier.size(24.dp)
       )
       Spacer(modifier = Modifier.width(10.dp))
       Text(
-        text = if (imageCount > 0) "Convert & Export $imageCount Pages" else "Add Images to Convert",
+        text = if (imageCount > 0) {
+          if (settings.enableEncryption) "Encrypt & Export $imageCount Pages" else "Convert & Export $imageCount Pages"
+        } else {
+          "Add Images to Convert"
+        },
         style = MaterialTheme.typography.titleMedium,
         fontWeight = FontWeight.Bold
       )

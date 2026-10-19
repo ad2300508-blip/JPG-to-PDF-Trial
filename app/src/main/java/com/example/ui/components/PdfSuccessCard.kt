@@ -17,9 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -60,9 +62,7 @@ fun PdfSuccessCard(
       .fillMaxWidth()
       .testTag("pdf_success_card"),
     shape = RoundedCornerShape(20.dp),
-    colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.surface
-    ),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
   ) {
     Column(
@@ -107,26 +107,117 @@ fun PdfSuccessCard(
           )
         }
 
-        Surface(
-          shape = RoundedCornerShape(8.dp),
-          color = PdfRed.copy(alpha = 0.12f),
-          contentColor = PdfRed,
-        ) {
-          Row(
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+          if (result.isEncrypted) {
+            Surface(
+              shape = RoundedCornerShape(8.dp),
+              color = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+              contentColor = MaterialTheme.colorScheme.error,
+              modifier = Modifier.testTag("encrypted_badge")
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Lock,
+                  contentDescription = "Encrypted",
+                  modifier = Modifier.size(14.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                  text = "Locked",
+                  style = MaterialTheme.typography.labelSmall,
+                  fontWeight = FontWeight.Bold
+                )
+              }
+            }
+          }
+
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = PdfRed.copy(alpha = 0.12f),
+            contentColor = PdfRed,
           ) {
-            Icon(
-              imageVector = Icons.Default.PictureAsPdf,
-              contentDescription = null,
-              modifier = Modifier.size(16.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-              text = "PDF",
-              style = MaterialTheme.typography.labelSmall,
-              fontWeight = FontWeight.Bold
-            )
+            Row(
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(
+                imageVector = Icons.Default.PictureAsPdf,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(
+                text = "PDF",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold
+              )
+            }
+          }
+        }
+      }
+
+      // Feature Badges: Searchable OCR & Encryption Details
+      if (result.isEncrypted || result.hasSearchableText) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          if (result.isEncrypted) {
+            Surface(
+              shape = RoundedCornerShape(6.dp),
+              color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.4f),
+              modifier = Modifier.testTag("security_status_chip")
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Lock,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.error,
+                  modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                  text = "128-bit Password Security Active",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onErrorContainer,
+                  fontWeight = FontWeight.SemiBold
+                )
+              }
+            }
+          }
+
+          if (result.hasSearchableText) {
+            Surface(
+              shape = RoundedCornerShape(6.dp),
+              color = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.4f),
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically
+              ) {
+                Icon(
+                  imageVector = Icons.Default.TextFields,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.tertiary,
+                  modifier = Modifier.size(12.dp)
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text(
+                  text = "Searchable OCR Layer Embedded",
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onTertiaryContainer,
+                  fontWeight = FontWeight.SemiBold
+                )
+              }
+            }
           }
         }
       }

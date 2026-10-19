@@ -11,6 +11,9 @@ data class ImageItem(
   val height: Int,
   val mimeType: String,
   val rotationDegrees: Int = 0,
+  val ocrText: String? = null,
+  val ocrBlocks: List<OcrBlock> = emptyList(),
+  val isOcrScanning: Boolean = false,
 ) {
   val formattedSize: String
     get() = formatBytes(sizeBytes)
@@ -23,6 +26,12 @@ data class ImageItem(
 
   val dimensionsText: String
     get() = if (effectiveWidth > 0 && effectiveHeight > 0) "${effectiveWidth} × ${effectiveHeight}" else "Unknown"
+
+  val hasOcrResult: Boolean
+    get() = !ocrText.isNullOrBlank()
+
+  val ocrWordCount: Int
+    get() = ocrText?.split("\\s+".toRegex())?.count { it.isNotBlank() } ?: 0
 
   companion object {
     fun formatBytes(bytes: Long): String {

@@ -3,6 +3,7 @@ package com.example
 import android.net.Uri
 import com.example.model.DownscaleResolution
 import com.example.model.ImageItem
+import com.example.model.OcrBlock
 import com.example.model.PageMargin
 import com.example.model.PdfPageSize
 import com.example.model.PdfSettings
@@ -65,7 +66,7 @@ class PdfConverterUnitTest {
   }
 
   @Test
-  fun testPdfSettingsDefaults() {
+  fun testPdfSettingsDefaultsAndSecurity() {
     val settings = PdfSettings()
     assertTrue(settings.enableCompression)
     assertEquals(80, settings.jpegQuality)
@@ -73,6 +74,43 @@ class PdfConverterUnitTest {
     assertEquals(PdfPageSize.FIT_IMAGE, settings.pageSize)
     assertEquals(PageMargin.NONE, settings.pageMargin)
     assertEquals("Balanced (Recommended)", settings.qualityDescription)
+    assertFalse(settings.enableEncryption)
+    assertTrue(settings.hasValidPassword)
+
+    // When encryption is enabled without password, hasValidPassword should be false
+    val invalidSecSettings = settings.copy(enableEncryption = true, userPassword = "", ownerPassword = "")
+    assertFalse(invalidSecSettings.hasValidPassword)
+
+    // When encryption has password, hasValidPassword should be true
+    val validSecSettings = settings.copy(enableEncryption = true, userPassword = "MyPassword123")
+    assertTrue(validSecSettings.hasValidPassword)
+    assertTrue(validSecSettings.embedSearchableText)
+  }
+
+  @Test
+  fun testOcrWordCountAndResult() {
+    val imageWithoutOcr = ImageItem(
+      id = "1",
+      uri = Uri.parse("content://media/1"),
+      fileName = "doc.jpg",
+      sizeBytes = 5000,
+      width = 1200,
+      height = 800,
+      mimeType = "image/jpeg"
+    )
+    assertFalse(imageWithoutOcr.hasOcrResult)
+    assertEquals(0, imageWithoutOcr.ocrWordCount)
+
+    val imageWithOcr = imageWithoutOcr.copy(
+      ocrText = "Invoice Number: 98421 Total: $149.99 Due Immediately",
+      ocrBlocks = listOf(
+        OcrBlock(text = "Invoice Number: 98421"),
+        OcrBlock(text = "Total: $149.99 Due Immediately")
+      )
+    )
+    assertTrue(imageWithOcr.hasOcrResult)
+    assertEquals(7, imageWithOcr.ocrWordCount)
+    assertEquals(2, imageWithOcr.ocrBlocks.size)
   }
 
   @Test

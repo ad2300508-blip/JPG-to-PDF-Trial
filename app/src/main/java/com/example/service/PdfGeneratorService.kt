@@ -9,6 +9,7 @@ import com.example.model.ImageItem
 import com.example.model.PdfPageSize
 import com.example.model.PdfSettings
 import com.example.util.ImageUtils
+import com.example.util.PdfSecurityUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -24,11 +25,14 @@ object PdfGeneratorService {
     val fileSize: Long,
     val pageCount: Int,
     val fileName: String,
+    val isEncrypted: Boolean = false,
+    val hasSearchableText: Boolean = false,
   )
 
   /**
    * Generates a single PDF document from a list of images according to settings.
    * Recycles bitmaps immediately after rendering each page to prevent OutOfMemoryError.
+   * Embeds searchable OCR text layer and applies enterprise-grade password encryption if configured.
    */
   suspend fun generatePdf(
     context: Context,
@@ -60,6 +64,15 @@ object PdfGeneratorService {
       isFilterBitmap = true
     }
 
+    // Transparent text paint for embedding invisible searchable OCR layer
+    val ocrTextPaint = Paint().apply {
+      isAntiAlias = true
+      color = Color.TRANSPARENT
+      textSize = 10f
+    }
+
+    var totalWordsEmbedded = 0
+
     try {
       val total = images.size
       for (index in images.indices) {
@@ -87,6 +100,22 @@ object PdfGeneratorService {
         // Draw image into destination rectangle
         canvas.drawBitmap(bitmap, null, destRect, paint)
 
+        // Embed invisible searchable OCR text layer into the PDF document stream
+        if (settings.embedSearchableText && item.hasOcrResult && item.ocrBlocks.isNotEmpty()) {
+          val scaleX = destRect.width() / bitmap.width.toFloat()
+          val scaleY = destRect.height() / bitmap.height.toFloat()
+
+          for (block in item.ocrBlocks) {
+            val box = block.boundingBox
+            if (box != null && block.text.isNotBlank()) {
+              val drawX = destRect.left + (box.left * scaleX).coerceAtLeast(0f)
+              val drawY = destRect.top + (box.bottom * scaleY).coerceAtMost(destRect.height())
+              canvas.drawText(block.text, drawX, drawY, ocrTextPaint)
+              totalWordsEmbedded += block.text.split("\\s+".toRegex()).count { it.isNotBlank() }
+            }
+          }
+        }
+
         pdfDocument.finishPage(page)
 
         // CRITICAL: Recycle bitmap immediately to prevent OOM
@@ -101,12 +130,43 @@ object PdfGeneratorService {
         fos.flush()
       }
 
+      var isEncrypted = false
+
+      // Enterprise-Grade PDF Encryption
+      if (settings.enableEncryption && (settings.userPassword.isNotBlank() || settings.ownerPassword.isNotBlank())) {
+        onProgress(total, total, "Encrypting document with 128-bit security...")
+        val encryptedFile = File(pdfDir, "sec_${System.currentTimeMillis()}_$finalFileName")
+        try {
+          PdfSecurityUtils.encryptPdf(
+            context = context,
+            inputFile = outputFile,
+            outputFile = encryptedFile,
+            userPassword = settings.userPassword,
+            ownerPassword = settings.ownerPassword,
+          )
+
+          if (encryptedFile.exists() && encryptedFile.length() > 0) {
+            outputFile.delete()
+            if (!encryptedFile.renameTo(outputFile)) {
+              encryptedFile.copyTo(outputFile, overwrite = true)
+              encryptedFile.delete()
+            }
+            isEncrypted = true
+          }
+        } catch (e: Exception) {
+          // If encryption failed, keep original unencrypted file but log error
+          e.printStackTrace()
+        }
+      }
+
       val generatedSize = outputFile.length()
       GenerationResult(
         file = outputFile,
         fileSize = generatedSize,
         pageCount = total,
         fileName = finalFileName,
+        isEncrypted = isEncrypted,
+        hasSearchableText = totalWordsEmbedded > 0,
       )
     } finally {
       pdfDocument.close()

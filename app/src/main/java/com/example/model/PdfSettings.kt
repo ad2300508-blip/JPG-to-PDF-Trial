@@ -25,6 +25,12 @@ data class PdfSettings(
   val pageSize: PdfPageSize = PdfPageSize.FIT_IMAGE,
   val pageMargin: PageMargin = PageMargin.NONE,
   val outputFileName: String = "",
+  // Enterprise Security & Password Encryption
+  val enableEncryption: Boolean = false,
+  val userPassword: String = "",
+  val ownerPassword: String = "",
+  // Searchable PDF with OCR layer
+  val embedSearchableText: Boolean = true,
 ) {
   val qualityDescription: String
     get() = when {
@@ -33,4 +39,7 @@ data class PdfSettings(
       jpegQuality >= 50 -> "High Compression"
       else -> "Maximum Compression (Smallest file)"
     }
+
+  val hasValidPassword: Boolean
+    get() = !enableEncryption || userPassword.isNotBlank() || ownerPassword.isNotBlank()
 }

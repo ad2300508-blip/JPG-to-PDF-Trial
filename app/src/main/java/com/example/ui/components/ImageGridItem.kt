@@ -29,6 +29,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.RotateLeft
 import androidx.compose.material.icons.filled.RotateRight
+import androidx.compose.material.icons.filled.TextFields
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -67,6 +68,7 @@ fun ImageGridItem(
   onMoveUp: () -> Unit,
   onMoveDown: () -> Unit,
   onRemove: () -> Unit,
+  onViewExtractedText: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val borderColor = if (isSelected) {
@@ -313,6 +315,94 @@ fun ImageGridItem(
               contentDescription = "Move later",
               modifier = Modifier.size(14.dp)
             )
+          }
+        }
+      }
+
+      Spacer(modifier = Modifier.height(6.dp))
+
+      // OCR Text Status & Action Chip Row
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        if (item.isOcrScanning) {
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f),
+            modifier = Modifier.testTag("ocr_scanning_$index")
+          ) {
+            Row(
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(11.dp),
+                strokeWidth = 1.8.dp,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+              )
+              Spacer(modifier = Modifier.width(5.dp))
+              Text(
+                text = "Scanning OCR...",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
+              )
+            }
+          }
+        } else if (item.hasOcrResult) {
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
+            modifier = Modifier
+              .clip(RoundedCornerShape(8.dp))
+              .clickable(onClick = onViewExtractedText)
+              .testTag("view_ocr_button_$index")
+          ) {
+            Row(
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(
+                imageVector = Icons.Default.TextFields,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(13.dp)
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(
+                text = "Extracted Text (${item.ocrWordCount} words)",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.primary
+              )
+            }
+          }
+        } else {
+          Surface(
+            shape = RoundedCornerShape(8.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+            modifier = Modifier
+              .clip(RoundedCornerShape(8.dp))
+              .clickable(onClick = onViewExtractedText)
+          ) {
+            Row(
+              modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(
+                imageVector = Icons.Default.TextFields,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.outline,
+                modifier = Modifier.size(13.dp)
+              )
+              Spacer(modifier = Modifier.width(4.dp))
+              Text(
+                text = "No text found (Tap to check)",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.outline
+              )
+            }
           }
         }
       }
