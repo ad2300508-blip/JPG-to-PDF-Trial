@@ -36,12 +36,14 @@ data class PdfSettings(
   val ownerPassword: String = "",
   // Searchable PDF with OCR layer
   val embedSearchableText: Boolean = true,
-  // AI Book & Screenshot Studio
+  // Universal Smart Screenshot Cleaner & Master Crop
   val autoRemoveBorders: Boolean = false,
   val superResolutionEnhancer: Boolean = false,
   val splitDualPageSpread: Boolean = false,
-  val cropMode: SmartCropMode = SmartCropMode.OFFLINE_OCR_EDGE,
-  val customGeminiApiKey: String = "",
+  val masterCropTop: Float = 0.0f,
+  val masterCropBottom: Float = 0.0f,
+  val masterCropLeft: Float = 0.0f,
+  val masterCropRight: Float = 0.0f,
 ) {
   val qualityDescription: String
     get() = when {

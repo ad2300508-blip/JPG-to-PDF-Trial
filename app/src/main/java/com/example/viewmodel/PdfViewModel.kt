@@ -86,40 +86,77 @@ class PdfViewModel : ViewModel() {
     imgs.sumOf { it.currentSizeBytes }
   }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0L)
 
-  fun initApiKey(context: Context) {
-    val prefs = context.getSharedPreferences("pdf_settings", Context.MODE_PRIVATE)
-    val savedKey = prefs.getString("gemini_api_key", "") ?: ""
-    if (savedKey.isNotBlank()) {
-      _settings.value = _settings.value.copy(customGeminiApiKey = savedKey)
+  fun updateMasterCrop(top: Float, bottom: Float, left: Float, right: Float) {
+    _settings.value = _settings.value.copy(
+      masterCropTop = top.coerceIn(0.0f, 0.25f),
+      masterCropBottom = bottom.coerceIn(0.0f, 0.25f),
+      masterCropLeft = left.coerceIn(0.0f, 0.25f),
+      masterCropRight = right.coerceIn(0.0f, 0.25f),
+    )
+  }
+
+  fun applyMasterCropToAllPages() {
+    val s = _settings.value
+    _images.value = _images.value.map { item ->
+      item.copy(
+        cropTop = s.masterCropTop,
+        cropBottom = s.masterCropBottom,
+        cropLeft = s.masterCropLeft,
+        cropRight = s.masterCropRight
+      )
     }
   }
 
-  fun saveGeminiApiKey(context: Context, key: String) {
-    _settings.value = _settings.value.copy(customGeminiApiKey = key)
-    context.getSharedPreferences("pdf_settings", Context.MODE_PRIVATE)
-      .edit()
-      .putString("gemini_api_key", key)
-      .apply()
+  fun updatePageCrop(id: String, top: Float, bottom: Float, left: Float, right: Float) {
+    _images.value = _images.value.map { item ->
+      if (item.id == id) {
+        item.copy(
+          cropTop = top.coerceIn(0.0f, 0.25f),
+          cropBottom = bottom.coerceIn(0.0f, 0.25f),
+          cropLeft = left.coerceIn(0.0f, 0.25f),
+          cropRight = right.coerceIn(0.0f, 0.25f)
+        )
+      } else item
+    }
+  }
+
+  fun sortByDateModified(oldestFirst: Boolean = true) {
+    val dateComparator = if (oldestFirst) {
+      compareBy<ImageItem> { if (it.timestampMs > 0) it.timestampMs else Long.MAX_VALUE }
+    } else {
+      compareByDescending<ImageItem> { it.timestampMs }
+    }
+    val natural = if (oldestFirst) ImageUtils.NaturalImageComparator else ImageUtils.NaturalImageComparator.reversed()
+    _images.value = _images.value.sortedWith { a, b ->
+      val res = dateComparator.compare(a, b)
+      if (res != 0) res else natural.compare(a, b)
+    }
   }
 
   fun addImages(context: Context, uris: List<Uri>) {
     if (uris.isEmpty()) return
     viewModelScope.launch {
       _isReadingImages.value = true
-      val newItems = mutableListOf<ImageItem>()
+      val rawItems = mutableListOf<ImageItem>()
       for (uri in uris) {
         try {
           val item = ImageUtils.extractImageItem(context, uri).copy(isOcrScanning = true)
-          newItems.add(item)
+          rawItems.add(item)
         } catch (_: Exception) {}
       }
-      _images.value = _images.value + newItems
+
+      // Automatic Natural URI Sorting on Import:
+      // Sort in ascending order based on filenames (extracting numerical values like page_1, page_2, ..., page_10)
+      // and file modification timestamp/EXIF before adding them to state list.
+      val sortedNewItems = ImageUtils.naturalSortImages(rawItems)
+
+      _images.value = _images.value + sortedNewItems
       _isReadingImages.value = false
 
       val autoClean = _settings.value.autoRemoveBorders || _settings.value.superResolutionEnhancer
 
       // Background asynchronous OCR extraction using ML Kit without blocking UI
-      newItems.forEach { item ->
+      sortedNewItems.forEach { item ->
         launch(Dispatchers.IO) {
           try {
             val ocrResult = OcrUtils.processImageOcr(context, item.activeUri, item.rotationDegrees)
@@ -188,11 +225,21 @@ class PdfViewModel : ViewModel() {
       try {
         val originalBitmap = ImageUtils.loadBitmap(context, item.originalUri)
         if (originalBitmap != null) {
+          val activeInsets = if (item.hasCustomCrop) {
+            SmartCropUtils.NormalizedInsets(item.cropTop, item.cropBottom, item.cropLeft, item.cropRight)
+          } else if (_settings.value.masterCropTop > 0f || _settings.value.masterCropBottom > 0f) {
+            SmartCropUtils.NormalizedInsets(
+              _settings.value.masterCropTop,
+              _settings.value.masterCropBottom,
+              _settings.value.masterCropLeft,
+              _settings.value.masterCropRight
+            )
+          } else null
+
           val cropResult = SmartCropUtils.autoCropBookScreenshot(
             bitmap = originalBitmap,
             ocrBlocks = item.ocrBlocks,
-            cropMode = _settings.value.cropMode,
-            customGeminiApiKey = _settings.value.customGeminiApiKey,
+            customInsets = activeInsets,
           )
 
           val enhancedResult = ImageEnhancerUtils.enhanceBookImage(
@@ -200,6 +247,7 @@ class PdfViewModel : ViewModel() {
             enableUpscale = true,
             enableSharpening = true,
             enableBackgroundCleaning = true,
+            enableOverlayErasing = true,
           )
 
           val cacheFile = File(context.cacheDir, "enhanced_${item.id}_${System.currentTimeMillis()}.png")
@@ -279,11 +327,21 @@ class PdfViewModel : ViewModel() {
         try {
           originalBitmap = ImageUtils.loadBitmap(context, item.originalUri)
           if (originalBitmap != null) {
+            val activeInsets = if (item.hasCustomCrop) {
+              SmartCropUtils.NormalizedInsets(item.cropTop, item.cropBottom, item.cropLeft, item.cropRight)
+            } else if (_settings.value.masterCropTop > 0f || _settings.value.masterCropBottom > 0f) {
+              SmartCropUtils.NormalizedInsets(
+                _settings.value.masterCropTop,
+                _settings.value.masterCropBottom,
+                _settings.value.masterCropLeft,
+                _settings.value.masterCropRight
+              )
+            } else null
+
             val cropResult = SmartCropUtils.autoCropBookScreenshot(
               bitmap = originalBitmap,
               ocrBlocks = item.ocrBlocks,
-              cropMode = _settings.value.cropMode,
-              customGeminiApiKey = _settings.value.customGeminiApiKey,
+              customInsets = activeInsets,
             )
             croppedBitmap = cropResult.croppedBitmap
 
@@ -420,9 +478,9 @@ class PdfViewModel : ViewModel() {
   fun moveDown(index: Int) { if (index < _images.value.size - 1) moveImage(index, index + 1) }
   fun sortByName(ascending: Boolean = true) {
     _images.value = if (ascending) {
-      _images.value.sortedBy { it.fileName.lowercase() }
+      _images.value.sortedWith(ImageUtils.NaturalImageComparator)
     } else {
-      _images.value.sortedByDescending { it.fileName.lowercase() }
+      _images.value.sortedWith(ImageUtils.NaturalImageComparator.reversed())
     }
   }
 

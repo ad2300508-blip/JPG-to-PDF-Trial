@@ -95,48 +95,92 @@ object ImageEnhancerUtils {
       style = android.graphics.Paint.Style.FILL
     }
 
-    // Regions to scan: Top 8% and Bottom 10%
-    val zones = listOf(
-      // Top 8% floating badges/controls
-      android.graphics.Rect(0, 0, width, (height * 0.08f).toInt()),
-      // Bottom 10% floating toasts/playback controls
-      android.graphics.Rect(0, (height * 0.90f).toInt(), width, height)
-    )
+    // 1. Dark Fullscreen Toast Eraser (specifically "Press ESC to exit fullscreen" banners):
+    // Center horizontal 25%..75%, vertical bottom 12% (88%..98% height)
+    val toastTopY = (height * 0.88f).toInt()
+    val toastBottomY = (height * 0.98f).toInt()
+    val toastLeftX = (width * 0.22f).toInt()
+    val toastRightX = (width * 0.78f).toInt()
 
-    val stepX = max(1, width / 120)
-    val stepY = max(1, height / 120)
+    var toastMinX = width
+    var toastMaxX = 0
+    var toastMinY = height
+    var toastMaxY = 0
+    var detectedToastRows = 0
 
-    for (zone in zones) {
-      val zTop = zone.top
-      val zBottom = zone.bottom
-      val zHeight = zBottom - zTop
-      if (zHeight < 4) continue
+    val stepX = max(1, width / 140)
+    val stepY = max(1, height / 140)
 
-      // Sample typical background color outside the zone (e.g., 20px inside the page content)
-      val refSampleY = if (zTop == 0) (height * 0.12f).toInt() else (height * 0.88f).toInt()
+    for (y in toastTopY until toastBottomY step stepY) {
+      var darkCount = 0
+      var rowMinX = width
+      var rowMaxX = 0
+      var total = 0
+
+      for (x in toastLeftX until toastRightX step stepX) {
+        val pixel = mutableBitmap.getPixel(x, y)
+        val r = (pixel shr 16) and 0xFF
+        val g = (pixel shr 8) and 0xFF
+        val b = pixel and 0xFF
+        val lum = 0.299f * r + 0.587f * g + 0.114f * b
+        // Dark toast banner: lum < 85 surrounded by bright page
+        if (lum < 85) {
+          darkCount++
+          rowMinX = min(rowMinX, x)
+          rowMaxX = max(rowMaxX, x)
+        }
+        total++
+      }
+
+      val ratio = if (total > 0) darkCount.toFloat() / total else 0f
+      if (ratio >= 0.25f && (rowMaxX - rowMinX) > width * 0.20f) {
+        detectedToastRows++
+        toastMinY = min(toastMinY, y)
+        toastMaxY = max(toastMaxY, y)
+        toastMinX = min(toastMinX, rowMinX)
+        toastMaxX = max(toastMaxX, rowMaxX)
+      }
+    }
+
+    if (detectedToastRows >= 2 && toastMaxY > toastMinY && (toastMaxX - toastMinX) > width * 0.20f) {
+      val padX = (width * 0.02f).toInt()
+      val padY = (height * 0.01f).toInt()
+      val eraseRect = android.graphics.Rect(
+        max(0, toastMinX - padX),
+        max(toastTopY, toastMinY - padY),
+        min(width, toastMaxX + padX),
+        min(height, toastMaxY + padY)
+      )
+      // Erase with pure paper white (#FFFFFF)
+      patchPaint.color = android.graphics.Color.WHITE
+      canvas.drawRect(eraseRect, patchPaint)
+    }
+
+    // 2. Generic top 8% floating pill/badge eraser
+    val topZone = android.graphics.Rect(0, 0, width, (height * 0.08f).toInt())
+    if (topZone.height() >= 4) {
+      val refSampleY = (height * 0.12f).toInt()
       val refPixel = mutableBitmap.getPixel(width / 2, refSampleY.coerceIn(0, height - 1))
       val refLum = 0.299f * ((refPixel shr 16) and 0xFF) + 0.587f * ((refPixel shr 8) and 0xFF) + 0.114f * (refPixel and 0xFF)
 
-      // Scan rows inside the zone to detect contrasting rectangular or pill-shaped overlay blocks
       var overlayMinX = width
       var overlayMaxX = 0
       var overlayMinY = height
       var overlayMaxY = 0
       var detectedOverlayRows = 0
 
-      for (y in zTop until zBottom step stepY) {
+      for (y in 0 until topZone.bottom step stepY) {
         var contrastingPixelsInRow = 0
         var rowMinX = width
         var rowMaxX = 0
         var totalInRow = 0
 
-        for (x in (width * 0.05f).toInt() until (width * 0.95f).toInt() step stepX) {
+        for (x in (width * 0.08f).toInt() until (width * 0.92f).toInt() step stepX) {
           val pixel = mutableBitmap.getPixel(x, y)
           val lum = 0.299f * ((pixel shr 16) and 0xFF) + 0.587f * ((pixel shr 8) and 0xFF) + 0.114f * (pixel and 0xFF)
           val diff = kotlin.math.abs(lum - refLum)
 
-          // Contrast difference of >= 60 indicates an overlay element (e.g. dark toast on light page or light toast on dark background)
-          if (diff >= 60) {
+          if (diff >= 65) {
             contrastingPixelsInRow++
             rowMinX = min(rowMinX, x)
             rowMaxX = max(rowMaxX, x)
@@ -145,7 +189,6 @@ object ImageEnhancerUtils {
         }
 
         val rowRatio = if (totalInRow > 0) contrastingPixelsInRow.toFloat() / totalInRow else 0f
-        // If at least 25% of this row is part of a floating pill/rectangle
         if (rowRatio >= 0.25f && (rowMaxX - rowMinX) > width * 0.18f) {
           detectedOverlayRows++
           overlayMinY = min(overlayMinY, y)
@@ -155,33 +198,23 @@ object ImageEnhancerUtils {
         }
       }
 
-      // If a distinct floating overlay was found (spans >= 2 sample steps and > 20% width)
       if (detectedOverlayRows >= 2 && overlayMaxY > overlayMinY && (overlayMaxX - overlayMinX) > width * 0.20f) {
-        // Expand slightly for clean anti-aliased edge coverage
         val padX = (width * 0.02f).toInt()
         val padY = (height * 0.01f).toInt()
         val overlayRect = android.graphics.Rect(
           max(0, overlayMinX - padX),
-          max(zTop, overlayMinY - padY),
+          max(0, overlayMinY - padY),
           min(width, overlayMaxX + padX),
-          min(zBottom, overlayMaxY + padY)
+          min(topZone.bottom, overlayMaxY + padY)
         )
-
-        // Interpolate neighboring background color from just above or below the overlay
-        val neighborSampleY = if (zTop == 0) {
-          min(height - 1, overlayRect.bottom + (height * 0.015f).toInt())
-        } else {
-          max(0, overlayRect.top - (height * 0.015f).toInt())
-        }
+        val neighborSampleY = min(height - 1, overlayRect.bottom + (height * 0.015f).toInt())
         val neighborLeftColor = mutableBitmap.getPixel(max(0, overlayRect.left - padX), neighborSampleY)
         val neighborRightColor = mutableBitmap.getPixel(min(width - 1, overlayRect.right + padX), neighborSampleY)
 
         val avgR = (((neighborLeftColor shr 16) and 0xFF) + ((neighborRightColor shr 16) and 0xFF)) / 2
         val avgG = (((neighborLeftColor shr 8) and 0xFF) + ((neighborRightColor shr 8) and 0xFF)) / 2
         val avgB = ((neighborLeftColor and 0xFF) + (neighborRightColor and 0xFF)) / 2
-        val patchColor = android.graphics.Color.rgb(avgR, avgG, avgB)
-
-        patchPaint.color = patchColor
+        patchPaint.color = android.graphics.Color.rgb(avgR, avgG, avgB)
         canvas.drawRect(overlayRect, patchPaint)
       }
     }

@@ -41,11 +41,14 @@ import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.SelectAll
+import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -73,11 +76,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import java.util.Locale
 import com.example.model.DownscaleResolution
 import com.example.model.PageMargin
 import com.example.model.PdfPageSize
 import com.example.model.PdfSettings
-import com.example.model.SmartCropMode
 import com.example.ui.theme.PdfGreen
 import com.example.ui.theme.PdfOrange
 import com.example.ui.theme.PdfPurple
@@ -95,13 +98,11 @@ fun SettingsPanel(
   batchCleanProgress: Float = 0f,
   batchCleanStatusText: String = "",
   onBatchCleanAllPages: () -> Unit = {},
-  onSaveGeminiApiKey: (String) -> Unit = {},
+  onApplyMasterCropToAll: () -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   var showUserPassword by remember { mutableStateOf(false) }
   var showOwnerPassword by remember { mutableStateOf(false) }
-  var showApiKey by remember { mutableStateOf(false) }
-  var enteredApiKey by remember(settings.customGeminiApiKey) { mutableStateOf(settings.customGeminiApiKey) }
 
   Column(
     modifier = modifier.fillMaxWidth(),
@@ -460,121 +461,171 @@ fun SettingsPanel(
           }
         }
 
-        Spacer(modifier = Modifier.height(14.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        // Crop Mode Selector (Offline vs Gemini AI)
-        Text(
-          text = "Crop Detection Engine",
-          style = MaterialTheme.typography.bodyMedium,
-          fontWeight = FontWeight.SemiBold,
-          color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        // 3. Master Page Crop (Visual Trim) Controls
+        Surface(
+          shape = RoundedCornerShape(16.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)),
+          modifier = Modifier.fillMaxWidth()
         ) {
-          SmartCropMode.values().forEach { mode ->
-            val isSelected = settings.cropMode == mode
-            Surface(
-              shape = RoundedCornerShape(12.dp),
-              color = if (isSelected) PdfPurple.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
-              border = BorderStroke(
-                if (isSelected) 2.dp else 1.dp,
-                if (isSelected) PdfPurple else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-              ),
-              modifier = Modifier
-                .weight(1f)
-                .clip(RoundedCornerShape(12.dp))
-                .clickable {
-                  onSettingsChanged { it.copy(cropMode = mode) }
-                }
-                .testTag("crop_mode_${mode.name}")
+          Column(modifier = Modifier.padding(14.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
             ) {
-              Column(
-                modifier = Modifier.padding(10.dp),
-                verticalArrangement = Arrangement.Center
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
               ) {
-                Row(
-                  verticalAlignment = Alignment.CenterVertically,
-                  horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                  Icon(
-                    imageVector = if (mode == SmartCropMode.OFFLINE_OCR_EDGE) Icons.Default.Crop else Icons.Default.Cloud,
-                    contentDescription = null,
-                    tint = if (isSelected) PdfPurple else MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                  )
-                  Text(
-                    text = mode.shortLabel,
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) PdfPurple else MaterialTheme.colorScheme.onSurface
-                  )
-                }
-                Spacer(modifier = Modifier.height(4.dp))
+                Icon(
+                  imageVector = Icons.Default.Crop,
+                  contentDescription = null,
+                  tint = PdfPurple,
+                  modifier = Modifier.size(20.dp)
+                )
                 Text(
-                  text = mode.description,
+                  text = "Master Page Crop (Visual Trim)",
+                  style = MaterialTheme.typography.titleSmall,
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.onSurface
+                )
+              }
+              Surface(
+                shape = RoundedCornerShape(8.dp),
+                color = PdfPurple.copy(alpha = 0.15f)
+              ) {
+                Text(
+                  text = "Uniform Frame",
                   style = MaterialTheme.typography.labelSmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                  maxLines = 2
+                  fontWeight = FontWeight.Bold,
+                  color = PdfPurple,
+                  modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
                 )
               }
             }
-          }
-        }
 
-        // Collapsible Gemini API Key field
-        AnimatedVisibility(
-          visible = settings.cropMode == SmartCropMode.GEMINI_VISION,
-          enter = fadeIn() + expandVertically(),
-          exit = fadeOut() + shrinkVertically()
-        ) {
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(top = 12.dp)
-          ) {
-            OutlinedTextField(
-              value = enteredApiKey,
-              onValueChange = { enteredApiKey = it },
-              label = { Text("Gemini API Key (Optional)") },
-              placeholder = { Text("Leaves blank to use AI Studio system key") },
-              singleLine = true,
-              visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
-              trailingIcon = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                  IconButton(onClick = { showApiKey = !showApiKey }) {
-                    Icon(
-                      imageVector = if (showApiKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
-                      contentDescription = if (showApiKey) "Hide key" else "Show key"
-                    )
-                  }
-                  IconButton(
-                    onClick = {
-                      onSaveGeminiApiKey(enteredApiKey)
-                    }
-                  ) {
-                    Icon(
-                      imageVector = Icons.Default.Save,
-                      contentDescription = "Save key",
-                      tint = MaterialTheme.colorScheme.primary
-                    )
-                  }
-                }
-              },
-              shape = RoundedCornerShape(14.dp),
-              modifier = Modifier
-                .fillMaxWidth()
-                .testTag("gemini_api_key_input")
-            )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-              text = "Calls Google Gemini Flash Vision API for exact page boundary detection. Falls back automatically to local detector if offline.",
-              style = MaterialTheme.typography.labelSmall,
+              text = "Adjust normalized insets (0%–20%). Clamped coordinates prevent slicing through book text.",
+              style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            // Presets Chips Row
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+              AssistChip(
+                onClick = {
+                  onSettingsChanged { it.copy(masterCropTop = 0f, masterCropBottom = 0f, masterCropLeft = 0f, masterCropRight = 0f) }
+                },
+                label = { Text("Reset (0%)", style = MaterialTheme.typography.labelSmall) },
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.testTag("preset_crop_reset")
+              )
+              AssistChip(
+                onClick = {
+                  onSettingsChanged { it.copy(masterCropTop = 0.036f, masterCropBottom = 0.0f, masterCropLeft = 0.015f, masterCropRight = 0.015f) }
+                },
+                label = { Text("Tablet Status Bar", style = MaterialTheme.typography.labelSmall) },
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.testTag("preset_crop_tablet")
+              )
+              AssistChip(
+                onClick = {
+                  onSettingsChanged { it.copy(masterCropTop = 0.040f, masterCropBottom = 0.045f, masterCropLeft = 0.025f, masterCropRight = 0.025f) }
+                },
+                label = { Text("Safe Auto-Detect", style = MaterialTheme.typography.labelSmall) },
+                shape = RoundedCornerShape(8.dp),
+                modifier = Modifier.testTag("preset_crop_safe")
+              )
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            // Precision Sliders (Top, Bottom, Left, Right)
+            // Top Slider
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text("Top Inset", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+              Text(String.format(Locale.US, "%.1f%%", settings.masterCropTop * 100f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = PdfPurple)
+            }
+            Slider(
+              value = settings.masterCropTop,
+              onValueChange = { onSettingsChanged { s -> s.copy(masterCropTop = it) } },
+              valueRange = 0.0f..0.20f,
+              steps = 39,
+              modifier = Modifier.fillMaxWidth().testTag("master_crop_top_slider")
+            )
+
+            // Bottom Slider
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text("Bottom Inset", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+              Text(String.format(Locale.US, "%.1f%%", settings.masterCropBottom * 100f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = PdfPurple)
+            }
+            Slider(
+              value = settings.masterCropBottom,
+              onValueChange = { onSettingsChanged { s -> s.copy(masterCropBottom = it) } },
+              valueRange = 0.0f..0.20f,
+              steps = 39,
+              modifier = Modifier.fillMaxWidth().testTag("master_crop_bottom_slider")
+            )
+
+            // Left Slider
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text("Left Inset", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+              Text(String.format(Locale.US, "%.1f%%", settings.masterCropLeft * 100f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = PdfPurple)
+            }
+            Slider(
+              value = settings.masterCropLeft,
+              onValueChange = { onSettingsChanged { s -> s.copy(masterCropLeft = it) } },
+              valueRange = 0.0f..0.20f,
+              steps = 39,
+              modifier = Modifier.fillMaxWidth().testTag("master_crop_left_slider")
+            )
+
+            // Right Slider
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text("Right Inset", style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.SemiBold)
+              Text(String.format(Locale.US, "%.1f%%", settings.masterCropRight * 100f), style = MaterialTheme.typography.labelMedium, fontWeight = FontWeight.Bold, color = PdfPurple)
+            }
+            Slider(
+              value = settings.masterCropRight,
+              onValueChange = { onSettingsChanged { s -> s.copy(masterCropRight = it) } },
+              valueRange = 0.0f..0.20f,
+              steps = 39,
+              modifier = Modifier.fillMaxWidth().testTag("master_crop_right_slider")
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            // Apply Master Crop to ALL Pages Button
+            FilledTonalButton(
+              onClick = onApplyMasterCropToAll,
+              shape = RoundedCornerShape(12.dp),
+              modifier = Modifier.fillMaxWidth().testTag("apply_master_crop_to_all_button")
+            ) {
+              Icon(Icons.Default.SelectAll, contentDescription = null, modifier = Modifier.size(18.dp))
+              Spacer(modifier = Modifier.width(8.dp))
+              Text("Apply Master Crop to ALL Pages ($imageCount)", fontWeight = FontWeight.Bold)
+            }
           }
         }
 

@@ -128,9 +128,6 @@ fun PdfConverterScreen(
   var viewingOcrItem by remember { mutableStateOf<Pair<ImageItem, Int>?>(null) }
   var comparingImageItem by remember { mutableStateOf<Pair<ImageItem, Int>?>(null) }
 
-  LaunchedEffect(Unit) {
-    viewModel.initApiKey(context)
-  }
 
   // Listen to conversion state changes
   LaunchedEffect(conversionState) {
@@ -414,7 +411,6 @@ fun PdfConverterScreen(
               batchCleanProgress = batchCleanProgress,
               batchCleanStatusText = batchCleanStatusText,
               onBatchCleanAllPages = { viewModel.batchCleanAllPages(context) },
-              onSaveGeminiApiKey = { key -> viewModel.saveGeminiApiKey(context, key) }
             )
           }
         }
@@ -529,7 +525,6 @@ fun PdfConverterScreen(
                   batchCleanProgress = batchCleanProgress,
                   batchCleanStatusText = batchCleanStatusText,
                   onBatchCleanAllPages = { viewModel.batchCleanAllPages(context) },
-                  onSaveGeminiApiKey = { key -> viewModel.saveGeminiApiKey(context, key) }
                 )
               }
             }

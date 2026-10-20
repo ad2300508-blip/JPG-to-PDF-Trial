@@ -94,7 +94,8 @@ class PdfConverterUnitTest {
     // AI Book & Screenshot Studio settings
     assertFalse(settings.autoRemoveBorders)
     assertFalse(settings.superResolutionEnhancer)
-    assertEquals(SmartCropMode.OFFLINE_OCR_EDGE, settings.cropMode)
+    assertFalse(settings.splitDualPageSpread)
+    assertEquals(0.0f, settings.masterCropTop)
   }
 
   @Test
@@ -181,7 +182,8 @@ class PdfConverterUnitTest {
       }
     }
 
-    val cropRect = SmartCropUtils.detectLocalBookPage(bitmap, emptyList())
+    val insets = SmartCropUtils.detectSafeContentInsets(bitmap, emptyList())
+    val cropRect = SmartCropUtils.calculatePixelRect(bitmap.width, bitmap.height, insets)
     // Ensure top status bar was cropped (cropRect.top > 0)
     assertTrue("Detected top (${cropRect.top}) should strip status bar", cropRect.top >= 20)
     // Ensure bottom nav bar was cropped (cropRect.bottom < 1600)

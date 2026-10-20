@@ -84,37 +84,57 @@ object PdfGeneratorService {
         val processed = ImageUtils.processImage(context, item.activeUri, item.rotationDegrees, settings)
         var bitmap = processed.bitmap
 
-        // Apply on-the-fly Book Screenshot Auto-Crop & Super-Resolution if globally enabled and not already cleaned
-        if (!item.isAiEnhanced) {
-          if (settings.autoRemoveBorders) {
-            val cropResult = com.example.util.SmartCropUtils.autoCropBookScreenshot(
-              bitmap = bitmap,
-              ocrBlocks = item.ocrBlocks,
-              cropMode = settings.cropMode,
-              customGeminiApiKey = settings.customGeminiApiKey,
+        // Guaranteed Processing Pipeline:
+        // Raw URI -> EXIF Orientation Fix -> Normalized Crop (Per-Page or Master Crop) -> Dark Toast Banner Eraser -> Paper Whitening & Sharpening -> Optional 2-Up Spread Split
+
+        // Step 1: Normalized Crop (per-page crop if set, else master crop if set, else auto-detect if autoRemoveBorders enabled)
+        val activeInsets = when {
+          item.hasCustomCrop -> com.example.util.SmartCropUtils.NormalizedInsets(
+            top = item.cropTop,
+            bottom = item.cropBottom,
+            left = item.cropLeft,
+            right = item.cropRight
+          )
+          settings.masterCropTop > 0f || settings.masterCropBottom > 0f || settings.masterCropLeft > 0f || settings.masterCropRight > 0f -> {
+            com.example.util.SmartCropUtils.NormalizedInsets(
+              top = settings.masterCropTop,
+              bottom = settings.masterCropBottom,
+              left = settings.masterCropLeft,
+              right = settings.masterCropRight
             )
-            if (cropResult.croppedBitmap != bitmap) {
-              bitmap.recycle()
-              bitmap = cropResult.croppedBitmap
-            }
           }
-          if (settings.superResolutionEnhancer) {
-            val enhancedResult = com.example.util.ImageEnhancerUtils.enhanceBookImage(
-              source = bitmap,
-              enableUpscale = true,
-              enableSharpening = true,
-              enableBackgroundCleaning = true,
-            )
-            if (enhancedResult.enhancedBitmap != bitmap) {
-              bitmap.recycle()
-              bitmap = enhancedResult.enhancedBitmap
-            }
+          settings.autoRemoveBorders -> {
+            com.example.util.SmartCropUtils.detectSafeContentInsets(bitmap, item.ocrBlocks)
+          }
+          else -> com.example.util.SmartCropUtils.NormalizedInsets()
+        }
+
+        if (!activeInsets.isZero) {
+          val cropped = com.example.util.SmartCropUtils.applyNormalizedCrop(bitmap, activeInsets)
+          if (cropped != bitmap) {
+            bitmap.recycle()
+            bitmap = cropped
           }
         }
 
-        // Handle dual-page split option when image is landscape spread
+        // Step 2: Floating "ESC" Toast Eraser
+        if (settings.autoRemoveBorders || settings.superResolutionEnhancer) {
+          val erased = com.example.util.ImageEnhancerUtils.eraseDynamicFloatingOverlays(bitmap)
+          bitmap = erased
+        }
+
+        // Step 3: Textbook Formula & Diagram Enhancer (Paper Whitening & Sharpening)
+        if (settings.superResolutionEnhancer) {
+          val sharpened = com.example.util.ImageEnhancerUtils.applySharpeningFilter(bitmap, amount = 0.70f)
+          val whitened = com.example.util.ImageEnhancerUtils.cleanPaperBackground(sharpened)
+          if (sharpened != bitmap && sharpened != whitened) sharpened.recycle()
+          if (bitmap != whitened) bitmap.recycle()
+          bitmap = whitened
+        }
+
+        // Step 4: Dual-page spread splitter (width > height * 1.15)
         val bitmapsToRender = mutableListOf<Bitmap>()
-        val shouldSplitSpread = settings.splitDualPageSpread && (bitmap.width > bitmap.height * 1.25f)
+        val shouldSplitSpread = settings.splitDualPageSpread && (bitmap.width > bitmap.height * 1.15f)
 
         if (shouldSplitSpread) {
           val (leftBmp, rightBmp) = com.example.util.SmartCropUtils.splitLandscapeDualPage(bitmap)

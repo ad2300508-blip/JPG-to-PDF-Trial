@@ -24,7 +24,18 @@ data class ImageItem(
   val isEnhancing: Boolean = false,
   val enhancementDetails: String? = null,
   val detectedPageBadge: String? = null,
+  val timestampMs: Long = 0L,
+  // Normalized edge insets (clamped 0.0f..0.25f)
+  val cropTop: Float = 0.0f,
+  val cropBottom: Float = 0.0f,
+  val cropLeft: Float = 0.0f,
+  val cropRight: Float = 0.0f,
 ) {
+  val hasCustomCrop: Boolean
+    get() = cropTop > 0.001f || cropBottom > 0.001f || cropLeft > 0.001f || cropRight > 0.001f
+
+  val thumbnailCacheKey: String
+    get() = "${activeUri}_rot${rotationDegrees}_crop_${(cropTop*100).toInt()}_${(cropBottom*100).toInt()}_${(cropLeft*100).toInt()}_${(cropRight*100).toInt()}_enh${isAiEnhanced}"
   val activeUri: Uri
     get() = if (isAiEnhanced && enhancedUri != null) enhancedUri else uri
 

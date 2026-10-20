@@ -81,6 +81,40 @@ object ImageUtils {
       rawWidth to rawHeight
     }
 
+    // Read modification timestamp from ContentResolver or EXIF
+    var timestampMs = 0L
+    try {
+      // 1. Try DocumentsContract or MediaStore columns if available
+      context.contentResolver.query(uri, arrayOf("last_modified", "date_modified", "datetaken"), null, null, null)?.use { cursor ->
+        if (cursor.moveToFirst()) {
+          for (col in arrayOf("last_modified", "date_modified", "datetaken")) {
+            val idx = cursor.getColumnIndex(col)
+            if (idx != -1 && !cursor.isNull(idx)) {
+              val raw = cursor.getLong(idx)
+              // Handle seconds vs milliseconds
+              timestampMs = if (raw < 10_000_000_000L) raw * 1000L else raw
+              if (timestampMs > 0) break
+            }
+          }
+        }
+      }
+    } catch (_: Exception) {}
+
+    if (timestampMs <= 0L) {
+      // 2. Try EXIF DateTimeOriginal / DateTime
+      try {
+        context.contentResolver.openInputStream(uri)?.use { stream ->
+          val exifInterface = ExifInterface(stream)
+          val dateStr = exifInterface.getAttribute(ExifInterface.TAG_DATETIME_ORIGINAL)
+            ?: exifInterface.getAttribute(ExifInterface.TAG_DATETIME)
+          if (!dateStr.isNullOrBlank()) {
+            val format = java.text.SimpleDateFormat("yyyy:MM:dd HH:mm:ss", java.util.Locale.US)
+            timestampMs = format.parse(dateStr)?.time ?: 0L
+          }
+        }
+      } catch (_: Exception) {}
+    }
+
     ImageItem(
       id = UUID.randomUUID().toString(),
       uri = uri,
@@ -89,7 +123,65 @@ object ImageUtils {
       width = effectiveWidth,
       height = effectiveHeight,
       mimeType = mimeType,
+      timestampMs = timestampMs,
     )
+  }
+
+  /**
+   * Natural alphanumeric sorting comparator (e.g., page_1, page_2, ..., page_10, page_20).
+   * Also accounts for EXIF / file modification timestamps when filenames are non-numeric or identical.
+   */
+  fun naturalSortImages(items: List<ImageItem>): List<ImageItem> {
+    return items.sortedWith(NaturalImageComparator)
+  }
+
+  object NaturalImageComparator : Comparator<ImageItem> {
+    private val chunkPattern = java.util.regex.Pattern.compile("(\\d+)|(\\D+)")
+
+    override fun compare(o1: ImageItem, o2: ImageItem): Int {
+      val name1 = o1.fileName
+      val name2 = o2.fileName
+
+      val m1 = chunkPattern.matcher(name1)
+      val m2 = chunkPattern.matcher(name2)
+
+      while (m1.find() && m2.find()) {
+        val chunk1 = m1.group()
+        val chunk2 = m2.group()
+
+        val isDigit1 = chunk1[0].isDigit()
+        val isDigit2 = chunk2[0].isDigit()
+
+        if (isDigit1 && isDigit2) {
+          try {
+            val b1 = java.math.BigInteger(chunk1)
+            val b2 = java.math.BigInteger(chunk2)
+            val cmp = b1.compareTo(b2)
+            if (cmp != 0) return cmp
+          } catch (_: Exception) {
+            val cmp = chunk1.compareTo(chunk2)
+            if (cmp != 0) return cmp
+          }
+        } else {
+          val cmp = chunk1.compareTo(chunk2, ignoreCase = true)
+          if (cmp != 0) return cmp
+        }
+      }
+
+      // If one string has more chunks remaining
+      val hasMore1 = m1.find()
+      val hasMore2 = m2.find()
+      if (hasMore1 && !hasMore2) return 1
+      if (!hasMore1 && hasMore2) return -1
+
+      // Fallback to timestamp if available
+      if (o1.timestampMs > 0 && o2.timestampMs > 0) {
+        val timeCmp = o1.timestampMs.compareTo(o2.timestampMs)
+        if (timeCmp != 0) return timeCmp
+      }
+
+      return name1.compareTo(name2, ignoreCase = true)
+    }
   }
 
   /**
