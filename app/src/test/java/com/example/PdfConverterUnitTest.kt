@@ -1,5 +1,7 @@
 package com.example
 
+import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import com.example.model.DownscaleResolution
 import com.example.model.ImageItem
@@ -7,7 +9,10 @@ import com.example.model.OcrBlock
 import com.example.model.PageMargin
 import com.example.model.PdfPageSize
 import com.example.model.PdfSettings
+import com.example.model.SmartCropMode
+import com.example.util.ImageEnhancerUtils
 import com.example.util.ImageUtils
+import com.example.util.SmartCropUtils
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -85,6 +90,11 @@ class PdfConverterUnitTest {
     val validSecSettings = settings.copy(enableEncryption = true, userPassword = "MyPassword123")
     assertTrue(validSecSettings.hasValidPassword)
     assertTrue(validSecSettings.embedSearchableText)
+
+    // AI Book & Screenshot Studio settings
+    assertFalse(settings.autoRemoveBorders)
+    assertFalse(settings.superResolutionEnhancer)
+    assertEquals(SmartCropMode.OFFLINE_OCR_EDGE, settings.cropMode)
   }
 
   @Test
@@ -151,5 +161,64 @@ class PdfConverterUnitTest {
     val uncompressedSettings = PdfSettings(enableCompression = false)
     val uncompressedEstimated = ImageUtils.estimatePdfSize(dummyImages, uncompressedSettings)
     assertTrue(uncompressedEstimated >= rawTotal)
+  }
+
+  @Test
+  fun testSmartCropLocalBookDetector() {
+    // Create a simulated tablet screenshot (width: 1000, height: 1600)
+    // Top 80px: Black status bar (#000000)
+    // Middle 1400px: Light paper book page (#FAF8F5)
+    // Bottom 120px: Black navigation bar (#000000)
+    val bitmap = Bitmap.createBitmap(1000, 1600, Bitmap.Config.ARGB_8888)
+    for (y in 0 until 1600) {
+      val color = when {
+        y < 80 -> Color.BLACK
+        y >= 1480 -> Color.BLACK
+        else -> Color.rgb(250, 248, 245)
+      }
+      for (x in 0 until 1000) {
+        bitmap.setPixel(x, y, color)
+      }
+    }
+
+    val cropRect = SmartCropUtils.detectLocalBookPage(bitmap, emptyList())
+    // Ensure top status bar was cropped (cropRect.top > 0)
+    assertTrue("Detected top (${cropRect.top}) should strip status bar", cropRect.top >= 20)
+    // Ensure bottom nav bar was cropped (cropRect.bottom < 1600)
+    assertTrue("Detected bottom (${cropRect.bottom}) should strip nav bar", cropRect.bottom <= 1580)
+  }
+
+  @Test
+  fun testImageEnhancerPipeline() {
+    val smallBitmap = Bitmap.createBitmap(100, 100, Bitmap.Config.ARGB_8888)
+    // Set near-white background
+    for (y in 0 until 100) {
+      for (x in 0 until 100) {
+        smallBitmap.setPixel(x, y, Color.rgb(230, 230, 230))
+      }
+    }
+    // Set some dark text pixels in center
+    for (y in 45..55) {
+      for (x in 45..55) {
+        smallBitmap.setPixel(x, y, Color.rgb(30, 30, 30))
+      }
+    }
+
+    // 1. Test 2x Upscaling
+    val upscaled = ImageEnhancerUtils.upscale2x(smallBitmap)
+    assertEquals(200, upscaled.width)
+    assertEquals(200, upscaled.height)
+
+    // 2. Test 3x3 Sharpening
+    val sharpened = ImageEnhancerUtils.applySharpeningFilter(smallBitmap)
+    assertEquals(100, sharpened.width)
+    assertEquals(100, sharpened.height)
+
+    // 3. Test Adaptive Background Cleaning (pushes 230, 230, 230 to pure white 255, 255, 255)
+    val cleaned = ImageEnhancerUtils.cleanPaperBackground(smallBitmap)
+    val cornerPixel = cleaned.getPixel(0, 0)
+    assertEquals(255, Color.red(cornerPixel))
+    assertEquals(255, Color.green(cornerPixel))
+    assertEquals(255, Color.blue(cornerPixel))
   }
 }

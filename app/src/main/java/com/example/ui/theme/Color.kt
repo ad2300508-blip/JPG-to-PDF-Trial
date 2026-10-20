@@ -59,3 +59,7 @@ val ErrorRed = Color(0xFFEF4444) // Red 500
 val PdfRed = Color(0xFFF43F5E) // Rose 500
 val AccentCyan = Color(0xFF06B6D4) // Cyan 500
 val AccentPurple = Color(0xFF8B5CF6) // Violet 500
+
+val PdfGreen = SuccessGreen
+val PdfPurple = AccentPurple
+val PdfOrange = WarningAmber

@@ -34,6 +34,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Collections
@@ -87,12 +88,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.model.ImageItem
 import com.example.service.PdfGeneratorService
+import com.example.ui.components.BeforeAfterCompareDialog
 import com.example.ui.components.ConversionProgressDialog
 import com.example.ui.components.DownloadSuccessDialog
 import com.example.ui.components.ExtractedTextDialog
 import com.example.ui.components.ImageGridItem
 import com.example.ui.components.PdfSuccessCard
 import com.example.ui.components.SettingsPanel
+import com.example.ui.theme.PdfGreen
 import com.example.ui.theme.PdfRed
 import com.example.util.DownloadUtils
 import com.example.viewmodel.ConversionState
@@ -117,8 +120,17 @@ fun PdfConverterScreen(
   val estimatedPdfBytes by viewModel.estimatedPdfSize.collectAsState()
   val isReadingImages by viewModel.isReadingImages.collectAsState()
 
+  val isBatchCleaning by viewModel.isBatchCleaning.collectAsState()
+  val batchCleanProgress by viewModel.batchCleanProgress.collectAsState()
+  val batchCleanStatusText by viewModel.batchCleanStatusText.collectAsState()
+
   var showSuccessDialog by remember { mutableStateOf(false) }
   var viewingOcrItem by remember { mutableStateOf<Pair<ImageItem, Int>?>(null) }
+  var comparingImageItem by remember { mutableStateOf<Pair<ImageItem, Int>?>(null) }
+
+  LaunchedEffect(Unit) {
+    viewModel.initApiKey(context)
+  }
 
   // Listen to conversion state changes
   LaunchedEffect(conversionState) {
@@ -136,64 +148,51 @@ fun PdfConverterScreen(
       }
       is ConversionState.Error -> {
         snackbarHostState.showSnackbar(
-          message = "Error: ${state.message}",
+          message = state.message,
           duration = SnackbarDuration.Long
         )
-        viewModel.dismissDialog()
       }
       else -> {}
     }
   }
 
-  // Native Photo Picker launcher (multiple photos selection)
+  // System Photo Picker launcher
   val photoPickerLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.PickMultipleVisualMedia()
-  ) { uris: List<Uri> ->
+  ) { uris ->
     if (uris.isNotEmpty()) {
       viewModel.addImages(context, uris)
     }
   }
 
-  // Create document launcher for Save As (custom folder)
+  // System Document Creation Launcher
   val createDocumentLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.CreateDocument("application/pdf")
-  ) { destinationUri: Uri? ->
-    if (destinationUri != null) {
+  ) { uri ->
+    if (uri != null) {
       viewModel.saveToDestination(
         context = context,
-        destinationUri = destinationUri,
+        destinationUri = uri,
         onSuccess = {
           scope.launch {
             snackbarHostState.showSnackbar("PDF successfully saved to selected folder!")
           }
         },
-        onError = { msg ->
+        onError = { err: String ->
           scope.launch {
-            snackbarHostState.showSnackbar("Failed to save: $msg")
+            snackbarHostState.showSnackbar("Failed to save: $err")
           }
         }
       )
     }
   }
 
-  // Share action helper
-  val sharePdf: (Uri) -> Unit = { contentUri ->
-    val success = DownloadUtils.sharePdf(context, contentUri)
-    if (!success) {
-      scope.launch {
-        snackbarHostState.showSnackbar("Unable to open share sheet")
-      }
-    }
+  fun sharePdf(uri: Uri) {
+    DownloadUtils.sharePdf(context, uri)
   }
 
-  // View action helper
-  val viewPdf: (Uri) -> Unit = { contentUri ->
-    val success = DownloadUtils.openPdf(context, contentUri)
-    if (!success) {
-      scope.launch {
-        snackbarHostState.showSnackbar("No PDF viewer app found. PDF is saved to Downloads folder.")
-      }
-    }
+  fun viewPdf(uri: Uri) {
+    DownloadUtils.openPdf(context, uri)
   }
 
   Scaffold(
@@ -201,30 +200,34 @@ fun PdfConverterScreen(
     topBar = {
       TopAppBar(
         title = {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Box(
-              modifier = Modifier
-                .size(40.dp)
-                .clip(RoundedCornerShape(10.dp))
-                .background(PdfRed),
-              contentAlignment = Alignment.Center
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = MaterialTheme.colorScheme.primaryContainer,
+              modifier = Modifier.size(38.dp)
             ) {
-              Icon(
-                imageVector = Icons.Default.PictureAsPdf,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onPrimary,
-                modifier = Modifier.size(24.dp)
-              )
+              Box(contentAlignment = Alignment.Center) {
+                Icon(
+                  imageVector = Icons.Default.PictureAsPdf,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(22.dp)
+                )
+              }
             }
-            Spacer(modifier = Modifier.width(12.dp))
+
             Column {
               Text(
                 text = "Image to PDF Studio",
-                style = MaterialTheme.typography.titleLarge,
-                fontWeight = FontWeight.Bold
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurface
               )
               Text(
-                text = "Desktop-Grade Tablet Document Suite",
+                text = "Enterprise Document Suite",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
@@ -232,28 +235,30 @@ fun PdfConverterScreen(
           }
         },
         actions = {
-          Surface(
-            shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f),
-            modifier = Modifier.padding(end = 12.dp)
-          ) {
-            Row(
-              modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-              verticalAlignment = Alignment.CenterVertically
+          if (images.isNotEmpty()) {
+            Surface(
+              shape = CircleShape,
+              color = MaterialTheme.colorScheme.surfaceVariant,
+              modifier = Modifier.padding(end = 8.dp)
             ) {
-              Icon(
-                imageVector = Icons.Default.Tablet,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp)
-              )
-              Spacer(modifier = Modifier.width(6.dp))
-              Text(
-                text = "iPadOS & DeX Optimized",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-              )
+              Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Tablet,
+                  contentDescription = null,
+                  tint = MaterialTheme.colorScheme.primary,
+                  modifier = Modifier.size(14.dp)
+                )
+                Text(
+                  text = "${images.size} ${if (images.size == 1) "Page" else "Pages"}",
+                  style = MaterialTheme.typography.labelSmall,
+                  fontWeight = FontWeight.Bold,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+              }
             }
           }
         },
@@ -304,11 +309,18 @@ fun PdfConverterScreen(
               onRotateImageCcw = { id -> viewModel.rotateImage(context, id, clockwise = false) },
               onRotateSelected = { viewModel.rotateSelected(context, clockwise = true) },
               onSortByName = { ascending -> viewModel.sortByName(ascending) },
+              onSortByPageNumber = {
+                viewModel.sortByPageNumber(context) { msg ->
+                  scope.launch { snackbarHostState.showSnackbar(msg) }
+                }
+              },
               onRemoveImage = { id -> viewModel.removeImage(id) },
               onMoveUp = { idx -> viewModel.moveUp(idx) },
               onMoveDown = { idx -> viewModel.moveDown(idx) },
               onClearAll = { viewModel.clearAll() },
               onViewExtractedText = { item, index -> viewingOcrItem = item to index },
+              onToggleEnhance = { id -> viewModel.toggleImageAiEnhancement(context, id) },
+              onCompareBeforeAfter = { item, index -> comparingImageItem = item to index },
               gridColumns = if (screenWidth > 1100.dp) 3 else 2
             )
           }
@@ -366,8 +378,8 @@ fun PdfConverterScreen(
                   onDownloadToDownloads = {
                     viewModel.downloadToDownloads(
                       context = context,
-                      onSuccess = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
-                      onError = { err -> scope.launch { snackbarHostState.showSnackbar(err) } }
+                      onSuccess = { msg: String -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                      onError = { err: String -> scope.launch { snackbarHostState.showSnackbar(err) } }
                     )
                   },
                   onSaveToDevice = {
@@ -397,7 +409,12 @@ fun PdfConverterScreen(
               onConvertClick = {
                 viewModel.startConversion(context)
               },
-              isConverting = conversionState is ConversionState.Processing
+              isConverting = conversionState is ConversionState.Processing,
+              isBatchCleaning = isBatchCleaning,
+              batchCleanProgress = batchCleanProgress,
+              batchCleanStatusText = batchCleanStatusText,
+              onBatchCleanAllPages = { viewModel.batchCleanAllPages(context) },
+              onSaveGeminiApiKey = { key -> viewModel.saveGeminiApiKey(context, key) }
             )
           }
         }
@@ -447,11 +464,18 @@ fun PdfConverterScreen(
                 onRotateImageCcw = { id -> viewModel.rotateImage(context, id, clockwise = false) },
                 onRotateSelected = { viewModel.rotateSelected(context, clockwise = true) },
                 onSortByName = { ascending -> viewModel.sortByName(ascending) },
+                onSortByPageNumber = {
+                  viewModel.sortByPageNumber(context) { msg ->
+                    scope.launch { snackbarHostState.showSnackbar(msg) }
+                  }
+                },
                 onRemoveImage = { id -> viewModel.removeImage(id) },
                 onMoveUp = { idx -> viewModel.moveUp(idx) },
                 onMoveDown = { idx -> viewModel.moveDown(idx) },
                 onClearAll = { viewModel.clearAll() },
                 onViewExtractedText = { item, index -> viewingOcrItem = item to index },
+                onToggleEnhance = { id -> viewModel.toggleImageAiEnhancement(context, id) },
+                onCompareBeforeAfter = { item, index -> comparingImageItem = item to index },
                 gridColumns = 2
               )
             } else {
@@ -469,8 +493,8 @@ fun PdfConverterScreen(
                       onDownloadToDownloads = {
                         viewModel.downloadToDownloads(
                           context = context,
-                          onSuccess = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
-                          onError = { err -> scope.launch { snackbarHostState.showSnackbar(err) } }
+                          onSuccess = { msg: String -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+                          onError = { err: String -> scope.launch { snackbarHostState.showSnackbar(err) } }
                         )
                       },
                       onSaveToDevice = {
@@ -500,7 +524,12 @@ fun PdfConverterScreen(
                   onConvertClick = {
                     viewModel.startConversion(context)
                   },
-                  isConverting = conversionState is ConversionState.Processing
+                  isConverting = conversionState is ConversionState.Processing,
+                  isBatchCleaning = isBatchCleaning,
+                  batchCleanProgress = batchCleanProgress,
+                  batchCleanStatusText = batchCleanStatusText,
+                  onBatchCleanAllPages = { viewModel.batchCleanAllPages(context) },
+                  onSaveGeminiApiKey = { key -> viewModel.saveGeminiApiKey(context, key) }
                 )
               }
             }
@@ -515,6 +544,18 @@ fun PdfConverterScreen(
         item = item,
         pageIndex = index,
         onDismiss = { viewingOcrItem = null }
+      )
+    }
+
+    // Modal Before/After Studio Comparison Inspector Dialog
+    comparingImageItem?.let { (item, index) ->
+      val currentItem = images.find { it.id == item.id } ?: item
+      BeforeAfterCompareDialog(
+        item = currentItem,
+        pageIndex = index,
+        onDismiss = { comparingImageItem = null },
+        onRevertToOriginal = { viewModel.revertImageToOriginal(currentItem.id) },
+        onApplyEnhance = { viewModel.enhanceImage(context, currentItem.id) }
       )
     }
 
@@ -533,8 +574,8 @@ fun PdfConverterScreen(
         onDownloadAgain = {
           viewModel.downloadToDownloads(
             context = context,
-            onSuccess = { msg -> scope.launch { snackbarHostState.showSnackbar(msg) } },
-            onError = { err -> scope.launch { snackbarHostState.showSnackbar(err) } }
+            onSuccess = { msg: String -> scope.launch { snackbarHostState.showSnackbar(msg) } },
+            onError = { err: String -> scope.launch { snackbarHostState.showSnackbar(err) } }
           )
         },
         onSaveAs = {
@@ -546,7 +587,7 @@ fun PdfConverterScreen(
       )
     }
 
-    // Progress Dialog during generation
+    // Conversion In-Progress Dialog
     when (val state = conversionState) {
       is ConversionState.Processing -> {
         ConversionProgressDialog(
@@ -575,11 +616,14 @@ private fun PagesLayoutManagerPane(
   onRotateImageCcw: (String) -> Unit,
   onRotateSelected: () -> Unit,
   onSortByName: (Boolean) -> Unit,
+  onSortByPageNumber: () -> Unit = {},
   onRemoveImage: (String) -> Unit,
   onMoveUp: (Int) -> Unit,
   onMoveDown: (Int) -> Unit,
   onClearAll: () -> Unit,
   onViewExtractedText: (ImageItem, Int) -> Unit,
+  onToggleEnhance: (String) -> Unit = {},
+  onCompareBeforeAfter: (ImageItem, Int) -> Unit = { _, _ -> },
   gridColumns: Int,
   modifier: Modifier = Modifier,
 ) {
@@ -602,19 +646,19 @@ private fun PagesLayoutManagerPane(
           color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-          text = if (images.isNotEmpty()) "${images.size} pages • ${ImageItem.formatBytes(images.sumOf { it.sizeBytes })} raw" else "No pages added yet",
+          text = if (images.isEmpty()) "No pages added yet" else "${images.size} ${if (images.size == 1) "image" else "images"} queued",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
       }
 
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         if (images.isNotEmpty()) {
-          // Sort Menu Trigger
           Box {
             FilledTonalButton(
               onClick = { showSortMenu = true },
               shape = RoundedCornerShape(12.dp),
+              modifier = Modifier.testTag("sort_menu_button")
             ) {
               Icon(Icons.Default.SortByAlpha, contentDescription = null, modifier = Modifier.size(18.dp))
               Spacer(modifier = Modifier.width(6.dp))
@@ -626,14 +670,22 @@ private fun PagesLayoutManagerPane(
               onDismissRequest = { showSortMenu = false }
             ) {
               DropdownMenuItem(
-                text = { Text("Sort by Name (A-Z)") },
+                text = { Text("Auto-Sort by Page Number (OCR)", fontWeight = FontWeight.Bold) },
+                leadingIcon = { Icon(Icons.Default.AutoFixHigh, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+                onClick = {
+                  onSortByPageNumber()
+                  showSortMenu = false
+                }
+              )
+              DropdownMenuItem(
+                text = { Text("Sort by Name (A → Z)") },
                 onClick = {
                   onSortByName(true)
                   showSortMenu = false
                 }
               )
               DropdownMenuItem(
-                text = { Text("Sort by Name (Z-A)") },
+                text = { Text("Sort by Name (Z → A)") },
                 onClick = {
                   onSortByName(false)
                   showSortMenu = false
@@ -706,6 +758,8 @@ private fun PagesLayoutManagerPane(
               onMoveDown = { onMoveDown(index) },
               onRemove = { onRemoveImage(item.id) },
               onViewExtractedText = { onViewExtractedText(item, index) },
+              onToggleEnhance = { onToggleEnhance(item.id) },
+              onCompareBeforeAfter = { onCompareBeforeAfter(item, index) },
             )
           }
         }
@@ -720,21 +774,20 @@ private fun PagesLayoutManagerPane(
           shadowElevation = 8.dp,
           modifier = Modifier
             .align(Alignment.BottomCenter)
-            .fillMaxWidth()
-            .padding(bottom = 8.dp)
+            .padding(bottom = 12.dp)
+            .testTag("quick_action_bar")
         ) {
           Row(
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 12.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
           ) {
-            // Select All / Deselect Toggle
             val allSelected = selectedIds.size == images.size && images.isNotEmpty()
-            FilledTonalButton(
+
+            OutlinedButton(
               onClick = if (allSelected) onDeselectAll else onSelectAll,
-              shape = RoundedCornerShape(10.dp)
+              shape = RoundedCornerShape(10.dp),
+              modifier = Modifier.testTag("select_all_button")
             ) {
               Icon(
                 imageVector = if (allSelected) Icons.Default.Deselect else Icons.Default.SelectAll,
@@ -742,56 +795,54 @@ private fun PagesLayoutManagerPane(
                 modifier = Modifier.size(16.dp)
               )
               Spacer(modifier = Modifier.width(6.dp))
-              Text(
-                text = if (allSelected) "Deselect (${selectedIds.size})" else if (selectedIds.isNotEmpty()) "Select All (${selectedIds.size})" else "Select All",
-                style = MaterialTheme.typography.labelMedium
-              )
+              Text(if (allSelected) "Deselect" else "Select All")
             }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-              // Rotate Selected
-              FilledTonalButton(
-                onClick = onRotateSelected,
-                enabled = selectedIds.isNotEmpty(),
-                shape = RoundedCornerShape(10.dp)
-              ) {
-                Icon(Icons.Default.RotateRight, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Rotate 90°", style = MaterialTheme.typography.labelMedium)
-              }
+            OutlinedButton(
+              onClick = onReverseOrder,
+              shape = RoundedCornerShape(10.dp),
+              modifier = Modifier.testTag("reverse_order_button")
+            ) {
+              Icon(
+                imageVector = Icons.Default.SwapVert,
+                contentDescription = null,
+                modifier = Modifier.size(16.dp)
+              )
+              Spacer(modifier = Modifier.width(6.dp))
+              Text("Reverse")
+            }
 
-              // Reverse Order
-              FilledTonalButton(
-                onClick = onReverseOrder,
-                shape = RoundedCornerShape(10.dp)
-              ) {
-                Icon(Icons.Default.SwapVert, contentDescription = null, modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Reverse", style = MaterialTheme.typography.labelMedium)
-              }
-
-              // Delete Selected
+            if (selectedIds.isNotEmpty()) {
               OutlinedButton(
-                onClick = onDeleteSelected,
-                enabled = selectedIds.isNotEmpty(),
+                onClick = onRotateSelected,
                 shape = RoundedCornerShape(10.dp),
-                border = BorderStroke(
-                  1.dp,
-                  if (selectedIds.isNotEmpty()) PdfRed else MaterialTheme.colorScheme.outlineVariant
-                )
+                modifier = Modifier.testTag("rotate_selected_button")
               ) {
                 Icon(
-                  Icons.Default.DeleteSweep,
+                  imageVector = Icons.Default.RotateRight,
                   contentDescription = null,
-                  tint = if (selectedIds.isNotEmpty()) PdfRed else MaterialTheme.colorScheme.outline,
                   modifier = Modifier.size(16.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-                Text(
-                  text = "Delete (${selectedIds.size})",
-                  color = if (selectedIds.isNotEmpty()) PdfRed else MaterialTheme.colorScheme.outline,
-                  style = MaterialTheme.typography.labelMedium
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Rotate (${selectedIds.size})")
+              }
+
+              Button(
+                onClick = onDeleteSelected,
+                shape = RoundedCornerShape(10.dp),
+                colors = ButtonDefaults.buttonColors(
+                  containerColor = MaterialTheme.colorScheme.error,
+                  contentColor = MaterialTheme.colorScheme.onError
+                ),
+                modifier = Modifier.testTag("delete_selected_button")
+              ) {
+                Icon(
+                  imageVector = Icons.Default.DeleteSweep,
+                  contentDescription = null,
+                  modifier = Modifier.size(16.dp)
                 )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("Delete (${selectedIds.size})")
               }
             }
           }
@@ -808,11 +859,9 @@ private fun EmptyImagesPlaceholder(
 ) {
   Card(
     modifier = modifier,
-    shape = RoundedCornerShape(24.dp),
-    colors = CardDefaults.cardColors(
-      containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-    ),
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+    shape = RoundedCornerShape(20.dp),
+    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+    border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
   ) {
     Box(
       modifier = Modifier
@@ -824,104 +873,52 @@ private fun EmptyImagesPlaceholder(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
       ) {
-        Box(
-          modifier = Modifier
-            .size(96.dp)
-            .clip(CircleShape)
-            .background(MaterialTheme.colorScheme.primaryContainer),
-          contentAlignment = Alignment.Center
+        Surface(
+          shape = CircleShape,
+          color = MaterialTheme.colorScheme.primaryContainer,
+          modifier = Modifier.size(72.dp)
         ) {
-          Icon(
-            imageVector = Icons.Default.AddPhotoAlternate,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onPrimaryContainer,
-            modifier = Modifier.size(50.dp)
-          )
+          Box(contentAlignment = Alignment.Center) {
+            Icon(
+              imageVector = Icons.Default.AddPhotoAlternate,
+              contentDescription = null,
+              tint = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.size(36.dp)
+            )
+          }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(18.dp))
 
         Text(
-          text = "Pages & Layout Manager",
-          style = MaterialTheme.typography.headlineSmall,
+          text = "No Pages Queued",
+          style = MaterialTheme.typography.titleLarge,
           fontWeight = FontWeight.Bold,
           color = MaterialTheme.colorScheme.onSurface
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp))
 
         Text(
-          text = "Select JPG or PNG photos to assemble your PDF document. Rotate pages, reorder visually, and extract on-device OCR text in real time.",
+          text = "Import document photos, receipts, or screenshots.\nOrganize, rotate, smart-crop status bars, and export to PDF.",
           style = MaterialTheme.typography.bodyMedium,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.fillMaxWidth(0.75f),
           textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(22.dp))
 
         Button(
           onClick = onAddImagesClick,
-          shape = RoundedCornerShape(16.dp),
-          colors = ButtonDefaults.buttonColors(
-            containerColor = MaterialTheme.colorScheme.primary
-          ),
-          modifier = Modifier
-            .height(52.dp)
-            .testTag("empty_state_add_button")
+          shape = RoundedCornerShape(14.dp),
+          colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+          modifier = Modifier.height(48.dp)
         ) {
-          Icon(
-            imageVector = Icons.Default.AddPhotoAlternate,
-            contentDescription = null,
-            modifier = Modifier.size(20.dp)
-          )
+          Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(20.dp))
           Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Choose Images via Photo Picker",
-            style = MaterialTheme.typography.bodyLarge,
-            fontWeight = FontWeight.Bold
-          )
-        }
-
-        Spacer(modifier = Modifier.height(30.dp))
-
-        Row(
-          horizontalArrangement = Arrangement.spacedBy(14.dp),
-          verticalAlignment = Alignment.CenterVertically
-        ) {
-          HighlightPill("On-Device OCR")
-          HighlightPill("128-bit Encryption")
-          HighlightPill("Batch Processing")
+          Text("Select Photos & Documents", fontWeight = FontWeight.Bold)
         }
       }
-    }
-  }
-}
-
-@Composable
-private fun HighlightPill(text: String) {
-  Surface(
-    shape = RoundedCornerShape(20.dp),
-    color = MaterialTheme.colorScheme.surface,
-    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-  ) {
-    Row(
-      modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Icon(
-        imageVector = Icons.Default.CheckCircle,
-        contentDescription = null,
-        tint = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.size(14.dp)
-      )
-      Spacer(modifier = Modifier.width(6.dp))
-      Text(
-        text = text,
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Medium,
-        color = MaterialTheme.colorScheme.onSurface
-      )
     }
   }
 }

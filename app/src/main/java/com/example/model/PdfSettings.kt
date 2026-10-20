@@ -18,6 +18,11 @@ enum class PageMargin(val label: String, val points: Float) {
   MEDIUM("Medium", 36f), // 0.5 inch at 72dpi
 }
 
+enum class SmartCropMode(val label: String, val shortLabel: String, val description: String) {
+  OFFLINE_OCR_EDGE("Smart Offline (OCR + Edge)", "Smart Offline", "Fast on-device luminance edge & OCR detection"),
+  GEMINI_VISION("Gemini AI Vision", "Gemini AI Vision", "Cloud AI multimodal vision for exact book page boundaries"),
+}
+
 data class PdfSettings(
   val enableCompression: Boolean = true,
   val jpegQuality: Int = 80, // 10..100
@@ -31,6 +36,12 @@ data class PdfSettings(
   val ownerPassword: String = "",
   // Searchable PDF with OCR layer
   val embedSearchableText: Boolean = true,
+  // AI Book & Screenshot Studio
+  val autoRemoveBorders: Boolean = false,
+  val superResolutionEnhancer: Boolean = false,
+  val splitDualPageSpread: Boolean = false,
+  val cropMode: SmartCropMode = SmartCropMode.OFFLINE_OCR_EDGE,
+  val customGeminiApiKey: String = "",
 ) {
   val qualityDescription: String
     get() = when {

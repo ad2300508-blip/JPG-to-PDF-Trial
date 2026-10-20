@@ -7,6 +7,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -21,22 +22,35 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Compress
-import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.AspectRatio
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Cloud
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
@@ -63,6 +77,10 @@ import com.example.model.DownscaleResolution
 import com.example.model.PageMargin
 import com.example.model.PdfPageSize
 import com.example.model.PdfSettings
+import com.example.model.SmartCropMode
+import com.example.ui.theme.PdfGreen
+import com.example.ui.theme.PdfOrange
+import com.example.ui.theme.PdfPurple
 
 @Composable
 fun SettingsPanel(
@@ -73,10 +91,17 @@ fun SettingsPanel(
   estimatedPdfBytes: Long,
   onConvertClick: () -> Unit,
   isConverting: Boolean,
+  isBatchCleaning: Boolean = false,
+  batchCleanProgress: Float = 0f,
+  batchCleanStatusText: String = "",
+  onBatchCleanAllPages: () -> Unit = {},
+  onSaveGeminiApiKey: (String) -> Unit = {},
   modifier: Modifier = Modifier,
 ) {
   var showUserPassword by remember { mutableStateOf(false) }
   var showOwnerPassword by remember { mutableStateOf(false) }
+  var showApiKey by remember { mutableStateOf(false) }
+  var enteredApiKey by remember(settings.customGeminiApiKey) { mutableStateOf(settings.customGeminiApiKey) }
 
   Column(
     modifier = modifier.fillMaxWidth(),
@@ -96,15 +121,15 @@ fun SettingsPanel(
           .padding(18.dp)
       ) {
         SectionHeader(
-          icon = Icons.Default.Compress,
+          icon = Icons.Default.Tune,
           title = "Compression Engine",
-          badge = if (settings.enableCompression) "Enabled" else "Direct",
-          badgeColor = if (settings.enableCompression) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+          badge = if (settings.enableCompression) "Active" else "Off",
+          badgeColor = if (settings.enableCompression) PdfGreen else MaterialTheme.colorScheme.outline
         )
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Enable Compression Toggle Row
+        // Master Compression Toggle Row
         Surface(
           shape = RoundedCornerShape(14.dp),
           color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
@@ -120,13 +145,13 @@ fun SettingsPanel(
           ) {
             Column(modifier = Modifier.weight(1f)) {
               Text(
-                text = "Enable Smart Compression",
+                text = "Smart Image Compression",
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurface
               )
               Text(
-                text = "Reduces output size dynamically without losing visual fidelity",
+                text = "Reduces PDF file size up to 90% while preserving document sharpness",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
               )
@@ -156,7 +181,7 @@ fun SettingsPanel(
           Column(modifier = Modifier.fillMaxWidth()) {
             Spacer(modifier = Modifier.height(18.dp))
 
-            // JPEG Quality Slider with Live Badge
+            // JPEG Quality Slider with Live Value Indicator
             Row(
               modifier = Modifier.fillMaxWidth(),
               horizontalArrangement = Arrangement.SpaceBetween,
@@ -164,7 +189,7 @@ fun SettingsPanel(
             ) {
               Column {
                 Text(
-                  text = "JPEG Quality",
+                  text = "JPEG Image Quality",
                   style = MaterialTheme.typography.bodyMedium,
                   fontWeight = FontWeight.SemiBold,
                   color = MaterialTheme.colorScheme.onSurface
@@ -249,7 +274,7 @@ fun SettingsPanel(
       }
     }
 
-    // 2. Page Configuration Card
+    // 2. AI Book & Screenshot Studio Card
     Card(
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -263,17 +288,183 @@ fun SettingsPanel(
           .padding(18.dp)
       ) {
         SectionHeader(
-          icon = Icons.Default.Description,
-          title = "Page Configuration",
-          badge = settings.pageSize.label,
-          badgeColor = MaterialTheme.colorScheme.secondary
+          icon = Icons.Default.AutoFixHigh,
+          title = "Universal Smart Screenshot Cleaner",
+          badge = "Zero-Loss Trimmer",
+          badgeColor = PdfPurple
         )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Explanatory callout
+        Surface(
+          shape = RoundedCornerShape(12.dp),
+          color = PdfPurple.copy(alpha = 0.08f),
+          border = BorderStroke(1.dp, PdfPurple.copy(alpha = 0.2f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier.padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+          ) {
+            Icon(
+              imageVector = Icons.Default.PhoneAndroid,
+              contentDescription = null,
+              tint = PdfPurple,
+              modifier = Modifier.size(22.dp)
+            )
+            Text(
+              text = "Universal engine for e-books, web pages, chats, documents & system UI. Strips status bars, navigation bars, pillarboxes, and dynamic floating toasts with content-aware 3% uniform frame padding.",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurface
+            )
+          }
+        }
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Page Size Segmented Choice
+        // Toggle 1: Auto-Crop Borders & Remove UI Chrome
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Auto-Crop Borders & Remove UI Chrome",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Text(
+                text = "Strips top status bar, bottom nav bar, letterboxes & neutralizes intrusive floating toasts with uniform 3% frame",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Switch(
+              checked = settings.autoRemoveBorders,
+              onCheckedChange = { isEnabled ->
+                onSettingsChanged { it.copy(autoRemoveBorders = isEnabled) }
+              },
+              colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = PdfPurple,
+              ),
+              modifier = Modifier.testTag("auto_remove_borders_switch")
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Toggle 2: Text & Diagram Super-Resolution Sharpening
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Text & Diagram Super-Resolution Sharpening",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Text(
+                text = "Dynamic overlay eraser + luminance-only typography unsharp mask + background paper whitening (#FFFFFF)",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Switch(
+              checked = settings.superResolutionEnhancer,
+              onCheckedChange = { isEnabled ->
+                onSettingsChanged { it.copy(superResolutionEnhancer = isEnabled) }
+              },
+              colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = PdfPurple,
+              ),
+              modifier = Modifier.testTag("super_resolution_switch")
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        // Toggle 3: Split Dual-Page Spread (2-Up to 1-Up)
+        Surface(
+          shape = RoundedCornerShape(14.dp),
+          color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+          border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.35f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                text = "Split Dual-Page Book Spreads",
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+              )
+              Text(
+                text = "Splits landscape spreads (e.g., Zanichelli/bSmart) into 2 sequential portrait pages (Left first, Right second) & erases spine shadow",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+              )
+            }
+
+            Spacer(modifier = Modifier.width(10.dp))
+
+            Switch(
+              checked = settings.splitDualPageSpread,
+              onCheckedChange = { isEnabled ->
+                onSettingsChanged { it.copy(splitDualPageSpread = isEnabled) }
+              },
+              colors = SwitchDefaults.colors(
+                checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                checkedTrackColor = PdfPurple,
+              ),
+              modifier = Modifier.testTag("split_dual_page_switch")
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Crop Mode Selector (Offline vs Gemini AI)
         Text(
-          text = "Page Dimensions",
+          text = "Crop Detection Engine",
           style = MaterialTheme.typography.bodyMedium,
           fontWeight = FontWeight.SemiBold,
           color = MaterialTheme.colorScheme.onSurface
@@ -284,23 +475,200 @@ fun SettingsPanel(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          PdfPageSize.values().forEach { sizeOption ->
-            val isSelected = settings.pageSize == sizeOption
-            SegmentedChoiceButton(
-              label = sizeOption.label,
-              subtitle = sizeOption.description,
-              isSelected = isSelected,
-              onClick = { onSettingsChanged { it.copy(pageSize = sizeOption) } },
-              modifier = Modifier.weight(1f)
+          SmartCropMode.values().forEach { mode ->
+            val isSelected = settings.cropMode == mode
+            Surface(
+              shape = RoundedCornerShape(12.dp),
+              color = if (isSelected) PdfPurple.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+              border = BorderStroke(
+                if (isSelected) 2.dp else 1.dp,
+                if (isSelected) PdfPurple else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+              ),
+              modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(12.dp))
+                .clickable {
+                  onSettingsChanged { it.copy(cropMode = mode) }
+                }
+                .testTag("crop_mode_${mode.name}")
+            ) {
+              Column(
+                modifier = Modifier.padding(10.dp),
+                verticalArrangement = Arrangement.Center
+              ) {
+                Row(
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                  Icon(
+                    imageVector = if (mode == SmartCropMode.OFFLINE_OCR_EDGE) Icons.Default.Crop else Icons.Default.Cloud,
+                    contentDescription = null,
+                    tint = if (isSelected) PdfPurple else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(16.dp)
+                  )
+                  Text(
+                    text = mode.shortLabel,
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) PdfPurple else MaterialTheme.colorScheme.onSurface
+                  )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                  text = mode.description,
+                  style = MaterialTheme.typography.labelSmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  maxLines = 2
+                )
+              }
+            }
+          }
+        }
+
+        // Collapsible Gemini API Key field
+        AnimatedVisibility(
+          visible = settings.cropMode == SmartCropMode.GEMINI_VISION,
+          enter = fadeIn() + expandVertically(),
+          exit = fadeOut() + shrinkVertically()
+        ) {
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(top = 12.dp)
+          ) {
+            OutlinedTextField(
+              value = enteredApiKey,
+              onValueChange = { enteredApiKey = it },
+              label = { Text("Gemini API Key (Optional)") },
+              placeholder = { Text("Leaves blank to use AI Studio system key") },
+              singleLine = true,
+              visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+              trailingIcon = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                  IconButton(onClick = { showApiKey = !showApiKey }) {
+                    Icon(
+                      imageVector = if (showApiKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                      contentDescription = if (showApiKey) "Hide key" else "Show key"
+                    )
+                  }
+                  IconButton(
+                    onClick = {
+                      onSaveGeminiApiKey(enteredApiKey)
+                    }
+                  ) {
+                    Icon(
+                      imageVector = Icons.Default.Save,
+                      contentDescription = "Save key",
+                      tint = MaterialTheme.colorScheme.primary
+                    )
+                  }
+                }
+              },
+              shape = RoundedCornerShape(14.dp),
+              modifier = Modifier
+                .fillMaxWidth()
+                .testTag("gemini_api_key_input")
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+              text = "Calls Google Gemini Flash Vision API for exact page boundary detection. Falls back automatically to local detector if offline.",
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
             )
           }
         }
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Margins Segmented Choice
+        // Batch Clean All Pages Now Button
+        Button(
+          onClick = onBatchCleanAllPages,
+          enabled = imageCount > 0 && !isBatchCleaning,
+          colors = ButtonDefaults.buttonColors(
+            containerColor = PdfPurple,
+            contentColor = Color.White,
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
+          ),
+          shape = RoundedCornerShape(14.dp),
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(50.dp)
+            .testTag("batch_clean_all_pages_button")
+        ) {
+          if (isBatchCleaning) {
+            CircularProgressIndicator(
+              modifier = Modifier.size(18.dp),
+              strokeWidth = 2.dp,
+              color = Color.White
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+              text = "Cleaning Screenshots...",
+              style = MaterialTheme.typography.titleSmall,
+              fontWeight = FontWeight.Bold
+            )
+          } else {
+            Icon(
+              imageVector = Icons.Default.AutoFixHigh,
+              contentDescription = null,
+              modifier = Modifier.size(20.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+              text = if (imageCount > 0) "Batch Clean All $imageCount Screenshots Now" else "Add Images to Batch Clean",
+              style = MaterialTheme.typography.titleSmall,
+              fontWeight = FontWeight.Bold
+            )
+          }
+        }
+
+        // Live Batch Progress Indicator
+        if (isBatchCleaning) {
+          Spacer(modifier = Modifier.height(8.dp))
+          LinearProgressIndicator(
+            progress = { batchCleanProgress },
+            modifier = Modifier
+              .fillMaxWidth()
+              .clip(RoundedCornerShape(4.dp)),
+            color = PdfPurple,
+            trackColor = MaterialTheme.colorScheme.surfaceVariant
+          )
+          Spacer(modifier = Modifier.height(4.dp))
+          Text(
+            text = batchCleanStatusText,
+            style = MaterialTheme.typography.labelSmall,
+            color = PdfPurple,
+            fontWeight = FontWeight.Medium
+          )
+        }
+      }
+    }
+
+    // 3. Page Layout & Margins Card
+    Card(
+      shape = RoundedCornerShape(20.dp),
+      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+      border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)),
+      elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+      modifier = Modifier.fillMaxWidth()
+    ) {
+      Column(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(18.dp)
+      ) {
+        SectionHeader(
+          icon = Icons.Default.AspectRatio,
+          title = "Page Format & Sizing",
+          badge = settings.pageSize.label,
+          badgeColor = MaterialTheme.colorScheme.secondary
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Page Size Segmented Buttons
         Text(
-          text = "Page Margins",
+          text = "PDF Canvas Dimensions",
           style = MaterialTheme.typography.bodyMedium,
           fontWeight = FontWeight.SemiBold,
           color = MaterialTheme.colorScheme.onSurface
@@ -311,13 +679,44 @@ fun SettingsPanel(
           modifier = Modifier.fillMaxWidth(),
           horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-          PageMargin.values().forEach { marginOption ->
-            val isSelected = settings.pageMargin == marginOption
-            SegmentedChoiceButton(
-              label = marginOption.label,
-              subtitle = if (marginOption.points > 0) "${marginOption.points.toInt()} pt" else "0 pt",
+          PdfPageSize.values().forEach { size ->
+            val isSelected = settings.pageSize == size
+            OptionChipButton(
+              text = size.label,
+              subtitle = size.description,
               isSelected = isSelected,
-              onClick = { onSettingsChanged { it.copy(pageMargin = marginOption) } },
+              onClick = {
+                onSettingsChanged { it.copy(pageSize = size) }
+              },
+              modifier = Modifier.weight(1f)
+            )
+          }
+        }
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Margins Selector
+        SectionHeader(
+          icon = Icons.Default.Straighten,
+          title = "Document Margins",
+          badge = settings.pageMargin.label,
+          badgeColor = MaterialTheme.colorScheme.tertiary
+        )
+        Spacer(modifier = Modifier.height(10.dp))
+
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+          PageMargin.values().forEach { margin ->
+            val isSelected = settings.pageMargin == margin
+            OptionChipButton(
+              text = margin.label,
+              subtitle = "${margin.points.toInt()} pt",
+              isSelected = isSelected,
+              onClick = {
+                onSettingsChanged { it.copy(pageMargin = margin) }
+              },
               modifier = Modifier.weight(1f)
             )
           }
@@ -325,7 +724,7 @@ fun SettingsPanel(
       }
     }
 
-    // 3. Password & Enterprise Encryption Card
+    // 4. Enterprise Password Encryption Card
     Card(
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -339,9 +738,9 @@ fun SettingsPanel(
           .padding(18.dp)
       ) {
         SectionHeader(
-          icon = Icons.Default.Lock,
+          icon = Icons.Default.Security,
           title = "Document Security & Encryption",
-          badge = if (settings.enableEncryption) "128-bit Encrypted" else "No Password",
+          badge = if (settings.enableEncryption) "Protected" else "Unencrypted",
           badgeColor = if (settings.enableEncryption) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.outline
         )
 
@@ -449,31 +848,55 @@ fun SettingsPanel(
                 .testTag("owner_password_input")
             )
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Security Information Banner
-            Surface(
-              shape = RoundedCornerShape(12.dp),
-              color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
-              border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.3f)),
-              modifier = Modifier.fillMaxWidth()
-            ) {
-              Row(
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
+            if (!settings.hasValidPassword) {
+              Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                modifier = Modifier.fillMaxWidth()
               ) {
-                Icon(
-                  imageVector = Icons.Default.Security,
-                  contentDescription = null,
-                  tint = MaterialTheme.colorScheme.error,
-                  modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                  text = "Enterprise Standard 128-bit AES encryption protects pages from unauthorized viewing, printing, and extraction.",
-                  style = MaterialTheme.typography.bodySmall,
-                  color = MaterialTheme.colorScheme.onErrorContainer
-                )
+                Row(
+                  modifier = Modifier.padding(10.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                  Icon(
+                    imageVector = Icons.Default.Warning,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(18.dp)
+                  )
+                  Text(
+                    text = "Please enter a user password to encrypt the document.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                  )
+                }
+              }
+            } else {
+              Surface(
+                shape = RoundedCornerShape(10.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
+                modifier = Modifier.fillMaxWidth()
+              ) {
+                Row(
+                  modifier = Modifier.padding(10.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                  Icon(
+                    imageVector = Icons.Default.Lock,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                  )
+                  Text(
+                    text = "128-bit AES/Standard encryption will be embedded directly into the PDF.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurface
+                  )
+                }
               }
             }
           }
@@ -481,7 +904,7 @@ fun SettingsPanel(
       }
     }
 
-    // 4. Local OCR Text Recognition & Searchable PDF Card
+    // 5. Searchable OCR Text Layer Card
     Card(
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -496,8 +919,8 @@ fun SettingsPanel(
       ) {
         SectionHeader(
           icon = Icons.Default.TextFields,
-          title = "Searchable PDF (OCR Engine)",
-          badge = if (settings.embedSearchableText) "OCR Active" else "Off",
+          title = "Searchable PDF (ML Kit OCR)",
+          badge = if (settings.embedSearchableText) "Searchable" else "Image Only",
           badgeColor = if (settings.embedSearchableText) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.outline
         )
 
@@ -548,7 +971,7 @@ fun SettingsPanel(
       }
     }
 
-    // 5. Document Name Card
+    // 6. Document Name Card
     Card(
       shape = RoundedCornerShape(20.dp),
       colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
@@ -600,7 +1023,7 @@ fun SettingsPanel(
       }
     }
 
-    // 6. Live Compression Savings Gauge
+    // 7. Live Compression Savings Gauge
     LiveSizeEstimatorCard(
       imageCount = imageCount,
       rawSizeBytes = rawSizeBytes,
@@ -608,7 +1031,7 @@ fun SettingsPanel(
       settings = settings
     )
 
-    // 7. High-Impact Convert & Export Action
+    // 8. High-Impact Convert & Export Action
     Button(
       onClick = onConvertClick,
       enabled = imageCount > 0 && !isConverting && settings.hasValidPassword,
@@ -652,22 +1075,25 @@ private fun SectionHeader(
     horizontalArrangement = Arrangement.SpaceBetween,
     verticalAlignment = Alignment.CenterVertically
   ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      Box(
-        modifier = Modifier
-          .size(34.dp)
-          .clip(CircleShape)
-          .background(MaterialTheme.colorScheme.surfaceVariant),
-        contentAlignment = Alignment.Center
+    Row(
+      verticalAlignment = Alignment.CenterVertically,
+      horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+      Surface(
+        shape = CircleShape,
+        color = badgeColor.copy(alpha = 0.15f),
+        contentColor = badgeColor,
+        modifier = Modifier.size(32.dp)
       ) {
-        Icon(
-          imageVector = icon,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(18.dp)
-        )
+        Box(contentAlignment = Alignment.Center) {
+          Icon(
+            imageVector = icon,
+            contentDescription = null,
+            modifier = Modifier.size(18.dp)
+          )
+        }
       }
-      Spacer(modifier = Modifier.width(10.dp))
+
       Text(
         text = title,
         style = MaterialTheme.typography.titleMedium,
@@ -677,8 +1103,8 @@ private fun SectionHeader(
     }
 
     Surface(
-      shape = RoundedCornerShape(10.dp),
-      color = badgeColor.copy(alpha = 0.12f),
+      shape = RoundedCornerShape(8.dp),
+      color = badgeColor.copy(alpha = 0.15f),
       contentColor = badgeColor
     ) {
       Text(
@@ -697,56 +1123,54 @@ private fun ResolutionSegmentRow(
   isSelected: Boolean,
   onClick: () -> Unit,
 ) {
+  val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+  val containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+
   Surface(
     shape = RoundedCornerShape(12.dp),
-    border = BorderStroke(
-      width = if (isSelected) 1.5.dp else 1.dp,
-      color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    ),
-    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surface,
+    color = containerColor,
+    border = BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor),
     modifier = Modifier
       .fillMaxWidth()
       .clip(RoundedCornerShape(12.dp))
       .clickable(onClick = onClick)
-      .testTag("downscale_option_${option.name.lowercase()}")
+      .testTag("res_option_${option.name}")
   ) {
     Row(
       modifier = Modifier
         .fillMaxWidth()
         .padding(horizontal = 14.dp, vertical = 10.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.SpaceBetween
+      horizontalArrangement = Arrangement.SpaceBetween,
+      verticalAlignment = Alignment.CenterVertically
     ) {
       Column {
         Text(
           text = option.label,
           style = MaterialTheme.typography.bodyMedium,
           fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-          color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+          color = MaterialTheme.colorScheme.onSurface
         )
         Text(
           text = option.description,
-          style = MaterialTheme.typography.bodySmall,
+          style = MaterialTheme.typography.labelSmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant
         )
       }
 
-      Box(
-        modifier = Modifier
-          .size(20.dp)
-          .clip(CircleShape)
-          .background(
-            if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
-          ),
-        contentAlignment = Alignment.Center
-      ) {
-        if (isSelected) {
-          Box(
-            modifier = Modifier
-              .size(8.dp)
-              .clip(CircleShape)
-              .background(MaterialTheme.colorScheme.onPrimary)
-          )
+      if (isSelected) {
+        Surface(
+          shape = CircleShape,
+          color = MaterialTheme.colorScheme.primary,
+          contentColor = MaterialTheme.colorScheme.onPrimary,
+          modifier = Modifier.size(20.dp)
+        ) {
+          Box(contentAlignment = Alignment.Center) {
+            Icon(
+              imageVector = Icons.Default.Check,
+              contentDescription = "Selected",
+              modifier = Modifier.size(14.dp)
+            )
+          }
         }
       }
     }
@@ -754,20 +1178,20 @@ private fun ResolutionSegmentRow(
 }
 
 @Composable
-private fun SegmentedChoiceButton(
-  label: String,
+private fun OptionChipButton(
+  text: String,
   subtitle: String,
   isSelected: Boolean,
   onClick: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val borderColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+  val containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
+
   Surface(
     shape = RoundedCornerShape(12.dp),
-    border = BorderStroke(
-      width = if (isSelected) 1.5.dp else 1.dp,
-      color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-    ),
-    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+    color = containerColor,
+    border = BorderStroke(if (isSelected) 2.dp else 1.dp, borderColor),
     modifier = modifier
       .clip(RoundedCornerShape(12.dp))
       .clickable(onClick = onClick)
@@ -775,20 +1199,20 @@ private fun SegmentedChoiceButton(
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .padding(horizontal = 10.dp, vertical = 10.dp),
+        .padding(10.dp),
       horizontalAlignment = Alignment.CenterHorizontally
     ) {
       Text(
-        text = label,
+        text = text,
         style = MaterialTheme.typography.bodyMedium,
         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
         color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
       )
+      Spacer(modifier = Modifier.height(2.dp))
       Text(
         text = subtitle,
         style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        maxLines = 1
+        color = MaterialTheme.colorScheme.onSurfaceVariant
       )
     }
   }

@@ -127,6 +127,19 @@ object ImageUtils {
   }
 
   /**
+   * Loads a full bitmap from uri.
+   */
+  suspend fun loadBitmap(context: Context, uri: Uri): Bitmap? = withContext(Dispatchers.IO) {
+    try {
+      context.contentResolver.openInputStream(uri)?.use { stream ->
+        BitmapFactory.decodeStream(stream)
+      }
+    } catch (_: Exception) {
+      null
+    }
+  }
+
+  /**
    * Decodes, corrects EXIF orientation, applies downscaling, compresses into JPEG byte stream,
    * and decodes back the compressed bitmap so PDF renderer receives genuinely compressed image.
    */

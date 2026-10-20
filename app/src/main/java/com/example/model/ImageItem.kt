@@ -14,15 +14,37 @@ data class ImageItem(
   val ocrText: String? = null,
   val ocrBlocks: List<OcrBlock> = emptyList(),
   val isOcrScanning: Boolean = false,
+  // AI Smart Book Crop & Super-Resolution Enhancer properties
+  val originalUri: Uri = uri,
+  val enhancedUri: Uri? = null,
+  val enhancedWidth: Int? = null,
+  val enhancedHeight: Int? = null,
+  val enhancedSizeBytes: Long? = null,
+  val isAiEnhanced: Boolean = false,
+  val isEnhancing: Boolean = false,
+  val enhancementDetails: String? = null,
+  val detectedPageBadge: String? = null,
 ) {
+  val activeUri: Uri
+    get() = if (isAiEnhanced && enhancedUri != null) enhancedUri else uri
+
+  val currentWidth: Int
+    get() = if (isAiEnhanced && enhancedWidth != null && enhancedWidth > 0) enhancedWidth else width
+
+  val currentHeight: Int
+    get() = if (isAiEnhanced && enhancedHeight != null && enhancedHeight > 0) enhancedHeight else height
+
+  val currentSizeBytes: Long
+    get() = if (isAiEnhanced && enhancedSizeBytes != null && enhancedSizeBytes > 0) enhancedSizeBytes else sizeBytes
+
   val formattedSize: String
-    get() = formatBytes(sizeBytes)
+    get() = formatBytes(currentSizeBytes)
 
   val effectiveWidth: Int
-    get() = if (rotationDegrees % 180 != 0) height else width
+    get() = if (rotationDegrees % 180 != 0) currentHeight else currentWidth
 
   val effectiveHeight: Int
-    get() = if (rotationDegrees % 180 != 0) width else height
+    get() = if (rotationDegrees % 180 != 0) currentWidth else currentHeight
 
   val dimensionsText: String
     get() = if (effectiveWidth > 0 && effectiveHeight > 0) "${effectiveWidth} × ${effectiveHeight}" else "Unknown"

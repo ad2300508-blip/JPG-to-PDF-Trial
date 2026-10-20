@@ -70,6 +70,60 @@ object OcrUtils {
     }
   }
 
+  /**
+   * Scans OCR blocks specifically targeting bottom areas of the image/spread
+   * to extract printed book page numbers (e.g. 366, 367, or range 366-367).
+   * Returns a Pair of (primaryPageNumber, badgeText) e.g. (366, "p. 366-367") or null if not detected.
+   */
+  fun extractBookPageNumber(blocks: List<OcrBlock>, imageHeight: Int, imageWidth: Int): Pair<Int, String>? {
+    if (blocks.isEmpty() || imageHeight <= 0) return null
+
+    // Bottom 18% of screen is typical textbook pagination zone
+    val bottomThreshold = imageHeight * 0.80f
+    val pageNumberCandidates = mutableListOf<Pair<Int, Int>>() // Pair of (X coordinate, parsedInt)
+
+    // Regex to match standalone 1 to 4 digit page numbers (e.g. "366", "Page 366", "pag. 366")
+    val pageRegex = """\b(?:p(?:ag)?\.?\s*)?(\d{1,4})\b""".toRegex(RegexOption.IGNORE_CASE)
+
+    for (block in blocks) {
+      val box = block.boundingBox ?: continue
+      // Must be in bottom region or extreme top corners (some books place page numbers at top outside edges)
+      val isBottom = box.bottom >= bottomThreshold
+      val isTopCorner = box.top <= imageHeight * 0.12f && (box.left < imageWidth * 0.20f || box.right > imageWidth * 0.80f)
+
+      if (isBottom || isTopCorner) {
+        val matches = pageRegex.findAll(block.text)
+        for (match in matches) {
+          val numStr = match.groupValues[1]
+          val num = numStr.toIntOrNull() ?: continue
+          // Filter out clock times (e.g. 1045, 1230, etc.) or huge years unless reasonable page numbers
+          if (num in 1..2500) {
+            val centerX = (box.left + box.right) / 2
+            pageNumberCandidates.add(centerX to num)
+          }
+        }
+      }
+    }
+
+    if (pageNumberCandidates.isEmpty()) return null
+
+    // Sort candidates by horizontal X position (left to right)
+    val sorted = pageNumberCandidates.sortedBy { it.first }
+    val numbers = sorted.map { it.second }.distinct()
+
+    return if (numbers.size >= 2) {
+      val minPage = numbers.minOrNull() ?: numbers.first()
+      val maxPage = numbers.maxOrNull() ?: numbers.last()
+      if (maxPage - minPage in 1..2) {
+        minPage to "p. $minPage–$maxPage"
+      } else {
+        numbers.first() to "p. ${numbers.first()}"
+      }
+    } else {
+      numbers.first() to "p. ${numbers.first()}"
+    }
+  }
+
   private suspend fun <T> Task<T>.await(): T = suspendCancellableCoroutine { cont ->
     addOnSuccessListener { result -> cont.resume(result) }
     addOnFailureListener { exception -> cont.resumeWithException(exception) }

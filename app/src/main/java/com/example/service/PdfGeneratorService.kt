@@ -1,6 +1,7 @@
 package com.example.service
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.RectF
@@ -80,46 +81,90 @@ object PdfGeneratorService {
         onProgress(index, total, "Processing page ${index + 1} of $total...")
 
         // Process image with downsampling, EXIF rotation, user rotation, and genuine JPEG compression
-        val processed = ImageUtils.processImage(context, item.uri, item.rotationDegrees, settings)
-        val bitmap = processed.bitmap
+        val processed = ImageUtils.processImage(context, item.activeUri, item.rotationDegrees, settings)
+        var bitmap = processed.bitmap
 
-        val (pageWidth, pageHeight, destRect) = calculatePageLayout(
-          bitmapWidth = bitmap.width,
-          bitmapHeight = bitmap.height,
-          pageSize = settings.pageSize,
-          marginPoints = settings.pageMargin.points,
-        )
-
-        val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, index + 1).create()
-        val page = pdfDocument.startPage(pageInfo)
-        val canvas = page.canvas
-
-        // Clean white background
-        canvas.drawColor(Color.WHITE)
-
-        // Draw image into destination rectangle
-        canvas.drawBitmap(bitmap, null, destRect, paint)
-
-        // Embed invisible searchable OCR text layer into the PDF document stream
-        if (settings.embedSearchableText && item.hasOcrResult && item.ocrBlocks.isNotEmpty()) {
-          val scaleX = destRect.width() / bitmap.width.toFloat()
-          val scaleY = destRect.height() / bitmap.height.toFloat()
-
-          for (block in item.ocrBlocks) {
-            val box = block.boundingBox
-            if (box != null && block.text.isNotBlank()) {
-              val drawX = destRect.left + (box.left * scaleX).coerceAtLeast(0f)
-              val drawY = destRect.top + (box.bottom * scaleY).coerceAtMost(destRect.height())
-              canvas.drawText(block.text, drawX, drawY, ocrTextPaint)
-              totalWordsEmbedded += block.text.split("\\s+".toRegex()).count { it.isNotBlank() }
+        // Apply on-the-fly Book Screenshot Auto-Crop & Super-Resolution if globally enabled and not already cleaned
+        if (!item.isAiEnhanced) {
+          if (settings.autoRemoveBorders) {
+            val cropResult = com.example.util.SmartCropUtils.autoCropBookScreenshot(
+              bitmap = bitmap,
+              ocrBlocks = item.ocrBlocks,
+              cropMode = settings.cropMode,
+              customGeminiApiKey = settings.customGeminiApiKey,
+            )
+            if (cropResult.croppedBitmap != bitmap) {
+              bitmap.recycle()
+              bitmap = cropResult.croppedBitmap
+            }
+          }
+          if (settings.superResolutionEnhancer) {
+            val enhancedResult = com.example.util.ImageEnhancerUtils.enhanceBookImage(
+              source = bitmap,
+              enableUpscale = true,
+              enableSharpening = true,
+              enableBackgroundCleaning = true,
+            )
+            if (enhancedResult.enhancedBitmap != bitmap) {
+              bitmap.recycle()
+              bitmap = enhancedResult.enhancedBitmap
             }
           }
         }
 
-        pdfDocument.finishPage(page)
+        // Handle dual-page split option when image is landscape spread
+        val bitmapsToRender = mutableListOf<Bitmap>()
+        val shouldSplitSpread = settings.splitDualPageSpread && (bitmap.width > bitmap.height * 1.25f)
 
-        // CRITICAL: Recycle bitmap immediately to prevent OOM
-        bitmap.recycle()
+        if (shouldSplitSpread) {
+          val (leftBmp, rightBmp) = com.example.util.SmartCropUtils.splitLandscapeDualPage(bitmap)
+          bitmapsToRender.add(leftBmp)
+          bitmapsToRender.add(rightBmp)
+          bitmap.recycle() // Recycle original spread bitmap
+        } else {
+          bitmapsToRender.add(bitmap)
+        }
+
+        for (subBitmap in bitmapsToRender) {
+          val (pageWidth, pageHeight, destRect) = calculatePageLayout(
+            bitmapWidth = subBitmap.width,
+            bitmapHeight = subBitmap.height,
+            pageSize = settings.pageSize,
+            marginPoints = settings.pageMargin.points,
+          )
+
+          val currentPageNumber = pdfDocument.pages.size + 1
+          val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, currentPageNumber).create()
+          val page = pdfDocument.startPage(pageInfo)
+          val canvas = page.canvas
+
+          // Clean white background
+          canvas.drawColor(Color.WHITE)
+
+          // Draw image into destination rectangle
+          canvas.drawBitmap(subBitmap, null, destRect, paint)
+
+          // Embed invisible searchable OCR text layer into the PDF document stream
+          if (!shouldSplitSpread && settings.embedSearchableText && item.hasOcrResult && item.ocrBlocks.isNotEmpty()) {
+            val scaleX = destRect.width() / subBitmap.width.toFloat()
+            val scaleY = destRect.height() / subBitmap.height.toFloat()
+
+            for (block in item.ocrBlocks) {
+              val box = block.boundingBox
+              if (box != null && block.text.isNotBlank()) {
+                val drawX = destRect.left + (box.left * scaleX).coerceAtLeast(0f)
+                val drawY = destRect.top + (box.bottom * scaleY).coerceAtMost(destRect.height())
+                canvas.drawText(block.text, drawX, drawY, ocrTextPaint)
+                totalWordsEmbedded += block.text.split("\\s+".toRegex()).count { it.isNotBlank() }
+              }
+            }
+          }
+
+          pdfDocument.finishPage(page)
+
+          // CRITICAL: Recycle subBitmap immediately to prevent OOM
+          subBitmap.recycle()
+        }
 
         onProgress(index + 1, total, "Completed page ${index + 1} of $total")
       }

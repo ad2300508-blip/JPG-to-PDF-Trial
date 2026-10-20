@@ -5,7 +5,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -24,8 +23,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.DragHandle
 import androidx.compose.material.icons.filled.RotateLeft
 import androidx.compose.material.icons.filled.RotateRight
@@ -49,11 +51,11 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.example.model.ImageItem
+import com.example.ui.theme.PdfGreen
 import com.example.ui.theme.PdfRed
 
 @Composable
@@ -69,10 +71,14 @@ fun ImageGridItem(
   onMoveDown: () -> Unit,
   onRemove: () -> Unit,
   onViewExtractedText: () -> Unit,
+  onToggleEnhance: () -> Unit,
+  onCompareBeforeAfter: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val borderColor = if (isSelected) {
     MaterialTheme.colorScheme.primary
+  } else if (item.isAiEnhanced) {
+    PdfGreen.copy(alpha = 0.6f)
   } else {
     MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f)
   }
@@ -107,10 +113,10 @@ fun ImageGridItem(
           .clip(RoundedCornerShape(14.dp))
           .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f))
       ) {
-        // Thumbnail with Live Rotation
+        // Thumbnail with Live Rotation and activeUri (supports enhanced cropped bitmap)
         SubcomposeAsyncImage(
           model = ImageRequest.Builder(LocalContext.current)
-            .data(item.uri)
+            .data(item.activeUri)
             .crossfade(true)
             .build(),
           contentDescription = item.fileName,
@@ -134,7 +140,7 @@ fun ImageGridItem(
           }
         )
 
-        // Top-Left: Page Index Badge + Multi-select Indicator
+        // Top-Left: Page Index Badge + AI Cleaned Badge + Multi-select Indicator
         Row(
           modifier = Modifier
             .align(Alignment.TopStart)
@@ -155,6 +161,51 @@ fun ImageGridItem(
             )
           }
 
+          if (item.detectedPageBadge != null) {
+            Surface(
+              shape = RoundedCornerShape(8.dp),
+              color = MaterialTheme.colorScheme.tertiaryContainer,
+              contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+              modifier = Modifier.testTag("page_number_badge_$index")
+            ) {
+              Text(
+                text = item.detectedPageBadge,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.ExtraBold,
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp)
+              )
+            }
+          }
+
+          if (item.isAiEnhanced) {
+            Surface(
+              shape = RoundedCornerShape(8.dp),
+              color = PdfGreen,
+              contentColor = Color.White,
+              modifier = Modifier
+                .clip(RoundedCornerShape(8.dp))
+                .clickable(onClick = onCompareBeforeAfter)
+                .testTag("ai_cleaned_badge_$index")
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(3.dp)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.AutoAwesome,
+                  contentDescription = null,
+                  modifier = Modifier.size(11.dp)
+                )
+                Text(
+                  text = "AI Cleaned",
+                  style = MaterialTheme.typography.labelSmall,
+                  fontWeight = FontWeight.Bold
+                )
+              }
+            }
+          }
+
           if (isSelected) {
             Surface(
               shape = CircleShape,
@@ -173,13 +224,39 @@ fun ImageGridItem(
           }
         }
 
-        // Top-Right: Sharp Action Overlay (Rotate CW/CCW, Delete)
+        // Top-Right: Sharp Action Overlay (Magic Wand AI Enhance, Rotate CW/CCW, Delete)
         Row(
           modifier = Modifier
             .align(Alignment.TopEnd)
             .padding(6.dp),
           horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
+          // Magic Wand Auto-Crop & Enhance Button
+          FilledIconButton(
+            onClick = onToggleEnhance,
+            colors = IconButtonDefaults.filledIconButtonColors(
+              containerColor = if (item.isAiEnhanced) PdfGreen else MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+              contentColor = if (item.isAiEnhanced) Color.White else MaterialTheme.colorScheme.primary
+            ),
+            modifier = Modifier
+              .size(28.dp)
+              .testTag("magic_wand_enhance_$index")
+          ) {
+            if (item.isEnhancing) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(14.dp),
+                strokeWidth = 2.dp,
+                color = MaterialTheme.colorScheme.primary
+              )
+            } else {
+              Icon(
+                imageVector = Icons.Default.AutoFixHigh,
+                contentDescription = "Magic Wand (Auto-Crop & Enhance)",
+                modifier = Modifier.size(15.dp)
+              )
+            }
+          }
+
           FilledIconButton(
             onClick = onRotateCounterClockwise,
             colors = IconButtonDefaults.filledIconButtonColors(
@@ -239,12 +316,12 @@ fun ImageGridItem(
             .padding(bottom = 4.dp)
             .clip(RoundedCornerShape(6.dp))
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.75f))
-            .padding(horizontal = 6.dp, vertical = 2.dp)
+            .padding(horizontal = 8.dp, vertical = 2.dp)
         ) {
           Icon(
             imageVector = Icons.Default.DragHandle,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            contentDescription = "Drag to reorder",
+            tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
             modifier = Modifier.size(14.dp)
           )
         }
@@ -252,35 +329,59 @@ fun ImageGridItem(
 
       Spacer(modifier = Modifier.height(8.dp))
 
-      // File Name Title
-      Text(
-        text = item.fileName,
-        style = MaterialTheme.typography.bodyMedium,
-        fontWeight = FontWeight.SemiBold,
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        color = MaterialTheme.colorScheme.onSurface
-      )
-
-      Spacer(modifier = Modifier.height(6.dp))
-
-      // Crisp Pill Chips: Dimensions & Size & Rotation
+      // File Details: Title + Move Buttons
       Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
       ) {
-        SubtlePillChip(text = item.dimensionsText)
-        SubtlePillChip(text = item.formattedSize, isAccent = true)
+        Column(modifier = Modifier.weight(1f)) {
+          Text(
+            text = item.fileName,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 1,
+            color = MaterialTheme.colorScheme.onSurface
+          )
 
-        if (item.rotationDegrees != 0) {
-          SubtlePillChip(text = "${item.rotationDegrees}°", isRotation = true)
+          Spacer(modifier = Modifier.height(3.dp))
+
+          // Subtle Pill Chips (File Size, Dimensions, Rotation, Compare Action)
+          Row(
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            SubtlePillChip(text = item.formattedSize)
+            SubtlePillChip(text = item.dimensionsText)
+            if (item.rotationDegrees != 0) {
+              SubtlePillChip(text = "${item.rotationDegrees}°", isRotation = true)
+            }
+          }
         }
 
-        Spacer(modifier = Modifier.weight(1f))
+        // Reorder Up / Down & Compare Buttons
+        Row(
+          horizontalArrangement = Arrangement.spacedBy(2.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          // Compare Before/After Button
+          FilledIconButton(
+            onClick = onCompareBeforeAfter,
+            colors = IconButtonDefaults.filledIconButtonColors(
+              containerColor = if (item.isAiEnhanced) PdfGreen.copy(alpha = 0.15f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+              contentColor = if (item.isAiEnhanced) PdfGreen else MaterialTheme.colorScheme.onSurface
+            ),
+            modifier = Modifier
+              .size(28.dp)
+              .testTag("compare_before_after_$index")
+          ) {
+            Icon(
+              imageVector = Icons.Default.CompareArrows,
+              contentDescription = "Compare original vs enhanced",
+              modifier = Modifier.size(15.dp)
+            )
+          }
 
-        // Reordering Arrows
-        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
           FilledIconButton(
             onClick = onMoveUp,
             enabled = index > 0,
