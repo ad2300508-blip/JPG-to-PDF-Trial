@@ -1,6 +1,6 @@
 {
   "name": "OmniConvert Studio",
-  "description": "Multi-format tablet conversion & compression suite for PDF & book screenshots, batch image transcoding, native audio encoding, and lossless ZIP archives.",
+  "description": "Professional document intelligence and conversion suite featuring AI Markdown extraction for LLMs, PDF & book screenshot cleaning, batch image transcoding, native audio encoding, and lossless ZIP archives.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

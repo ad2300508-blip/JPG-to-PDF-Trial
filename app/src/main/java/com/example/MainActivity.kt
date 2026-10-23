@@ -16,6 +16,7 @@ import com.example.ui.theme.MyApplicationTheme
 import com.example.viewmodel.ArchiveViewModel
 import com.example.viewmodel.AudioLabViewModel
 import com.example.viewmodel.ImageLabViewModel
+import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfViewModel
 
@@ -25,6 +26,7 @@ class MainActivity : ComponentActivity() {
   private val imageLabViewModel: ImageLabViewModel by viewModels()
   private val audioLabViewModel: AudioLabViewModel by viewModels()
   private val archiveViewModel: ArchiveViewModel by viewModels()
+  private val markdownExporterViewModel: MarkdownExporterViewModel by viewModels()
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
@@ -38,7 +40,8 @@ class MainActivity : ComponentActivity() {
             pdfMergeViewModel = pdfMergeViewModel,
             imageLabViewModel = imageLabViewModel,
             audioLabViewModel = audioLabViewModel,
-            archiveViewModel = archiveViewModel
+            archiveViewModel = archiveViewModel,
+            markdownExporterViewModel = markdownExporterViewModel
           )
         }
       }

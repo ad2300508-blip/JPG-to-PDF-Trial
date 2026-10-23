@@ -352,5 +352,96 @@ class PdfConverterUnitTest {
     )
     assertEquals(60, archiveResult.savingsPercentage)
   }
+
+  @Test
+  fun testMarkdownSourceItemTokenEstimation() {
+    val sampleText = "This is a high-density AI research context for large language models."
+    val tokens = com.example.model.MarkdownSourceItem.estimateTokens(sampleText)
+    assertTrue("Tokens should be greater than zero", tokens > 10)
+
+    val item = com.example.model.MarkdownSourceItem(
+      id = "s1",
+      uri = Uri.parse("content://docs/spec.txt"),
+      fileName = "spec.txt",
+      fileSizeBytes = 2048L,
+      fileType = com.example.model.SourceFileType.TEXT_DOCUMENT,
+      extractedRawText = sampleText,
+      structuredMarkdown = "### Spec Overview\n$sampleText",
+      tokenEstimate = tokens
+    )
+    assertEquals("spec.txt", item.fileName)
+    assertEquals("2.0 KB", item.displaySize)
+    assertEquals(com.example.model.SourceFileType.TEXT_DOCUMENT, item.fileType)
+  }
+
+  @Test
+  fun testMarkdownBundleCompilationWithClaudeXml() {
+    val items = listOf(
+      com.example.model.MarkdownSourceItem(
+        id = "1",
+        uri = Uri.parse("content://docs/arch.pdf"),
+        fileName = "arch.pdf",
+        fileSizeBytes = 102400L,
+        fileType = com.example.model.SourceFileType.PDF,
+        structuredMarkdown = "### System Architecture\nClean MVVM + NavigationRail"
+      ),
+      com.example.model.MarkdownSourceItem(
+        id = "2",
+        uri = Uri.parse("content://docs/ocr.png"),
+        fileName = "diagram.png",
+        fileSizeBytes = 51200L,
+        fileType = com.example.model.SourceFileType.IMAGE_OCR,
+        structuredMarkdown = "Detected formula: \$E = mc^2\$"
+      )
+    )
+
+    val settings = com.example.model.MarkdownExportSettings(
+      bundleTitle = "Test_Context",
+      llmWrapper = com.example.model.LlmPromptWrapper.CLAUDE_XML
+    )
+
+    val bundle = com.example.service.MarkdownExporterService.compileBundle(items, settings)
+    assertTrue(bundle.compiledMarkdown.contains("<documents>"))
+    assertTrue(bundle.compiledMarkdown.contains("<document index=\"1\">"))
+    assertTrue(bundle.compiledMarkdown.contains("<source>arch.pdf</source>"))
+    assertTrue(bundle.compiledMarkdown.contains("<document index=\"2\">"))
+    assertTrue(bundle.compiledMarkdown.contains("Clean MVVM + NavigationRail"))
+    assertEquals(2, bundle.sourceCount)
+    assertTrue(bundle.estimatedTokens > 0)
+    assertTrue(bundle.totalWordCount > 0)
+  }
+
+  @Test
+  fun testMarkdownBundleCompilationWithChatGptAndGemini() {
+    val items = listOf(
+      com.example.model.MarkdownSourceItem(
+        id = "1",
+        uri = Uri.parse("content://code/main.kt"),
+        fileName = "main.kt",
+        fileSizeBytes = 4096L,
+        fileType = com.example.model.SourceFileType.CODE_FILE,
+        structuredMarkdown = "```kotlin\nfun main() = println(\"Hello\")\n```"
+      )
+    )
+
+    // ChatGPT wrapper test
+    val gptSettings = com.example.model.MarkdownExportSettings(
+      bundleTitle = "GPT_Context",
+      llmWrapper = com.example.model.LlmPromptWrapper.CHATGPT_SYSTEM
+    )
+    val gptBundle = com.example.service.MarkdownExporterService.compileBundle(items, gptSettings)
+    assertTrue(gptBundle.compiledMarkdown.contains("System Prompt"))
+    assertTrue(gptBundle.compiledMarkdown.contains("[Document 1/1]"))
+
+    // Gemini wrapper test
+    val geminiSettings = com.example.model.MarkdownExportSettings(
+      bundleTitle = "Gemini_Context",
+      llmWrapper = com.example.model.LlmPromptWrapper.GEMINI_BRIEF
+    )
+    val geminiBundle = com.example.service.MarkdownExporterService.compileBundle(items, geminiSettings)
+    assertTrue(geminiBundle.compiledMarkdown.contains("Research Briefing Bundle"))
+    assertTrue(geminiBundle.compiledMarkdown.contains("Reference Item 1: `main.kt`"))
+  }
 }
+
 

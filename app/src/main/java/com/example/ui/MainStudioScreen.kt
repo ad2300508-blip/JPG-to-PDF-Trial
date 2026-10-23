@@ -2,7 +2,6 @@ package com.example.ui
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -26,9 +25,8 @@ import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.PictureAsPdf
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.Transform
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
@@ -51,9 +49,11 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.ui.components.OmniCommandHeader
 import com.example.viewmodel.ArchiveViewModel
 import com.example.viewmodel.AudioLabViewModel
 import com.example.viewmodel.ImageLabViewModel
+import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfViewModel
 
@@ -61,7 +61,8 @@ enum class OmniWorkspace {
   PDF_STUDIO,
   IMAGE_LAB,
   AUDIO_LAB,
-  ARCHIVE_ZIP
+  ARCHIVE_ZIP,
+  AI_MARKDOWN
 }
 
 enum class PdfSubMode {
@@ -76,17 +77,18 @@ fun MainStudioScreen(
   imageLabViewModel: ImageLabViewModel,
   audioLabViewModel: AudioLabViewModel,
   archiveViewModel: ArchiveViewModel,
+  markdownExporterViewModel: MarkdownExporterViewModel,
   modifier: Modifier = Modifier
 ) {
-  var currentWorkspace by rememberSaveable { mutableStateOf(OmniWorkspace.PDF_STUDIO) }
+  var currentWorkspace by rememberSaveable { mutableStateOf(OmniWorkspace.AI_MARKDOWN) }
   var pdfSubMode by rememberSaveable { mutableStateOf(PdfSubMode.IMAGE_TO_PDF) }
 
   // Predictive BackHandler:
-  // If in another workspace, return to PDF Studio.
+  // If in another workspace, return to AI_MARKDOWN or PDF_STUDIO.
   // If in PDF Studio and on MERGE_PDFS, return to IMAGE_TO_PDF.
-  BackHandler(enabled = currentWorkspace != OmniWorkspace.PDF_STUDIO || pdfSubMode != PdfSubMode.IMAGE_TO_PDF) {
-    if (currentWorkspace != OmniWorkspace.PDF_STUDIO) {
-      currentWorkspace = OmniWorkspace.PDF_STUDIO
+  BackHandler(enabled = currentWorkspace != OmniWorkspace.AI_MARKDOWN || pdfSubMode != PdfSubMode.IMAGE_TO_PDF) {
+    if (currentWorkspace != OmniWorkspace.AI_MARKDOWN) {
+      currentWorkspace = OmniWorkspace.AI_MARKDOWN
     } else {
       pdfSubMode = PdfSubMode.IMAGE_TO_PDF
     }
@@ -96,19 +98,19 @@ fun MainStudioScreen(
     val isTabletLandscape = maxWidth >= 840.dp
 
     if (isTabletLandscape) {
-      // Tablet Landscape: Left Material 3 Navigation Rail + Workspace Canvas
+      // Tablet Landscape: Left Material 3 Navigation Rail + Floating Command Header + Workspace Canvas
       Row(modifier = Modifier.fillMaxSize()) {
         NavigationRail(
           containerColor = MaterialTheme.colorScheme.surface,
           header = {
             Column(
               horizontalAlignment = Alignment.CenterHorizontally,
-              modifier = Modifier.padding(vertical = 12.dp)
+              modifier = Modifier.padding(vertical = 14.dp)
             ) {
               Surface(
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier.size(46.dp)
               ) {
                 Box(contentAlignment = Alignment.Center) {
                   Icon(
@@ -133,10 +135,18 @@ fun MainStudioScreen(
             .testTag("tablet_navigation_rail")
         ) {
           NavigationRailItem(
+            selected = currentWorkspace == OmniWorkspace.AI_MARKDOWN,
+            onClick = { currentWorkspace = OmniWorkspace.AI_MARKDOWN },
+            icon = { Icon(Icons.Default.Psychology, contentDescription = "AI Markdown") },
+            label = { Text("AI Markdown", fontWeight = FontWeight.SemiBold, fontSize = 10.sp) },
+            modifier = Modifier.testTag("nav_rail_ai_markdown")
+          )
+
+          NavigationRailItem(
             selected = currentWorkspace == OmniWorkspace.PDF_STUDIO,
             onClick = { currentWorkspace = OmniWorkspace.PDF_STUDIO },
             icon = { Icon(Icons.Default.PictureAsPdf, contentDescription = "PDF Studio") },
-            label = { Text("PDF Studio", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+            label = { Text("PDF Studio", fontWeight = FontWeight.SemiBold, fontSize = 10.sp) },
             modifier = Modifier.testTag("nav_rail_pdf_studio")
           )
 
@@ -144,7 +154,7 @@ fun MainStudioScreen(
             selected = currentWorkspace == OmniWorkspace.IMAGE_LAB,
             onClick = { currentWorkspace = OmniWorkspace.IMAGE_LAB },
             icon = { Icon(Icons.Default.Image, contentDescription = "Image Lab") },
-            label = { Text("Image Lab", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+            label = { Text("Image Lab", fontWeight = FontWeight.SemiBold, fontSize = 10.sp) },
             modifier = Modifier.testTag("nav_rail_image_lab")
           )
 
@@ -152,7 +162,7 @@ fun MainStudioScreen(
             selected = currentWorkspace == OmniWorkspace.AUDIO_LAB,
             onClick = { currentWorkspace = OmniWorkspace.AUDIO_LAB },
             icon = { Icon(Icons.Default.Audiotrack, contentDescription = "Audio Lab") },
-            label = { Text("Audio Lab", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+            label = { Text("Audio Lab", fontWeight = FontWeight.SemiBold, fontSize = 10.sp) },
             modifier = Modifier.testTag("nav_rail_audio_lab")
           )
 
@@ -160,26 +170,32 @@ fun MainStudioScreen(
             selected = currentWorkspace == OmniWorkspace.ARCHIVE_ZIP,
             onClick = { currentWorkspace = OmniWorkspace.ARCHIVE_ZIP },
             icon = { Icon(Icons.Default.FolderZip, contentDescription = "Archive ZIP") },
-            label = { Text("Archive ZIP", fontWeight = FontWeight.SemiBold, fontSize = 11.sp) },
+            label = { Text("Archive ZIP", fontWeight = FontWeight.SemiBold, fontSize = 10.sp) },
             modifier = Modifier.testTag("nav_rail_archive_zip")
           )
         }
 
-        Box(
+        Column(
           modifier = Modifier
             .weight(1f)
             .fillMaxHeight()
         ) {
-          WorkspaceContent(
-            workspace = currentWorkspace,
-            pdfSubMode = pdfSubMode,
-            onPdfSubModeChange = { pdfSubMode = it },
-            imagePdfViewModel = imagePdfViewModel,
-            pdfMergeViewModel = pdfMergeViewModel,
-            imageLabViewModel = imageLabViewModel,
-            audioLabViewModel = audioLabViewModel,
-            archiveViewModel = archiveViewModel
-          )
+          // Floating High-End Command Header with breadcrumbs & status
+          OmniCommandHeader(currentWorkspace = currentWorkspace)
+
+          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            WorkspaceContent(
+              workspace = currentWorkspace,
+              pdfSubMode = pdfSubMode,
+              onPdfSubModeChange = { pdfSubMode = it },
+              imagePdfViewModel = imagePdfViewModel,
+              pdfMergeViewModel = pdfMergeViewModel,
+              imageLabViewModel = imageLabViewModel,
+              audioLabViewModel = audioLabViewModel,
+              archiveViewModel = archiveViewModel,
+              markdownExporterViewModel = markdownExporterViewModel
+            )
+          }
         }
       }
     } else {
@@ -194,6 +210,20 @@ fun MainStudioScreen(
               .testTag("bottom_navigation_bar")
           ) {
             NavigationBarItem(
+              selected = currentWorkspace == OmniWorkspace.AI_MARKDOWN,
+              onClick = { currentWorkspace = OmniWorkspace.AI_MARKDOWN },
+              icon = { Icon(Icons.Default.Psychology, contentDescription = "AI MD") },
+              label = {
+                Text(
+                  "AI MD",
+                  fontWeight = if (currentWorkspace == OmniWorkspace.AI_MARKDOWN) FontWeight.Bold else FontWeight.Normal,
+                  fontSize = 10.sp
+                )
+              },
+              modifier = Modifier.testTag("bottom_nav_ai_markdown")
+            )
+
+            NavigationBarItem(
               selected = currentWorkspace == OmniWorkspace.PDF_STUDIO,
               onClick = { currentWorkspace = OmniWorkspace.PDF_STUDIO },
               icon = { Icon(Icons.Default.PictureAsPdf, contentDescription = "PDF Studio") },
@@ -201,7 +231,7 @@ fun MainStudioScreen(
                 Text(
                   "PDF",
                   fontWeight = if (currentWorkspace == OmniWorkspace.PDF_STUDIO) FontWeight.Bold else FontWeight.Normal,
-                  fontSize = 11.sp
+                  fontSize = 10.sp
                 )
               },
               modifier = Modifier.testTag("bottom_nav_pdf_studio")
@@ -215,7 +245,7 @@ fun MainStudioScreen(
                 Text(
                   "Images",
                   fontWeight = if (currentWorkspace == OmniWorkspace.IMAGE_LAB) FontWeight.Bold else FontWeight.Normal,
-                  fontSize = 11.sp
+                  fontSize = 10.sp
                 )
               },
               modifier = Modifier.testTag("bottom_nav_image_lab")
@@ -229,7 +259,7 @@ fun MainStudioScreen(
                 Text(
                   "Audio",
                   fontWeight = if (currentWorkspace == OmniWorkspace.AUDIO_LAB) FontWeight.Bold else FontWeight.Normal,
-                  fontSize = 11.sp
+                  fontSize = 10.sp
                 )
               },
               modifier = Modifier.testTag("bottom_nav_audio_lab")
@@ -243,7 +273,7 @@ fun MainStudioScreen(
                 Text(
                   "ZIP",
                   fontWeight = if (currentWorkspace == OmniWorkspace.ARCHIVE_ZIP) FontWeight.Bold else FontWeight.Normal,
-                  fontSize = 11.sp
+                  fontSize = 10.sp
                 )
               },
               modifier = Modifier.testTag("bottom_nav_archive_zip")
@@ -252,21 +282,26 @@ fun MainStudioScreen(
         },
         modifier = Modifier.fillMaxSize()
       ) { innerPadding ->
-        Box(
+        Column(
           modifier = Modifier
             .fillMaxSize()
             .padding(innerPadding)
         ) {
-          WorkspaceContent(
-            workspace = currentWorkspace,
-            pdfSubMode = pdfSubMode,
-            onPdfSubModeChange = { pdfSubMode = it },
-            imagePdfViewModel = imagePdfViewModel,
-            pdfMergeViewModel = pdfMergeViewModel,
-            imageLabViewModel = imageLabViewModel,
-            audioLabViewModel = audioLabViewModel,
-            archiveViewModel = archiveViewModel
-          )
+          OmniCommandHeader(currentWorkspace = currentWorkspace)
+
+          Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            WorkspaceContent(
+              workspace = currentWorkspace,
+              pdfSubMode = pdfSubMode,
+              onPdfSubModeChange = { pdfSubMode = it },
+              imagePdfViewModel = imagePdfViewModel,
+              pdfMergeViewModel = pdfMergeViewModel,
+              imageLabViewModel = imageLabViewModel,
+              audioLabViewModel = audioLabViewModel,
+              archiveViewModel = archiveViewModel,
+              markdownExporterViewModel = markdownExporterViewModel
+            )
+          }
         }
       }
     }
@@ -283,9 +318,13 @@ private fun WorkspaceContent(
   imageLabViewModel: ImageLabViewModel,
   audioLabViewModel: AudioLabViewModel,
   archiveViewModel: ArchiveViewModel,
+  markdownExporterViewModel: MarkdownExporterViewModel,
   modifier: Modifier = Modifier
 ) {
   when (workspace) {
+    OmniWorkspace.AI_MARKDOWN -> {
+      MarkdownExporterScreen(viewModel = markdownExporterViewModel)
+    }
     OmniWorkspace.PDF_STUDIO -> {
       Column(modifier = modifier.fillMaxSize()) {
         // PDF Studio Sub-Mode Tab Header
