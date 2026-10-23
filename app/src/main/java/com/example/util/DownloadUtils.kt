@@ -22,27 +22,29 @@ object DownloadUtils {
   )
 
   /**
-   * Saves the generated PDF directly into the public Downloads directory so it appears
-   * immediately in the user's Files / Downloads app without requiring SAF picker navigation.
+   * Saves any generated file into the public Downloads directory (with optional subfolder like "OmniConvert/Images")
+   * so it appears immediately in the user's Files / Downloads app without requiring SAF picker navigation.
    */
-  suspend fun savePdfToDownloads(
+  suspend fun saveFileToDownloads(
     context: Context,
     sourceFile: File,
     desiredFileName: String,
+    mimeType: String,
+    subfolder: String = ""
   ): Result<DownloadResult> = withContext(Dispatchers.IO) {
     try {
-      val cleanFileName = if (desiredFileName.endsWith(".pdf", ignoreCase = true)) {
-        desiredFileName
+      val relativePath = if (subfolder.isNotBlank()) {
+        "${Environment.DIRECTORY_DOWNLOADS}/$subfolder"
       } else {
-        "$desiredFileName.pdf"
+        Environment.DIRECTORY_DOWNLOADS
       }
 
       if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
         val resolver = context.contentResolver
         val contentValues = ContentValues().apply {
-          put(MediaStore.MediaColumns.DISPLAY_NAME, cleanFileName)
-          put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-          put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
+          put(MediaStore.MediaColumns.DISPLAY_NAME, desiredFileName)
+          put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+          put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
           put(MediaStore.MediaColumns.IS_PENDING, 1)
         }
 
@@ -61,20 +63,22 @@ object DownloadUtils {
         contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
         resolver.update(itemUri, contentValues, null, null)
 
+        val display = if (subfolder.isNotBlank()) "Downloads/$subfolder/$desiredFileName" else "Downloads/$desiredFileName"
         Result.success(
           DownloadResult(
             uri = itemUri,
-            displayPath = "Downloads/$cleanFileName",
-            fileName = cleanFileName,
+            displayPath = display,
+            fileName = desiredFileName,
           )
         )
       } else {
         // Fallback for API 24 - 28
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        if (!downloadsDir.exists()) {
-          downloadsDir.mkdirs()
+        val baseDownloads = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+        val targetDir = if (subfolder.isNotBlank()) File(baseDownloads, subfolder) else baseDownloads
+        if (!targetDir.exists()) {
+          targetDir.mkdirs()
         }
-        val targetFile = File(downloadsDir, cleanFileName)
+        val targetFile = File(targetDir, desiredFileName)
         FileInputStream(sourceFile).use { inStream ->
           targetFile.outputStream().use { outStream ->
             inStream.copyTo(outStream)
@@ -85,7 +89,7 @@ object DownloadUtils {
         MediaScannerConnection.scanFile(
           context,
           arrayOf(targetFile.absolutePath),
-          arrayOf("application/pdf"),
+          arrayOf(mimeType),
           null
         )
 
@@ -93,7 +97,7 @@ object DownloadUtils {
           DownloadResult(
             uri = Uri.fromFile(targetFile),
             displayPath = targetFile.absolutePath,
-            fileName = cleanFileName,
+            fileName = desiredFileName,
           )
         )
       }
@@ -103,11 +107,28 @@ object DownloadUtils {
   }
 
   /**
-   * Safely launches an intent to open a PDF file with any installed viewer.
+   * Saves the generated PDF directly into the public Downloads directory so it appears
+   * immediately in the user's Files / Downloads app without requiring SAF picker navigation.
    */
-  fun openPdf(context: Context, uri: Uri): Boolean {
+  suspend fun savePdfToDownloads(
+    context: Context,
+    sourceFile: File,
+    desiredFileName: String,
+  ): Result<DownloadResult> {
+    val cleanFileName = if (desiredFileName.endsWith(".pdf", ignoreCase = true)) {
+      desiredFileName
+    } else {
+      "$desiredFileName.pdf"
+    }
+    return saveFileToDownloads(context, sourceFile, cleanFileName, "application/pdf")
+  }
+
+  /**
+   * Safely launches an intent to open a file with any installed viewer.
+   */
+  fun openFile(context: Context, uri: Uri, mimeType: String): Boolean {
     val intent = Intent(Intent.ACTION_VIEW).apply {
-      setDataAndType(uri, "application/pdf")
+      setDataAndType(uri, mimeType)
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
       addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     }
@@ -116,7 +137,7 @@ object DownloadUtils {
       true
     } catch (_: Exception) {
       try {
-        context.startActivity(Intent.createChooser(intent, "Open PDF"))
+        context.startActivity(Intent.createChooser(intent, "Open File"))
         true
       } catch (_: Exception) {
         false
@@ -124,12 +145,14 @@ object DownloadUtils {
     }
   }
 
+  fun openPdf(context: Context, uri: Uri): Boolean = openFile(context, uri, "application/pdf")
+
   /**
-   * Safely launches an intent to share a PDF file.
+   * Safely launches an intent to share a file.
    */
-  fun sharePdf(context: Context, uri: Uri, title: String = "Share PDF"): Boolean {
+  fun shareFile(context: Context, uri: Uri, mimeType: String, title: String = "Share File"): Boolean {
     val intent = Intent(Intent.ACTION_SEND).apply {
-      type = "application/pdf"
+      type = mimeType
       putExtra(Intent.EXTRA_STREAM, uri)
       addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
@@ -142,4 +165,7 @@ object DownloadUtils {
       false
     }
   }
+
+  fun sharePdf(context: Context, uri: Uri, title: String = "Share PDF"): Boolean =
+    shareFile(context, uri, "application/pdf", title)
 }

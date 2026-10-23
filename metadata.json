@@ -1,6 +1,6 @@
 {
-  "name": "Image to PDF",
-  "description": "Convert JPG and PNG images into compressed, professional PDF documents with customizable page sizing, margins, and quality controls.",
+  "name": "OmniConvert Studio",
+  "description": "Multi-format tablet conversion & compression suite for PDF & book screenshots, batch image transcoding, native audio encoding, and lossless ZIP archives.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
