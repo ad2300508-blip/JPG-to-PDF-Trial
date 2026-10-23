@@ -2,9 +2,11 @@ package com.example.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -32,20 +34,17 @@ import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Terminal
+import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
@@ -82,6 +81,7 @@ import com.example.ui.theme.BadgePdfBg
 import com.example.ui.theme.BorderCrisp
 import com.example.ui.theme.CardSurface
 import com.example.ui.theme.CodeTextStyle
+import com.example.ui.theme.ErrorRed
 import com.example.ui.theme.PanelElevated
 import com.example.ui.theme.SuccessGreen
 import com.example.viewmodel.MarkdownExporterViewModel
@@ -94,7 +94,11 @@ fun MarkdownExporterScreen(
   val items by viewModel.items.collectAsStateWithLifecycle()
   val settings by viewModel.settings.collectAsStateWithLifecycle()
   val isExtracting by viewModel.isExtracting.collectAsStateWithLifecycle()
+  val extractionProgress by viewModel.extractionProgress.collectAsStateWithLifecycle()
+  val extractionStatusText by viewModel.extractionStatusText.collectAsStateWithLifecycle()
+  val isCompiling by viewModel.isCompiling.collectAsStateWithLifecycle()
   val compiledResult by viewModel.compiledResult.collectAsStateWithLifecycle()
+  val errorNotice by viewModel.errorNotice.collectAsStateWithLifecycle()
   val clipboardMessage by viewModel.clipboardMessage.collectAsStateWithLifecycle()
   val exportMessage by viewModel.exportMessage.collectAsStateWithLifecycle()
 
@@ -125,67 +129,138 @@ fun MarkdownExporterScreen(
   BoxWithConstraints(modifier = modifier.fillMaxSize()) {
     val isTabletLandscape = maxWidth >= 840.dp
 
-    if (isTabletLandscape) {
-      // Bespoke Asymmetric Dual-Pane Layout: 38% Left Source List, 62% Right AI Prompt Engine
-      Row(modifier = Modifier.fillMaxSize()) {
-        Box(
-          modifier = Modifier
-            .weight(0.38f)
-            .fillMaxHeight()
-            .padding(start = 16.dp, top = 8.dp, bottom = 16.dp, end = 8.dp)
-        ) {
-          MarkdownSourceListPane(
-            items = items,
-            isExtracting = isExtracting,
-            onPickSources = { pickerLauncher.launch(arrayOf("*/*")) },
-            onRemoveItem = { viewModel.removeItem(it) },
-            onClearAll = { viewModel.clearAll() }
-          )
+    Column(modifier = Modifier.fillMaxSize()) {
+      // Dismissible Error Banner
+      AnimatedVisibility(
+        visible = errorNotice != null,
+        enter = fadeIn(),
+        exit = fadeOut()
+      ) {
+        errorNotice?.let { notice ->
+          Surface(
+            color = Color(0xFF2A1218),
+            shape = RoundedCornerShape(12.dp),
+            border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed.copy(alpha = 0.6f)),
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(horizontal = 16.dp, vertical = 6.dp)
+              .testTag("md_error_notice_banner")
+          ) {
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Icon(
+                imageVector = Icons.Default.ErrorOutline,
+                contentDescription = null,
+                tint = ErrorRed,
+                modifier = Modifier.size(20.dp)
+              )
+              Spacer(modifier = Modifier.width(10.dp))
+              Text(
+                text = notice,
+                style = MaterialTheme.typography.bodySmall,
+                color = Color(0xFFFCA5A5),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier.weight(1f)
+              )
+              IconButton(
+                onClick = { viewModel.dismissErrorNotice() },
+                modifier = Modifier.size(28.dp)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Close,
+                  contentDescription = "Dismiss error",
+                  tint = ErrorRed,
+                  modifier = Modifier.size(16.dp)
+                )
+              }
+            }
+          }
         }
+      }
 
-        Box(
+      if (isTabletLandscape) {
+        // Bespoke Asymmetric Dual-Pane Layout: 38% Left Source List, 62% Right AI Prompt Engine
+        Row(
           modifier = Modifier
-            .weight(0.62f)
-            .fillMaxHeight()
-            .padding(start = 8.dp, top = 8.dp, bottom = 16.dp, end = 16.dp)
+            .weight(1f)
+            .fillMaxWidth()
+        ) {
+          Box(
+            modifier = Modifier
+              .weight(0.38f)
+              .fillMaxHeight()
+              .padding(start = 16.dp, top = 4.dp, bottom = 16.dp, end = 8.dp)
+          ) {
+            MarkdownSourceListPane(
+              items = items,
+              isExtracting = isExtracting,
+              extractionProgress = extractionProgress,
+              extractionStatusText = extractionStatusText,
+              onCancelExtraction = { viewModel.cancelExtraction() },
+              onPickSources = { pickerLauncher.launch(arrayOf("*/*")) },
+              onRemoveItem = { viewModel.removeItem(it) },
+              onClearAll = { viewModel.clearAll() }
+            )
+          }
+
+          Box(
+            modifier = Modifier
+              .weight(0.62f)
+              .fillMaxHeight()
+              .padding(start = 8.dp, top = 4.dp, bottom = 16.dp, end = 16.dp)
+          ) {
+            MarkdownCompiledPane(
+              items = items,
+              settings = settings,
+              compiledResult = compiledResult,
+              isExtracting = isExtracting,
+              extractionProgress = extractionProgress,
+              extractionStatusText = extractionStatusText,
+              isCompiling = isCompiling,
+              onSettingsUpdate = { viewModel.updateSettings(it) },
+              onCopyToClipboard = { viewModel.copyToClipboard() },
+              onExportMarkdown = { viewModel.exportToDownloads() }
+            )
+          }
+        }
+      } else {
+        // Mobile Single-Pane Column with Vertical Scroll
+        Column(
+          modifier = Modifier
+            .weight(1f)
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
           MarkdownCompiledPane(
             items = items,
             settings = settings,
             compiledResult = compiledResult,
             isExtracting = isExtracting,
+            extractionProgress = extractionProgress,
+            extractionStatusText = extractionStatusText,
+            isCompiling = isCompiling,
             onSettingsUpdate = { viewModel.updateSettings(it) },
             onCopyToClipboard = { viewModel.copyToClipboard() },
             onExportMarkdown = { viewModel.exportToDownloads() }
           )
-        }
-      }
-    } else {
-      // Mobile Single-Pane Column with Vertical Scroll
-      Column(
-        modifier = Modifier
-          .fillMaxSize()
-          .verticalScroll(rememberScrollState())
-          .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-      ) {
-        MarkdownCompiledPane(
-          items = items,
-          settings = settings,
-          compiledResult = compiledResult,
-          isExtracting = isExtracting,
-          onSettingsUpdate = { viewModel.updateSettings(it) },
-          onCopyToClipboard = { viewModel.copyToClipboard() },
-          onExportMarkdown = { viewModel.exportToDownloads() }
-        )
 
-        MarkdownSourceListPane(
-          items = items,
-          isExtracting = isExtracting,
-          onPickSources = { pickerLauncher.launch(arrayOf("*/*")) },
-          onRemoveItem = { viewModel.removeItem(it) },
-          onClearAll = { viewModel.clearAll() }
-        )
+          MarkdownSourceListPane(
+            items = items,
+            isExtracting = isExtracting,
+            extractionProgress = extractionProgress,
+            extractionStatusText = extractionStatusText,
+            onCancelExtraction = { viewModel.cancelExtraction() },
+            onPickSources = { pickerLauncher.launch(arrayOf("*/*")) },
+            onRemoveItem = { viewModel.removeItem(it) },
+            onClearAll = { viewModel.clearAll() }
+          )
+        }
       }
     }
 
@@ -203,6 +278,9 @@ fun MarkdownExporterScreen(
 private fun MarkdownSourceListPane(
   items: List<MarkdownSourceItem>,
   isExtracting: Boolean,
+  extractionProgress: Float,
+  extractionStatusText: String,
+  onCancelExtraction: () -> Unit,
   onPickSources: () -> Unit,
   onRemoveItem: (String) -> Unit,
   onClearAll: () -> Unit,
@@ -263,17 +341,55 @@ private fun MarkdownSourceListPane(
         }
       }
 
+      // Determinate Extraction Progress with Status & Cancel Button
       if (isExtracting) {
-        Spacer(modifier = Modifier.height(12.dp))
-        LinearProgressIndicator(
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(2.dp))
-        )
+        Spacer(modifier = Modifier.height(14.dp))
+        Surface(
+          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+          shape = RoundedCornerShape(10.dp),
+          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+          modifier = Modifier.fillMaxWidth()
+        ) {
+          Column(modifier = Modifier.padding(10.dp)) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Text(
+                text = extractionStatusText.ifBlank { "Streaming document chunks..." },
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.primary,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+              )
+              IconButton(
+                onClick = onCancelExtraction,
+                modifier = Modifier.size(24.dp)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Stop,
+                  contentDescription = "Cancel",
+                  tint = MaterialTheme.colorScheme.error,
+                  modifier = Modifier.size(16.dp)
+                )
+              }
+            }
+            Spacer(modifier = Modifier.height(6.dp))
+            LinearProgressIndicator(
+              progress = { extractionProgress },
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(4.dp)
+                .clip(RoundedCornerShape(2.dp))
+            )
+          }
+        }
       }
 
-      Spacer(modifier = Modifier.height(16.dp))
+      Spacer(modifier = Modifier.height(14.dp))
 
       if (items.isEmpty()) {
         Box(
@@ -311,7 +427,7 @@ private fun MarkdownSourceListPane(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-              text = "Import PDFs, screenshots (OCR), code files, and notes. The engine structures them into high-density Markdown ready for LLM prompts.",
+              text = "Import large PDFs (up to 150MB+), screenshots (OCR), code files, and notes. Chunked streaming protects device memory automatically.",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
               textAlign = androidx.compose.ui.text.style.TextAlign.Center
@@ -354,18 +470,26 @@ private fun MarkdownSourceItemCard(
   item: MarkdownSourceItem,
   onRemove: () -> Unit
 ) {
-  val (badgeBg, badgeColor) = when (item.fileType) {
-    SourceFileType.PDF -> BadgePdfBg to BadgePdf
-    SourceFileType.IMAGE_OCR -> BadgeImgBg to BadgeImg
-    SourceFileType.AUDIO_NOTE -> BadgeAudBg to BadgeAud
-    SourceFileType.CODE_FILE -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
-    SourceFileType.TEXT_DOCUMENT -> BadgeMdBg to BadgeMd
+  val hasError = item.error != null
+  val (badgeBg, badgeColor) = if (hasError) {
+    Color(0xFF2A1218) to ErrorRed
+  } else {
+    when (item.fileType) {
+      SourceFileType.PDF -> BadgePdfBg to BadgePdf
+      SourceFileType.IMAGE_OCR -> BadgeImgBg to BadgeImg
+      SourceFileType.AUDIO_NOTE -> BadgeAudBg to BadgeAud
+      SourceFileType.CODE_FILE -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+      SourceFileType.TEXT_DOCUMENT -> BadgeMdBg to BadgeMd
+    }
   }
 
   Surface(
-    color = PanelElevated,
+    color = if (hasError) Color(0xFF1A1217) else PanelElevated,
     shape = RoundedCornerShape(12.dp),
-    border = androidx.compose.foundation.BorderStroke(1.dp, BorderCrisp),
+    border = androidx.compose.foundation.BorderStroke(
+      1.dp,
+      if (hasError) ErrorRed.copy(alpha = 0.6f) else BorderCrisp
+    ),
     modifier = Modifier
       .fillMaxWidth()
       .testTag("md_source_item_${item.id}")
@@ -383,7 +507,7 @@ private fun MarkdownSourceItemCard(
         border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor.copy(alpha = 0.5f))
       ) {
         Text(
-          text = item.fileType.badgeText,
+          text = if (hasError) "ERR" else item.fileType.badgeText,
           style = MaterialTheme.typography.labelSmall,
           color = badgeColor,
           fontWeight = FontWeight.Bold,
@@ -402,23 +526,43 @@ private fun MarkdownSourceItemCard(
           overflow = TextOverflow.Ellipsis
         )
         Spacer(modifier = Modifier.height(2.dp))
-        Row(verticalAlignment = Alignment.CenterVertically) {
-          Text(
-            text = item.displaySize,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-          Text(
-            text = " • ",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-          Text(
-            text = "~${item.tokenEstimate} TOKENS",
-            style = MaterialTheme.typography.labelSmall,
-            color = SuccessGreen,
-            fontWeight = FontWeight.Bold
-          )
+
+        if (hasError) {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+              imageVector = Icons.Default.Warning,
+              contentDescription = null,
+              tint = ErrorRed,
+              modifier = Modifier.size(12.dp)
+            )
+            Spacer(modifier = Modifier.width(4.dp))
+            Text(
+              text = item.error ?: "Parsing error",
+              style = MaterialTheme.typography.labelSmall,
+              color = ErrorRed,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis
+            )
+          }
+        } else {
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+              text = item.displaySize,
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+              text = " • ",
+              style = MaterialTheme.typography.bodySmall,
+              color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+              text = "~${item.tokenEstimate} TOKENS",
+              style = MaterialTheme.typography.labelSmall,
+              color = SuccessGreen,
+              fontWeight = FontWeight.Bold
+            )
+          }
         }
       }
 
@@ -443,6 +587,9 @@ private fun MarkdownCompiledPane(
   settings: MarkdownExportSettings,
   compiledResult: CompiledMarkdownResult?,
   isExtracting: Boolean,
+  extractionProgress: Float,
+  extractionStatusText: String,
+  isCompiling: Boolean,
   onSettingsUpdate: ((MarkdownExportSettings) -> MarkdownExportSettings) -> Unit,
   onCopyToClipboard: () -> Unit,
   onExportMarkdown: () -> Unit,
@@ -505,6 +652,39 @@ private fun MarkdownCompiledPane(
             }
           }
         }
+      }
+
+      // Live processing progress bar
+      if (isExtracting || isCompiling) {
+        Spacer(modifier = Modifier.height(10.dp))
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          Text(
+            text = if (isExtracting) extractionStatusText else "Compiling Markdown context bundle...",
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.SemiBold
+          )
+          if (isExtracting) {
+            Text(
+              text = "${(extractionProgress * 100).toInt()}%",
+              style = MaterialTheme.typography.labelSmall,
+              color = MaterialTheme.colorScheme.primary,
+              fontWeight = FontWeight.Bold
+            )
+          }
+        }
+        Spacer(modifier = Modifier.height(4.dp))
+        LinearProgressIndicator(
+          progress = { if (isExtracting) extractionProgress else 0.5f },
+          modifier = Modifier
+            .fillMaxWidth()
+            .height(4.dp)
+            .clip(RoundedCornerShape(2.dp))
+        )
       }
 
       Spacer(modifier = Modifier.height(14.dp))

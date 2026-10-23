@@ -4,6 +4,7 @@ import android.content.Context
 import android.media.MediaMetadataRetriever
 import android.net.Uri
 import android.provider.OpenableColumns
+import android.util.Log
 import com.example.model.CompiledMarkdownResult
 import com.example.model.LlmPromptWrapper
 import com.example.model.MarkdownExportSettings
@@ -12,6 +13,7 @@ import com.example.model.SourceFileType
 import com.example.util.DownloadUtils
 import com.example.util.OcrUtils
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
 import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.Dispatchers
@@ -24,6 +26,11 @@ import java.util.UUID
 
 object MarkdownExporterService {
 
+  private const val TAG = "MarkdownExporterService"
+  private const val LARGE_FILE_THRESHOLD_BYTES = 50 * 1024 * 1024L // 50 MB
+  private const val MAX_PDF_PAGES_TO_EXTRACT = 250
+  private const val MAX_TEXT_LINES_TO_EXTRACT = 15_000
+
   private var pdfBoxInitialized = false
 
   private fun ensurePdfBox(context: Context) {
@@ -31,11 +38,21 @@ object MarkdownExporterService {
       try {
         PDFBoxResourceLoader.init(context.applicationContext)
         pdfBoxInitialized = true
-      } catch (_: Exception) { }
+      } catch (t: Throwable) {
+        Log.e(TAG, "Failed to initialize PDFBoxResourceLoader", t)
+      }
     }
   }
 
-  suspend fun extractSource(context: Context, uri: Uri): MarkdownSourceItem = withContext(Dispatchers.IO) {
+  /**
+   * Extracts and structures document content into Markdown with streaming memory management,
+   * chunked parsing, and protection against OutOfMemoryError on massive files (e.g. 150MB PDFs).
+   */
+  suspend fun extractSource(
+    context: Context,
+    uri: Uri,
+    onProgress: (progress: Float, status: String) -> Unit = { _, _ -> }
+  ): MarkdownSourceItem = withContext(Dispatchers.IO) {
     ensurePdfBox(context)
     var fileName = "source_${System.currentTimeMillis()}"
     var fileSize = 0L
@@ -54,7 +71,15 @@ object MarkdownExporterService {
           }
         }
       }
-    } catch (_: Exception) { }
+    } catch (t: Throwable) {
+      Log.w(TAG, "Could not resolve metadata for $uri: ${t.localizedMessage}")
+    }
+
+    val isLargeFile = fileSize >= LARGE_FILE_THRESHOLD_BYTES
+    if (isLargeFile) {
+      Log.i(TAG, "Ingesting large document: $fileName ($fileSize bytes). Using temp disk memory backing.")
+      onProgress(0.05f, "Preparing large document (${fileSize / (1024 * 1024)} MB)...")
+    }
 
     val extension = fileName.substringAfterLast(".", "").lowercase()
     val mimeType = context.contentResolver.getType(uri) ?: ""
@@ -69,31 +94,84 @@ object MarkdownExporterService {
 
     var extractedRaw = ""
     var structuredMd = ""
+    var parseError: String? = null
 
     try {
       when (fileType) {
         SourceFileType.PDF -> {
-          context.contentResolver.openInputStream(uri)?.use { stream ->
-            PDDocument.load(stream).use { doc ->
-              val stripper = PDFTextStripper()
-              extractedRaw = stripper.getText(doc).trim()
-              structuredMd = structurePdfText(extractedRaw, doc.numberOfPages)
+          // Open via ParcelFileDescriptor and streaming input with MemoryUsageSetting.setupTempFileOnly()
+          // This keeps scratch buffers on disk instead of exhausting the JVM heap.
+          val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+            ?: throw IllegalStateException("Cannot access file descriptor for $fileName")
+
+          pfd.use {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+              val memorySetting = MemoryUsageSetting.setupTempFileOnly()
+              PDDocument.load(stream, memorySetting).use { doc ->
+                val totalPages = doc.numberOfPages
+                val pagesToProcess = minOf(totalPages, MAX_PDF_PAGES_TO_EXTRACT)
+                val stripper = PDFTextStripper()
+                val sb = StringBuilder()
+                sb.appendLine("> Document Length: $totalPages pages\n")
+
+                for (page in 1..pagesToProcess) {
+                  stripper.startPage = page
+                  stripper.endPage = page
+                  val pageText = stripper.getText(doc).trim()
+                  if (pageText.isNotBlank()) {
+                    sb.appendLine("### Page $page\n")
+                    sb.appendLine(pageText)
+                    sb.appendLine()
+                  }
+
+                  if (page % 5 == 0 || page == pagesToProcess) {
+                    val progressRatio = page.toFloat() / pagesToProcess.toFloat()
+                    onProgress(0.1f + (progressRatio * 0.85f), "Parsing PDF page $page of $pagesToProcess...")
+                  }
+                }
+
+                if (totalPages > pagesToProcess) {
+                  sb.appendLine("\n> ℹ️ Note: Parsed first $pagesToProcess of $totalPages pages to protect memory and LLM context limit.")
+                }
+
+                extractedRaw = sb.toString().trim()
+                structuredMd = extractedRaw
+              }
             }
           }
         }
 
         SourceFileType.IMAGE_OCR -> {
+          onProgress(0.2f, "Scanning image OCR text blocks...")
           val ocrResult = OcrUtils.processImageOcr(context, uri, 0)
           extractedRaw = ocrResult.fullText.trim()
           structuredMd = structureOcrText(extractedRaw, ocrResult.blocks.map { it.text })
+          onProgress(1f, "OCR extraction complete")
         }
 
         SourceFileType.TEXT_DOCUMENT, SourceFileType.CODE_FILE -> {
-          context.contentResolver.openInputStream(uri)?.use { stream ->
-            BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
-              extractedRaw = reader.readText().trim()
+          onProgress(0.1f, "Streaming document content...")
+          // Stream read line-by-line with MAX_TEXT_LINES_TO_EXTRACT guard
+          val pfd = context.contentResolver.openFileDescriptor(uri, "r")
+          pfd?.use {
+            context.contentResolver.openInputStream(uri)?.use { stream ->
+              BufferedReader(InputStreamReader(stream, Charsets.UTF_8)).use { reader ->
+                val sb = StringBuilder()
+                var lineCount = 0
+                var line = reader.readLine()
+                while (line != null && lineCount < MAX_TEXT_LINES_TO_EXTRACT) {
+                  sb.appendLine(line)
+                  lineCount++
+                  line = reader.readLine()
+                }
+                if (line != null) {
+                  sb.appendLine("\n> ℹ️ Note: Text stream truncated at $MAX_TEXT_LINES_TO_EXTRACT lines for LLM prompt safety.")
+                }
+                extractedRaw = sb.toString().trim()
+              }
             }
           }
+
           structuredMd = if (extension == "csv") {
             convertCsvToMarkdownTable(extractedRaw)
           } else if (fileType == SourceFileType.CODE_FILE) {
@@ -101,20 +179,32 @@ object MarkdownExporterService {
           } else {
             extractedRaw
           }
+          onProgress(1f, "Text parsed successfully")
         }
 
         SourceFileType.AUDIO_NOTE -> {
+          onProgress(0.5f, "Extracting audio track metadata...")
           val metadata = extractAudioMetadata(context, uri)
           extractedRaw = metadata
           structuredMd = metadata
+          onProgress(1f, "Audio metadata processed")
         }
       }
-    } catch (e: Exception) {
-      extractedRaw = "Failed to parse content: ${e.localizedMessage}"
-      structuredMd = "> ⚠️ Error parsing content from `$fileName`: ${e.localizedMessage}"
+    } catch (t: Throwable) {
+      Log.e(TAG, "Fatal parsing error for $fileName: ${t.localizedMessage}", t)
+      System.gc() // Clean up any garbage left by failed extraction
+      val isOom = t is OutOfMemoryError || t.message?.contains("memory", ignoreCase = true) == true
+      val displayError = if (isOom) {
+        "Insufficient memory: File is too large to parse completely on-device"
+      } else {
+        t.localizedMessage ?: "Unsupported or corrupted document format"
+      }
+      parseError = displayError
+      extractedRaw = "Failed to parse document: $displayError"
+      structuredMd = "> ⚠️ Failed to parse document `$fileName`: $displayError"
     }
 
-    val tokens = MarkdownSourceItem.estimateTokens(structuredMd)
+    val tokens = if (parseError != null) 0 else MarkdownSourceItem.estimateTokens(structuredMd)
 
     MarkdownSourceItem(
       id = UUID.randomUUID().toString(),
@@ -125,38 +215,9 @@ object MarkdownExporterService {
       extractedRawText = extractedRaw,
       structuredMarkdown = structuredMd,
       tokenEstimate = tokens,
-      isExtracting = false
+      isExtracting = false,
+      error = parseError
     )
-  }
-
-  private fun structurePdfText(text: String, totalPages: Int): String {
-    if (text.isBlank()) return "> *Empty or scanned PDF with no digital text stream. Use Image OCR if pages contain images.*"
-    val lines = text.lines()
-    val sb = StringBuilder()
-    sb.appendLine("> Document Length: $totalPages pages\n")
-
-    var inList = false
-    for (rawLine in lines) {
-      val line = rawLine.trim()
-      if (line.isEmpty()) {
-        if (inList) inList = false
-        sb.appendLine()
-        continue
-      }
-
-      // Check if line is a major chapter / section header (short, capitalized, or numbered)
-      if (line.matches(Regex("^(Chapter|Section|Part|[0-9]+[.)])\\s+.*", RegexOption.IGNORE_CASE)) && line.length < 90) {
-        sb.appendLine("\n### $line\n")
-        inList = false
-      } else if (line.startsWith("•") || line.startsWith("-") || line.startsWith("*")) {
-        val cleanBullet = line.replaceFirst(Regex("^[•\\-*]\\s*"), "")
-        sb.appendLine("- $cleanBullet")
-        inList = true
-      } else {
-        sb.appendLine(line)
-      }
-    }
-    return sb.toString().trim()
   }
 
   private fun structureOcrText(fullText: String, blocks: List<String>): String {
@@ -187,12 +248,19 @@ object MarkdownExporterService {
     sb.appendLine("| " + headerCols.joinToString(" | ") + " |")
     sb.appendLine("| " + headerCols.map { "---" }.joinToString(" | ") + " |")
 
-    for (i in 1 until lines.size) {
+    val maxTableRows = 1000 // Cap table rendering to avoid freezing UI
+    val rowsToRender = minOf(lines.size, maxTableRows)
+
+    for (i in 1 until rowsToRender) {
       val cols = parseCsvLine(lines[i])
       val paddedCols = (0 until headerCols.size).map { idx ->
         if (idx < cols.size) cols[idx] else ""
       }
       sb.appendLine("| " + paddedCols.joinToString(" | ") + " |")
+    }
+
+    if (lines.size > maxTableRows) {
+      sb.appendLine("\n> ℹ️ Note: Table rendered first $maxTableRows of ${lines.size} rows.")
     }
     return sb.toString()
   }
@@ -238,7 +306,7 @@ object MarkdownExporterService {
       - **Bitrate**: ${bitrate / 1000} kbps
       - **Note**: Audio file attached as reference source.
       """.trimIndent()
-    } catch (_: Exception) {
+    } catch (_: Throwable) {
       "> 🎙️ Audio Recording: (Metadata not available)"
     } finally {
       retriever.release()
@@ -250,9 +318,10 @@ object MarkdownExporterService {
     settings: MarkdownExportSettings
   ): CompiledMarkdownResult {
     val sb = StringBuilder()
-    val totalSources = items.size
+    val validItems = items.filter { it.error == null }
+    val totalSources = validItems.size
 
-    val combinedContent = items.joinToString("\n\n---\n\n") { item ->
+    val combinedContent = validItems.joinToString("\n\n---\n\n") { item ->
       buildString {
         appendLine("## 📑 Source: `${item.fileName}` [Type: ${item.fileType.badgeText} | Size: ${item.displaySize}]")
         appendLine(item.structuredMarkdown)
@@ -263,7 +332,7 @@ object MarkdownExporterService {
       LlmPromptWrapper.CLAUDE_XML -> {
         sb.appendLine("You are an expert AI research and synthesis assistant. Below is an authoritative multi-document context bundle containing $totalSources reference sources.\n")
         sb.appendLine("<documents>")
-        items.forEachIndexed { index, item ->
+        validItems.forEachIndexed { index, item ->
           sb.appendLine("<document index=\"${index + 1}\">")
           sb.appendLine("<source>${item.fileName}</source>")
           sb.appendLine("<type>${item.fileType.badgeText}</type>")
@@ -279,7 +348,7 @@ object MarkdownExporterService {
       LlmPromptWrapper.CHATGPT_SYSTEM -> {
         sb.appendLine("# System Prompt: Comprehensive Context Intelligence\n")
         sb.appendLine("You are an analytical assistant. Review the following $totalSources attached source documents to synthesize insights and address inquiries:\n")
-        items.forEachIndexed { index, item ->
+        validItems.forEachIndexed { index, item ->
           sb.appendLine("### [Document ${index + 1}/$totalSources]: `${item.fileName}` (${item.fileType.badgeText})")
           sb.appendLine(item.structuredMarkdown)
           if (index < totalSources - 1) sb.appendLine("\n---\n")
@@ -289,7 +358,7 @@ object MarkdownExporterService {
       LlmPromptWrapper.GEMINI_BRIEF -> {
         sb.appendLine("# 🌐 Research Briefing Bundle: ${settings.bundleTitle}")
         sb.appendLine("> Compiled via OmniConvert AI Markdown Exporter | Total Sources: $totalSources\n")
-        items.forEachIndexed { index, item ->
+        validItems.forEachIndexed { index, item ->
           sb.appendLine("## 📌 Reference Item ${index + 1}: `${item.fileName}`")
           sb.appendLine("- **Class**: ${item.fileType.badgeText}")
           sb.appendLine("- **Footprint**: ${item.displaySize}")
@@ -310,7 +379,7 @@ object MarkdownExporterService {
     }
 
     val finalMarkdown = sb.toString().trim()
-    val words = finalMarkdown.split(Regex("\\s+")).filter { it.isNotBlank() }.size
+    val words = if (finalMarkdown.isBlank()) 0 else finalMarkdown.split(Regex("\\s+")).filter { it.isNotBlank() }.size
     val tokens = MarkdownSourceItem.estimateTokens(finalMarkdown)
 
     return CompiledMarkdownResult(

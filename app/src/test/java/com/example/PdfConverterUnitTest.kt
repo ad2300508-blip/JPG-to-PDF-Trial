@@ -442,6 +442,39 @@ class PdfConverterUnitTest {
     assertTrue(geminiBundle.compiledMarkdown.contains("Research Briefing Bundle"))
     assertTrue(geminiBundle.compiledMarkdown.contains("Reference Item 1: `main.kt`"))
   }
+
+  @Test
+  fun testMarkdownCompileWithFailedDocumentFiltersGracefully() {
+    val items = listOf(
+      com.example.model.MarkdownSourceItem(
+        id = "good",
+        uri = Uri.parse("content://docs/valid.txt"),
+        fileName = "valid.txt",
+        fileSizeBytes = 1000L,
+        fileType = com.example.model.SourceFileType.TEXT_DOCUMENT,
+        structuredMarkdown = "Valid text content"
+      ),
+      com.example.model.MarkdownSourceItem(
+        id = "bad",
+        uri = Uri.parse("content://docs/corrupt.pdf"),
+        fileName = "corrupt.pdf",
+        fileSizeBytes = 150_000_000L,
+        fileType = com.example.model.SourceFileType.PDF,
+        error = "Insufficient memory: File is too large to parse completely on-device"
+      )
+    )
+
+    val settings = com.example.model.MarkdownExportSettings(
+      bundleTitle = "Safe_Bundle",
+      llmWrapper = com.example.model.LlmPromptWrapper.RAW_MARKDOWN
+    )
+
+    val bundle = com.example.service.MarkdownExporterService.compileBundle(items, settings)
+    assertEquals(1, bundle.sourceCount)
+    assertTrue(bundle.compiledMarkdown.contains("valid.txt"))
+    assertFalse(bundle.compiledMarkdown.contains("corrupt.pdf"))
+  }
 }
+
 
 
