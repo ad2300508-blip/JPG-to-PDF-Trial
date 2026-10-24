@@ -22,6 +22,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.MusicNote
@@ -72,6 +73,7 @@ import com.example.viewmodel.AudioLabViewModel
 @Composable
 fun AudioLabScreen(
     viewModel: AudioLabViewModel,
+    onTranscribeAudio: (android.net.Uri, String) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.items.collectAsState()
@@ -167,7 +169,11 @@ fun AudioLabScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         items(items, key = { it.id }) { item ->
-                            AudioItemCard(item = item, onRemove = { viewModel.removeItem(item.id) })
+                            AudioItemCard(
+                                item = item,
+                                onTranscribe = { onTranscribeAudio(item.uri, item.mimeType) },
+                                onRemove = { viewModel.removeItem(item.id) }
+                            )
                         }
                     }
                 }
@@ -337,6 +343,7 @@ fun AudioLabScreen(
 @Composable
 private fun AudioItemCard(
     item: AudioConvertItem,
+    onTranscribe: () -> Unit,
     onRemove: () -> Unit
 ) {
     OmniCard(borderColor = BorderSubtle, backgroundColor = SurfaceElevated) {
@@ -377,8 +384,13 @@ private fun AudioItemCard(
                 }
             }
 
-            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
-                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = RoseAccent, modifier = Modifier.size(18.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                IconButton(onClick = onTranscribe, modifier = Modifier.size(32.dp).testTag("transcribe_item_${item.id}")) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = "AI Transcribe", tint = CyanAccent, modifier = Modifier.size(18.dp))
+                }
+                IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                    Icon(Icons.Default.Delete, contentDescription = "Remove", tint = RoseAccent, modifier = Modifier.size(18.dp))
+                }
             }
         }
     }

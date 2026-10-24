@@ -29,6 +29,8 @@ data class MarkdownSourceItem(
     val mimeType: String = "",
     val extractedText: String = "",
     val pageCount: Int = 1,
+    val parsedPages: Int = 1,
+    val hasMorePages: Boolean = false,
     val isProcessing: Boolean = false,
     val error: String? = null
 ) {

@@ -137,6 +137,27 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
         _copySuccessMessage.value = null
     }
 
+    fun parseRemainingPages(id: String) {
+        val currentItem = _items.value.find { it.id == id } ?: return
+        viewModelScope.launch(Dispatchers.IO) {
+            _isIngesting.value = true
+            _extractionProgress.value = 0f
+            _extractionStatusText.value = "Parsing remaining pages for ${currentItem.name}..."
+
+            val updated = markdownService.extractRemainingPages(currentItem) { progress, status ->
+                _extractionProgress.value = progress
+                _extractionStatusText.value = status
+            }
+
+            _items.value = _items.value.map {
+                if (it.id == id) updated else it
+            }
+            recompileInternal()
+            _isIngesting.value = false
+            _extractionStatusText.value = "Remaining pages parsed"
+        }
+    }
+
     fun recompile() {
         viewModelScope.launch(Dispatchers.IO) {
             recompileInternal()

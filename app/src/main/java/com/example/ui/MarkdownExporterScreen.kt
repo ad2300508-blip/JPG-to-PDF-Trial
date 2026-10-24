@@ -23,6 +23,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -60,6 +61,7 @@ import com.example.ui.components.OmniHeader
 import com.example.ui.components.OmniLinearProgress
 import com.example.ui.components.OmniStatPill
 import com.example.ui.components.OmniSuccessBanner
+import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.EmeraldAccent
@@ -76,6 +78,7 @@ import com.example.viewmodel.MarkdownExporterViewModel
 @Composable
 fun MarkdownExporterScreen(
     viewModel: MarkdownExporterViewModel,
+    onSendToGemini: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val items by viewModel.items.collectAsState()
@@ -191,6 +194,7 @@ fun MarkdownExporterScreen(
                         items(items, key = { it.id }) { item ->
                             SourceDocCard(
                                 item = item,
+                                onParseRemaining = { viewModel.parseRemainingPages(item.id) },
                                 onRemove = { viewModel.removeItem(item.id) }
                             )
                         }
@@ -351,7 +355,7 @@ fun MarkdownExporterScreen(
                                 onClick = { viewModel.saveAsMarkdown("OmniContext") },
                                 enabled = compiledResult != null && !isIngesting,
                                 modifier = Modifier
-                                    .weight(0.6f)
+                                    .weight(0.5f)
                                     .height(50.dp)
                                     .testTag("save_markdown_button"),
                                 colors = ButtonDefaults.buttonColors(
@@ -360,9 +364,30 @@ fun MarkdownExporterScreen(
                                 ),
                                 shape = RoundedCornerShape(10.dp)
                             ) {
-                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text("SAVE .MD", fontWeight = FontWeight.Bold)
+                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("SAVE", fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                            }
+
+                            Button(
+                                onClick = {
+                                    val content = compiledResult?.rawMarkdown ?: ""
+                                    if (content.isNotEmpty()) onSendToGemini(content)
+                                },
+                                enabled = compiledResult != null && !isIngesting,
+                                modifier = Modifier
+                                    .weight(0.7f)
+                                    .height(50.dp)
+                                    .testTag("send_to_gemini_hub_button"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = AmberAccent,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("AI GEMINI", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                             }
                         }
                     }
@@ -375,6 +400,7 @@ fun MarkdownExporterScreen(
 @Composable
 private fun SourceDocCard(
     item: MarkdownSourceItem,
+    onParseRemaining: () -> Unit = {},
     onRemove: () -> Unit
 ) {
     val isError = item.error != null
@@ -423,8 +449,24 @@ private fun SourceDocCard(
                         OmniBadge(text = "~${item.estimatedTokens} TOKENS", color = CyanAccent)
                         OmniBadge(text = "${item.sizeBytes / 1024} KB", color = Slate400)
                         if (item.pageCount > 1) {
-                            OmniBadge(text = "${item.pageCount} PAGES", color = IndigoAccent)
+                            OmniBadge(text = "${item.parsedPages}/${item.pageCount} PAGES", color = IndigoAccent)
                         }
+                    }
+                    if (item.hasMorePages) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "PARSE REMAINING PAGES (${item.pageCount - item.parsedPages} MORE)",
+                            fontSize = 10.sp,
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            color = CyanAccent,
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(CyanAccent.copy(alpha = 0.1f))
+                                .clickable { onParseRemaining() }
+                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .testTag("parse_remaining_${item.id}")
+                        )
                     }
                 }
             }

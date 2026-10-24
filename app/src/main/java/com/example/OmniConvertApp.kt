@@ -5,10 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -17,7 +15,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.MergeType
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Icon
@@ -45,22 +45,26 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.ui.ArchiveScreen
 import com.example.ui.AudioLabScreen
+import com.example.ui.GeminiHubScreen
 import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
+import com.example.ui.PdfMergeScreen
 import com.example.ui.PdfStudioScreen
+import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.EmeraldAccent
 import com.example.ui.theme.IndigoAccent
+import com.example.ui.theme.PdfPurple
 import com.example.ui.theme.Slate400
-import com.example.ui.theme.Slate700
 import com.example.ui.theme.Slate800
-import com.example.ui.theme.Slate900
 import com.example.ui.theme.SurfaceCard
 import com.example.viewmodel.ArchiveViewModel
 import com.example.viewmodel.AudioLabViewModel
+import com.example.viewmodel.GeminiHubViewModel
 import com.example.viewmodel.ImageLabViewModel
 import com.example.viewmodel.MarkdownExporterViewModel
+import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfStudioViewModel
 
 enum class WorkspaceDestination(
@@ -69,19 +73,23 @@ enum class WorkspaceDestination(
     val accentColor: Color
 ) {
     PDF_STUDIO("PDF Studio", Icons.Default.PictureAsPdf, CyanAccent),
+    PDF_MERGE("PDF Merge", Icons.Default.MergeType, PdfPurple),
     IMAGE_LAB("Image Lab", Icons.Default.Image, EmeraldAccent),
     AUDIO_LAB("Audio Lab", Icons.Default.Audiotrack, IndigoAccent),
     ARCHIVE_ZIP("Archive ZIP", Icons.Default.Archive, Color(0xFFF59E0B)),
-    AI_MARKDOWN("AI Markdown", Icons.Default.SmartToy, CyanAccent)
+    AI_MARKDOWN("AI Markdown", Icons.Default.SmartToy, CyanAccent),
+    GEMINI_HUB("Gemini AI", Icons.Default.AutoAwesome, AmberAccent)
 }
 
 @Composable
 fun OmniConvertApp(
     pdfViewModel: PdfStudioViewModel = viewModel(),
+    pdfMergeViewModel: PdfMergeViewModel = viewModel(),
     imageViewModel: ImageLabViewModel = viewModel(),
     audioViewModel: AudioLabViewModel = viewModel(),
     archiveViewModel: ArchiveViewModel = viewModel(),
-    markdownViewModel: MarkdownExporterViewModel = viewModel()
+    markdownViewModel: MarkdownExporterViewModel = viewModel(),
+    geminiViewModel: GeminiHubViewModel = viewModel()
 ) {
     var currentWorkspace by remember { mutableStateOf(WorkspaceDestination.PDF_STUDIO) }
 
@@ -102,7 +110,7 @@ fun OmniConvertApp(
             NavigationRail(
                 modifier = Modifier
                     .fillMaxHeight()
-                    .width(104.dp)
+                    .width(108.dp)
                     .border(
                         width = 1.dp,
                         color = BorderSubtle,
@@ -113,7 +121,7 @@ fun OmniConvertApp(
                 header = {
                     Box(
                         modifier = Modifier
-                            .padding(top = 16.dp, bottom = 20.dp)
+                            .padding(top = 16.dp, bottom = 16.dp)
                             .size(52.dp)
                             .clip(CircleShape)
                             .background(Slate800)
@@ -159,7 +167,7 @@ fun OmniConvertApp(
                             unselectedTextColor = Slate400
                         ),
                         modifier = Modifier
-                            .padding(vertical = 4.dp)
+                            .padding(vertical = 2.dp)
                             .testTag("nav_item_${destination.name.lowercase()}")
                     )
                 }
@@ -173,10 +181,29 @@ fun OmniConvertApp(
             ) {
                 when (currentWorkspace) {
                     WorkspaceDestination.PDF_STUDIO -> PdfStudioScreen(viewModel = pdfViewModel)
+                    WorkspaceDestination.PDF_MERGE -> PdfMergeScreen(viewModel = pdfMergeViewModel)
                     WorkspaceDestination.IMAGE_LAB -> ImageLabScreen(viewModel = imageViewModel)
-                    WorkspaceDestination.AUDIO_LAB -> AudioLabScreen(viewModel = audioViewModel)
+                    WorkspaceDestination.AUDIO_LAB -> AudioLabScreen(
+                        viewModel = audioViewModel,
+                        onTranscribeAudio = { uri, _ ->
+                            geminiViewModel.attachAudio(uri)
+                            currentWorkspace = WorkspaceDestination.GEMINI_HUB
+                        }
+                    )
                     WorkspaceDestination.ARCHIVE_ZIP -> ArchiveScreen(viewModel = archiveViewModel)
-                    WorkspaceDestination.AI_MARKDOWN -> MarkdownExporterScreen(viewModel = markdownViewModel)
+                    WorkspaceDestination.AI_MARKDOWN -> MarkdownExporterScreen(
+                        viewModel = markdownViewModel,
+                        onSendToGemini = { docText ->
+                            geminiViewModel.setContextDocument(docText)
+                            currentWorkspace = WorkspaceDestination.GEMINI_HUB
+                        }
+                    )
+                    WorkspaceDestination.GEMINI_HUB -> GeminiHubScreen(
+                        viewModel = geminiViewModel,
+                        onNavigateToMarkdown = {
+                            currentWorkspace = WorkspaceDestination.AI_MARKDOWN
+                        }
+                    )
                 }
             }
         }
