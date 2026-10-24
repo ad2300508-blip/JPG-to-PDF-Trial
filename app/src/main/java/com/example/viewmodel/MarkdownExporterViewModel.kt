@@ -83,7 +83,8 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
                     uri = uri,
                     name = name,
                     mimeType = mime,
-                    sizeBytes = size
+                    sizeBytes = size,
+                    parseAllPages = _settings.value.parseAllPages
                 ) { fileProgress, status ->
                     val overall = (index.toFloat() + fileProgress) / totalUris.toFloat()
                     _extractionProgress.value = overall
@@ -101,6 +102,40 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
             _isIngesting.value = false
             _extractionProgress.value = 1f
             _extractionStatusText.value = "All documents parsed"
+        }
+    }
+
+    fun toggleParseAllPages(enabled: Boolean) {
+        _settings.value = _settings.value.copy(parseAllPages = enabled)
+        if (enabled && _items.value.any { it.hasMorePages }) {
+            parseAllDocumentsRemaining()
+        }
+    }
+
+    fun parseAllDocumentsRemaining() {
+        val itemsToParse = _items.value.filter { it.hasMorePages }
+        if (itemsToParse.isEmpty()) return
+
+        extractionJob?.cancel()
+        extractionJob = viewModelScope.launch(Dispatchers.IO) {
+            _isIngesting.value = true
+            _extractionProgress.value = 0f
+
+            for ((idx, doc) in itemsToParse.withIndex()) {
+                _extractionStatusText.value = "Parsing remaining pages for ${doc.name} (${idx + 1}/${itemsToParse.size})..."
+                val updated = markdownService.extractRemainingPages(doc) { progress, status ->
+                    val overall = (idx.toFloat() + progress) / itemsToParse.size.toFloat()
+                    _extractionProgress.value = overall
+                    _extractionStatusText.value = "$status (${idx + 1}/${itemsToParse.size})"
+                }
+                _items.value = _items.value.map {
+                    if (it.id == doc.id) updated else it
+                }
+                recompileInternal()
+            }
+            _isIngesting.value = false
+            _extractionProgress.value = 1f
+            _extractionStatusText.value = "All remaining pages parsed"
         }
     }
 

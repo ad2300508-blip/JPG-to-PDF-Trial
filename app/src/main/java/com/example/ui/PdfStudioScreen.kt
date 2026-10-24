@@ -3,11 +3,13 @@ package com.example.ui
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -20,7 +22,9 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Book
@@ -42,6 +46,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -49,6 +56,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
@@ -60,6 +68,7 @@ import com.example.ui.components.OmniEmptyState
 import com.example.ui.components.OmniErrorBanner
 import com.example.ui.components.OmniHeader
 import com.example.ui.components.OmniLinearProgress
+import com.example.ui.components.OmniPhoneTabSelector
 import com.example.ui.components.OmniStatPill
 import com.example.ui.components.OmniSuccessBanner
 import com.example.ui.theme.BorderSubtle
@@ -85,6 +94,8 @@ fun PdfStudioScreen(
     val progress by viewModel.generationProgress.collectAsState()
     val lastGeneratedUri by viewModel.lastGeneratedUri.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+
+    var phoneTabIndex by remember { mutableIntStateOf(0) }
 
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -114,7 +125,12 @@ fun PdfStudioScreen(
                 ) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Images")
+                    Text(
+                        text = "Add Images",
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
                 if (items.isNotEmpty()) {
                     Spacer(modifier = Modifier.width(8.dp))
@@ -146,185 +162,312 @@ fun PdfStudioScreen(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Dual Pane Tablet Layout: Left 42% Images, Right 58% Command Center
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                .weight(1f)
         ) {
-            // Left Pane: Document Image Pages
-            Box(
-                modifier = Modifier
-                    .weight(0.42f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                if (items.isEmpty()) {
-                    OmniEmptyState(
-                        icon = Icons.Default.PictureAsPdf,
-                        title = "No Pages Loaded",
-                        description = "Import book screenshots or scans to clean contrast, split two-page spreads, and compile into a PDF."
-                    ) {
-                        Button(
-                            onClick = { pickerLauncher.launch("image/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = Color.Black)
-                        ) {
-                            Text("Import Images")
-                        }
+            val isCompact = maxWidth < 600.dp
+
+            if (isCompact) {
+                // Phone Layout: 2-Tab Switcher (Pages vs PDF Settings) at 100% width
+                Column(modifier = Modifier.fillMaxSize()) {
+                    OmniPhoneTabSelector(
+                        selectedTabIndex = phoneTabIndex,
+                        tabs = listOf("Pages (${items.size})", "Settings & Build"),
+                        accentColor = CyanAccent,
+                        onTabSelected = { phoneTabIndex = it },
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+
+                    if (phoneTabIndex == 0) {
+                        PdfPagesPane(
+                            items = items,
+                            onPickImages = { pickerLauncher.launch("image/*") },
+                            viewModel = viewModel,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            onNavigateToSettings = if (items.isNotEmpty()) { { phoneTabIndex = 1 } } else null
+                        )
+                    } else {
+                        PdfConfigPane(
+                            config = config,
+                            itemsCount = items.size,
+                            isGenerating = isGenerating,
+                            viewModel = viewModel,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                }
+            } else {
+                // Dual Pane Tablet Layout: Left 42% Images, Right 58% Command Center
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    PdfPagesPane(
+                        items = items,
+                        onPickImages = { pickerLauncher.launch("image/*") },
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .weight(0.42f)
+                            .fillMaxHeight(),
+                        onNavigateToSettings = null
+                    )
+
+                    PdfConfigPane(
+                        config = config,
+                        itemsCount = items.size,
+                        isGenerating = isGenerating,
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .weight(0.58f)
+                            .fillMaxHeight()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PdfPagesPane(
+    items: List<PdfDocumentItem>,
+    onPickImages: () -> Unit,
+    viewModel: PdfStudioViewModel,
+    modifier: Modifier = Modifier,
+    onNavigateToSettings: (() -> Unit)? = null
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        if (items.isEmpty()) {
+            OmniEmptyState(
+                icon = Icons.Default.PictureAsPdf,
+                title = "No Pages Loaded",
+                description = "Import book screenshots or scans to clean contrast, split two-page spreads, and compile into a PDF."
+            ) {
+                Button(
+                    onClick = onPickImages,
+                    colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = Color.Black),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(48.dp)
+                ) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Import Images",
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        PdfItemCard(
+                            item = item,
+                            onToggleSplit = { viewModel.toggleSpreadSplit(item.id) },
+                            onToggleBinarize = { viewModel.toggleBinarization(item.id) },
+                            onRotate = { viewModel.rotateItem(item.id) },
+                            onRemove = { viewModel.removeItem(item.id) }
+                        )
+                    }
+                }
+
+                if (onNavigateToSettings != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onNavigateToSettings,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SurfaceElevated,
+                            contentColor = CyanAccent
+                        ),
+                        border = BorderStroke(1.dp, CyanAccent.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     ) {
-                        items(items, key = { it.id }) { item ->
-                            PdfItemCard(
-                                item = item,
-                                onToggleSplit = { viewModel.toggleSpreadSplit(item.id) },
-                                onToggleBinarize = { viewModel.toggleBinarization(item.id) },
-                                onRotate = { viewModel.rotateItem(item.id) },
-                                onRemove = { viewModel.removeItem(item.id) }
+                        Text(
+                            text = "Configure & Export PDF →",
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PdfConfigPane(
+    config: PdfExportConfig,
+    itemsCount: Int,
+    isGenerating: Boolean,
+    viewModel: PdfStudioViewModel,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .padding(18.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "PDF ENGINE CONFIGURATION",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Slate400,
+                    maxLines = 1,
+                    softWrap = false
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                OutlinedTextField(
+                    value = config.title,
+                    onValueChange = { viewModel.updateConfig(config.copy(title = it)) },
+                    label = { Text("Document Title", maxLines = 1) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .testTag("pdf_title_input"),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Text(
+                    text = "Page Format & Margins",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf("A4", "Letter", "Original").forEach { size ->
+                        val selected = config.pageSize == size
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selected) CyanAccent.copy(alpha = 0.2f) else SurfaceElevated)
+                                .border(1.dp, if (selected) CyanAccent else BorderSubtle, RoundedCornerShape(8.dp))
+                                .clickable { viewModel.updateConfig(config.copy(pageSize = size)) }
+                                .padding(horizontal = 14.dp, vertical = 10.dp)
+                                .testTag("page_size_$size")
+                        ) {
+                            Text(
+                                text = size,
+                                color = if (selected) CyanAccent else Slate400,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                     }
                 }
-            }
 
-            // Right Pane: PDF Engine Configuration & Compile Command
-            Box(
-                modifier = Modifier
-                    .weight(0.58f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
-                    .padding(18.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column {
-                        Text(
-                            text = "PDF ENGINE CONFIGURATION",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Slate400
-                        )
+                Spacer(modifier = Modifier.height(18.dp))
 
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        OutlinedTextField(
-                            value = config.title,
-                            onValueChange = { viewModel.updateConfig(config.copy(title = it)) },
-                            label = { Text("Document Title") },
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("pdf_title_input"),
-                            singleLine = true
-                        )
-
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        Text(
-                            text = "Page Format & Margins",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            listOf("A4", "Letter", "Original").forEach { size ->
-                                val selected = config.pageSize == size
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selected) CyanAccent.copy(alpha = 0.2f) else SurfaceElevated)
-                                        .border(1.dp, if (selected) CyanAccent else BorderSubtle, RoundedCornerShape(8.dp))
-                                        .clickable { viewModel.updateConfig(config.copy(pageSize = size)) }
-                                        .padding(horizontal = 14.dp, vertical = 8.dp)
-                                        .testTag("page_size_$size")
-                                ) {
-                                    Text(
-                                        text = size,
-                                        color = if (selected) CyanAccent else Slate400,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(18.dp))
-
-                        // Book Screenshot Cleaner toggles
-                        OmniCard(borderColor = BorderSubtle, backgroundColor = SurfaceElevated) {
-                            Column {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = "Auto Contrast & Background Clean",
-                                            style = MaterialTheme.typography.titleMedium,
-                                            color = MaterialTheme.colorScheme.onSurface
-                                        )
-                                        Text(
-                                            text = "Removes page shadows, yellow tint, and enhances text darkness.",
-                                            style = MaterialTheme.typography.bodyMedium,
-                                            color = Slate400
-                                        )
-                                    }
-                                    Switch(
-                                        checked = config.autoContrastClean,
-                                        onCheckedChange = { viewModel.updateConfig(config.copy(autoContrastClean = it)) },
-                                        colors = SwitchDefaults.colors(checkedThumbColor = CyanAccent, checkedTrackColor = Slate800),
-                                        modifier = Modifier.testTag("auto_contrast_switch")
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Command Action Bar
+                // Book Screenshot Cleaner toggles
+                OmniCard(borderColor = BorderSubtle, backgroundColor = SurfaceElevated) {
                     Column {
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OmniStatPill(label = "Total Pages", value = "${items.size}")
-                            OmniStatPill(label = "Format", value = config.pageSize)
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Button(
-                            onClick = { viewModel.generatePdf() },
-                            enabled = items.isNotEmpty() && !isGenerating,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("generate_pdf_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = CyanAccent,
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Default.PictureAsPdf, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isGenerating) "GENERATING PDF..." else "BUILD & EXPORT PDF",
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Auto Contrast & Background Clean",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Removes page shadows, yellow tint, and enhances text darkness.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = Slate400
+                                )
+                            }
+                            Switch(
+                                checked = config.autoContrastClean,
+                                onCheckedChange = { viewModel.updateConfig(config.copy(autoContrastClean = it)) },
+                                colors = SwitchDefaults.colors(checkedThumbColor = CyanAccent, checkedTrackColor = Slate800),
+                                modifier = Modifier.testTag("auto_contrast_switch")
                             )
                         }
                     }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Command Action Bar
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OmniStatPill(label = "Total Pages", value = "$itemsCount")
+                    OmniStatPill(label = "Format", value = config.pageSize)
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Button(
+                    onClick = { viewModel.generatePdf() },
+                    enabled = itemsCount > 0 && !isGenerating,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("generate_pdf_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = CyanAccent,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.PictureAsPdf, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isGenerating) "GENERATING PDF..." else "BUILD & EXPORT PDF",
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

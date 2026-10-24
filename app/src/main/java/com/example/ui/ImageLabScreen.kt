@@ -69,6 +69,16 @@ import com.example.ui.theme.SurfaceCard
 import com.example.ui.theme.SurfaceElevated
 import com.example.viewmodel.ImageLabViewModel
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.ui.components.OmniPhoneTabSelector
+
 @Composable
 fun ImageLabScreen(
     viewModel: ImageLabViewModel,
@@ -78,6 +88,8 @@ fun ImageLabScreen(
     val settings by viewModel.settings.collectAsState()
     val isProcessing by viewModel.isProcessing.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+
+    var phoneTabIndex by remember { mutableIntStateOf(0) }
 
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -107,7 +119,7 @@ fun ImageLabScreen(
                 ) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add Images")
+                    Text("Add Images", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
                 if (items.isNotEmpty()) {
                     Spacer(modifier = Modifier.width(8.dp))
@@ -125,192 +137,313 @@ fun ImageLabScreen(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Dual Pane Tablet Layout: Left 42% Image Queue, Right 58% Compression Command
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                .weight(1f)
         ) {
-            // Left Pane: Images Queue with Before/After
-            Box(
-                modifier = Modifier
-                    .weight(0.42f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
+            val isCompact = maxWidth < 600.dp
+
+            if (isCompact) {
+                // Phone Layout: 2-Tab Switcher
+                Column(modifier = Modifier.fillMaxSize()) {
+                    OmniPhoneTabSelector(
+                        selectedTabIndex = phoneTabIndex,
+                        tabs = listOf("Images (${items.size})", "Transcode Settings"),
+                        accentColor = EmeraldAccent,
+                        onTabSelected = { phoneTabIndex = it },
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+
+                    if (phoneTabIndex == 0) {
+                        ImageQueuePane(
+                            items = items,
+                            onPickImages = { pickerLauncher.launch("image/*") },
+                            viewModel = viewModel,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            onNavigateToSettings = if (items.isNotEmpty()) { { phoneTabIndex = 1 } } else null
+                        )
+                    } else {
+                        ImageSettingsPane(
+                            settings = settings,
+                            itemsCount = items.size,
+                            isProcessing = isProcessing,
+                            viewModel = viewModel,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
+                    }
+                }
+            } else {
+                // Dual Pane Tablet Layout: Left 42% Image Queue, Right 58% Compression Command
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    ImageQueuePane(
+                        items = items,
+                        onPickImages = { pickerLauncher.launch("image/*") },
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .weight(0.42f)
+                            .fillMaxHeight(),
+                        onNavigateToSettings = null
+                    )
+
+                    ImageSettingsPane(
+                        settings = settings,
+                        itemsCount = items.size,
+                        isProcessing = isProcessing,
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .weight(0.58f)
+                            .fillMaxHeight()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageQueuePane(
+    items: List<ImageConvertItem>,
+    onPickImages: () -> Unit,
+    viewModel: ImageLabViewModel,
+    modifier: Modifier = Modifier,
+    onNavigateToSettings: (() -> Unit)? = null
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        if (items.isEmpty()) {
+            OmniEmptyState(
+                icon = Icons.Default.Image,
+                title = "No Images Queued",
+                description = "Import JPG, PNG, WEBP, or BMP images to convert format, downscale resolution, or compress."
             ) {
-                if (items.isEmpty()) {
-                    OmniEmptyState(
-                        icon = Icons.Default.Image,
-                        title = "No Images Queued",
-                        description = "Import JPG, PNG, WEBP, or BMP images to convert format, downscale resolution, or compress."
+                Button(
+                    onClick = onPickImages,
+                    colors = ButtonDefaults.buttonColors(containerColor = EmeraldAccent, contentColor = Color.Black),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(48.dp)
+                ) {
+                    Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Import Images", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(items, key = { it.id }) { item ->
+                        ImageItemCard(
+                            item = item,
+                            onRemove = { viewModel.removeItem(item.id) }
+                        )
+                    }
+                }
+
+                if (onNavigateToSettings != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onNavigateToSettings,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = SurfaceElevated,
+                            contentColor = EmeraldAccent
+                        ),
+                        border = BorderStroke(1.dp, EmeraldAccent.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     ) {
-                        Button(
-                            onClick = { pickerLauncher.launch("image/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = EmeraldAccent, contentColor = Color.Black)
+                        Text("Configure Transcode & Export →", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ImageSettingsPane(
+    settings: ImageConversionSettings,
+    itemsCount: Int,
+    isProcessing: Boolean,
+    viewModel: ImageLabViewModel,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+            .padding(18.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column {
+                Text(
+                    text = "TARGET FORMAT & ENCODING",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Slate400,
+                    maxLines = 1,
+                    softWrap = false
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Target Formats Grid
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    ImageFormat.values().forEach { fmt ->
+                        val selected = settings.targetFormat == fmt
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (selected) EmeraldAccent.copy(alpha = 0.2f) else SurfaceElevated)
+                                .border(1.dp, if (selected) EmeraldAccent else BorderSubtle, RoundedCornerShape(10.dp))
+                                .clickable { viewModel.updateSettings(settings.copy(targetFormat = fmt)) }
+                                .padding(vertical = 10.dp, horizontal = 6.dp)
+                                .testTag("target_format_${fmt.name}"),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("Import Images")
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = fmt.name.replace("_", " "),
+                                    color = if (selected) EmeraldAccent else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 11.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = if (fmt.isLossless) "LOSSLESS" else "LOSSY",
+                                    color = if (fmt.isLossless) CyanAccent else Slate400,
+                                    fontSize = 9.sp,
+                                    fontFamily = FontFamily.Monospace,
+                                    maxLines = 1,
+                                    softWrap = false
+                                )
+                            }
                         }
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(items, key = { it.id }) { item ->
-                            ImageItemCard(
-                                item = item,
-                                onRemove = { viewModel.removeItem(item.id) }
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Quality Slider (For Lossy formats)
+                if (!settings.targetFormat.isLossless) {
+                    Text(
+                        text = "Compression Quality: ${settings.qualityPercent}%",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        softWrap = false
+                    )
+                    Slider(
+                        value = settings.qualityPercent.toFloat(),
+                        onValueChange = { viewModel.updateSettings(settings.copy(qualityPercent = it.toInt())) },
+                        valueRange = 1f..100f,
+                        colors = SliderDefaults.colors(thumbColor = EmeraldAccent, activeTrackColor = EmeraldAccent)
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                // Resolution Scale Presets
+                Text(
+                    text = "Resolution Scale",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    softWrap = false
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    listOf(100, 75, 50).forEach { scale ->
+                        val selected = settings.resolutionScalePercent == scale
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (selected) EmeraldAccent.copy(alpha = 0.2f) else SurfaceElevated)
+                                .border(1.dp, if (selected) EmeraldAccent else BorderSubtle, RoundedCornerShape(8.dp))
+                                .clickable { viewModel.updateSettings(settings.copy(resolutionScalePercent = scale)) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .testTag("scale_$scale")
+                        ) {
+                            Text(
+                                text = "$scale%",
+                                color = if (selected) EmeraldAccent else Slate400,
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                maxLines = 1,
+                                softWrap = false
                             )
                         }
                     }
                 }
             }
 
-            // Right Pane: Format & Compression Controls
-            Box(
-                modifier = Modifier
-                    .weight(0.58f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
-                    .padding(18.dp)
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Command Action Bar
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column {
-                        Text(
-                            text = "TARGET FORMAT & ENCODING",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Slate400
-                        )
+                    OmniStatPill(label = "Queued", value = "$itemsCount")
+                    OmniStatPill(label = "Mode", value = if (settings.targetFormat.isLossless) "LOSSLESS" else "${settings.qualityPercent}% Q", valueColor = EmeraldAccent)
+                }
 
-                        Spacer(modifier = Modifier.height(12.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                        // Target Formats Grid
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            ImageFormat.values().forEach { fmt ->
-                                val selected = settings.targetFormat == fmt
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(if (selected) EmeraldAccent.copy(alpha = 0.2f) else SurfaceElevated)
-                                        .border(1.dp, if (selected) EmeraldAccent else BorderSubtle, RoundedCornerShape(10.dp))
-                                        .clickable { viewModel.updateSettings(settings.copy(targetFormat = fmt)) }
-                                        .padding(vertical = 12.dp, horizontal = 8.dp)
-                                        .testTag("target_format_${fmt.name}"),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text(
-                                            text = fmt.name.replace("_", " "),
-                                            color = if (selected) EmeraldAccent else MaterialTheme.colorScheme.onSurface,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 11.sp,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                        Spacer(modifier = Modifier.height(2.dp))
-                                        Text(
-                                            text = if (fmt.isLossless) "LOSSLESS" else "LOSSY",
-                                            color = if (fmt.isLossless) CyanAccent else Slate400,
-                                            fontSize = 9.sp,
-                                            fontFamily = FontFamily.Monospace
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(20.dp))
-
-                        // Quality Slider (For Lossy formats)
-                        if (!settings.targetFormat.isLossless) {
-                            Text(
-                                text = "Compression Quality: ${settings.qualityPercent}%",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface
-                            )
-                            Slider(
-                                value = settings.qualityPercent.toFloat(),
-                                onValueChange = { viewModel.updateSettings(settings.copy(qualityPercent = it.toInt())) },
-                                valueRange = 1f..100f,
-                                colors = SliderDefaults.colors(thumbColor = EmeraldAccent, activeTrackColor = EmeraldAccent)
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                        }
-
-                        // Resolution Scale Presets
-                        Text(
-                            text = "Resolution Scale",
-                            style = MaterialTheme.typography.titleMedium,
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            listOf(100, 75, 50).forEach { scale ->
-                                val selected = settings.resolutionScalePercent == scale
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(if (selected) EmeraldAccent.copy(alpha = 0.2f) else SurfaceElevated)
-                                        .border(1.dp, if (selected) EmeraldAccent else BorderSubtle, RoundedCornerShape(8.dp))
-                                        .clickable { viewModel.updateSettings(settings.copy(resolutionScalePercent = scale)) }
-                                        .padding(horizontal = 16.dp, vertical = 8.dp)
-                                        .testTag("scale_$scale")
-                                ) {
-                                    Text(
-                                        text = "$scale%",
-                                        color = if (selected) EmeraldAccent else Slate400,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-                    }
-
-                    // Command Action Bar
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OmniStatPill(label = "Queued", value = "${items.size}")
-                            OmniStatPill(label = "Mode", value = if (settings.targetFormat.isLossless) "LOSSLESS" else "${settings.qualityPercent}% Q", valueColor = EmeraldAccent)
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Button(
-                            onClick = { viewModel.convertAll() },
-                            enabled = items.isNotEmpty() && !isProcessing,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("convert_images_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = EmeraldAccent,
-                                contentColor = Color.Black
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.Default.Transform, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isProcessing) "BATCH CONVERTING..." else "CONVERT & SAVE IMAGES",
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                    }
+                Button(
+                    onClick = { viewModel.convertAll() },
+                    enabled = itemsCount > 0 && !isProcessing,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("convert_images_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = EmeraldAccent,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.Transform, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isProcessing) "BATCH CONVERTING..." else "CONVERT & SAVE IMAGES",
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

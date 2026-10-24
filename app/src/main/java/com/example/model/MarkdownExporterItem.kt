@@ -50,7 +50,8 @@ data class MarkdownExportSettings(
     val promptWrapper: LlmPromptWrapper = LlmPromptWrapper.CLAUDE_XML,
     val includeMetadataHeader: Boolean = true,
     val includeTableOfContents: Boolean = true,
-    val maxPagesPerDoc: Int = 250
+    val maxPagesPerDoc: Int = 250,
+    val parseAllPages: Boolean = false
 )
 
 data class CompiledMarkdownResult(

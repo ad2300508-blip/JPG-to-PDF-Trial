@@ -62,6 +62,16 @@ import com.example.ui.theme.Slate400
 import com.example.ui.theme.SurfaceCard
 import com.example.viewmodel.PdfMergeViewModel
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.model.PdfDocumentItem
+import com.example.ui.components.OmniPhoneTabSelector
+
 @Composable
 fun PdfMergeScreen(
     viewModel: PdfMergeViewModel,
@@ -73,6 +83,8 @@ fun PdfMergeScreen(
     val progress by viewModel.progress.collectAsState()
     val lastMergedUri by viewModel.lastMergedUri.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+
+    var phoneTabIndex by remember { mutableIntStateOf(0) }
 
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -102,7 +114,7 @@ fun PdfMergeScreen(
                 ) {
                     Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Add PDFs")
+                    Text("Add PDFs", maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                 }
                 if (documents.isNotEmpty()) {
                     Spacer(modifier = Modifier.width(8.dp))
@@ -134,120 +146,233 @@ fun PdfMergeScreen(
             Spacer(modifier = Modifier.height(10.dp))
         }
 
-        // Dual Pane Tablet Layout: Left 42% Document Order & Cards, Right 58% Configuration & Merge
-        Row(
+        BoxWithConstraints(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
-            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                .weight(1f)
         ) {
-            // Left Pane (42%): Reorderable PDF Documents List
-            Box(
-                modifier = Modifier
-                    .weight(0.42f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderCrisp, RoundedCornerShape(14.dp))
-                    .padding(14.dp)
-            ) {
-                if (documents.isEmpty()) {
-                    OmniEmptyState(
-                        icon = Icons.Default.PictureAsPdf,
-                        title = "No PDFs Selected",
-                        description = "Add two or more PDF files to combine them in custom sequence with optional page ranges and encryption."
-                    ) {
-                        Button(
-                            onClick = { filePicker.launch("application/pdf") },
-                            colors = ButtonDefaults.buttonColors(containerColor = PdfPurple, contentColor = Color.White)
-                        ) {
-                            Text("Select PDF Files")
-                        }
+            val isCompact = maxWidth < 600.dp
+
+            if (isCompact) {
+                // Phone Layout: 2 Tabs (Documents vs Merge Settings)
+                Column(modifier = Modifier.fillMaxSize()) {
+                    OmniPhoneTabSelector(
+                        selectedTabIndex = phoneTabIndex,
+                        tabs = listOf("PDFs (${documents.size})", "Merge Settings"),
+                        accentColor = PdfPurple,
+                        onTabSelected = { phoneTabIndex = it },
+                        modifier = Modifier.padding(bottom = 10.dp)
+                    )
+
+                    if (phoneTabIndex == 0) {
+                        PdfMergeDocsPane(
+                            documents = documents,
+                            onPickPdfs = { filePicker.launch("application/pdf") },
+                            viewModel = viewModel,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            onNavigateToSettings = if (documents.size >= 2) { { phoneTabIndex = 1 } } else null
+                        )
+                    } else {
+                        PdfMergeSettingsPane(
+                            settings = settings,
+                            documentsCount = documents.size,
+                            totalPageCount = viewModel.getTotalPageCount(),
+                            totalFileSizeBytes = viewModel.getTotalFileSizeBytes(),
+                            isMerging = isMerging,
+                            onSettingsChange = { viewModel.updateSettings(it) },
+                            onMerge = { viewModel.mergeDocuments() },
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f)
+                        )
                     }
-                } else {
-                    LazyColumn(
-                        modifier = Modifier.fillMaxSize(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                }
+            } else {
+                // Dual Pane Tablet Layout: Left 42% Document Order, Right 58% Configuration & Merge
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                ) {
+                    PdfMergeDocsPane(
+                        documents = documents,
+                        onPickPdfs = { filePicker.launch("application/pdf") },
+                        viewModel = viewModel,
+                        modifier = Modifier
+                            .weight(0.42f)
+                            .fillMaxHeight(),
+                        onNavigateToSettings = null
+                    )
+
+                    PdfMergeSettingsPane(
+                        settings = settings,
+                        documentsCount = documents.size,
+                        totalPageCount = viewModel.getTotalPageCount(),
+                        totalFileSizeBytes = viewModel.getTotalFileSizeBytes(),
+                        isMerging = isMerging,
+                        onSettingsChange = { viewModel.updateSettings(it) },
+                        onMerge = { viewModel.mergeDocuments() },
+                        modifier = Modifier
+                            .weight(0.58f)
+                            .fillMaxHeight()
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PdfMergeDocsPane(
+    documents: List<PdfDocumentItem>,
+    onPickPdfs: () -> Unit,
+    viewModel: PdfMergeViewModel,
+    modifier: Modifier = Modifier,
+    onNavigateToSettings: (() -> Unit)? = null
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderCrisp, RoundedCornerShape(14.dp))
+            .padding(14.dp)
+    ) {
+        if (documents.isEmpty()) {
+            OmniEmptyState(
+                icon = Icons.Default.PictureAsPdf,
+                title = "No PDFs Selected",
+                description = "Add two or more PDF files to combine them in custom sequence with optional page ranges and encryption."
+            ) {
+                Button(
+                    onClick = onPickPdfs,
+                    colors = ButtonDefaults.buttonColors(containerColor = PdfPurple, contentColor = Color.White),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier
+                        .fillMaxWidth(0.85f)
+                        .height(48.dp)
+                ) {
+                    Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Select PDF Files", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    itemsIndexed(documents, key = { _, item -> item.id }) { index, item ->
+                        PdfDocumentCard(
+                            item = item,
+                            index = index,
+                            totalCount = documents.size,
+                            onMoveUp = { viewModel.moveDocumentUp(index) },
+                            onMoveDown = { viewModel.moveDocumentDown(index) },
+                            onRemove = { viewModel.removeDocument(item.id) },
+                            onPageRangeChange = { range -> viewModel.updatePageRange(item.id, range) }
+                        )
+                    }
+                }
+
+                if (onNavigateToSettings != null) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Button(
+                        onClick = onNavigateToSettings,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = CardSurface,
+                            contentColor = PdfPurple
+                        ),
+                        border = BorderStroke(1.dp, PdfPurple.copy(alpha = 0.5f)),
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp)
                     ) {
-                        itemsIndexed(documents, key = { _, item -> item.id }) { index, item ->
-                            PdfDocumentCard(
-                                item = item,
-                                index = index,
-                                totalCount = documents.size,
-                                onMoveUp = { viewModel.moveDocumentUp(index) },
-                                onMoveDown = { viewModel.moveDocumentDown(index) },
-                                onRemove = { viewModel.removeDocument(item.id) },
-                                onPageRangeChange = { range -> viewModel.updatePageRange(item.id, range) }
-                            )
-                        }
+                        Text("Configure & Merge PDF →", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
+        }
+    }
+}
 
-            // Right Pane (58%): Merge Settings & Command Center
-            Box(
+@Composable
+private fun PdfMergeSettingsPane(
+    settings: PdfMergeSettings,
+    documentsCount: Int,
+    totalPageCount: Int,
+    totalFileSizeBytes: Long,
+    isMerging: Boolean,
+    onSettingsChange: (PdfMergeSettings) -> Unit,
+    onMerge: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderCrisp, RoundedCornerShape(14.dp))
+            .padding(18.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(
                 modifier = Modifier
-                    .weight(0.58f)
-                    .fillMaxHeight()
-                    .clip(RoundedCornerShape(14.dp))
-                    .background(SurfaceCard)
-                    .border(1.dp, BorderCrisp, RoundedCornerShape(14.dp))
-                    .padding(18.dp)
+                    .weight(1f)
+                    .verticalScroll(rememberScrollState())
             ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.SpaceBetween
+                PdfMergeSettingsPanel(
+                    settings = settings,
+                    onSettingsChange = onSettingsChange
+                )
+            }
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            // Action Bar
+            Column {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(
-                        modifier = Modifier
-                            .weight(1f)
-                            .verticalScroll(rememberScrollState())
-                    ) {
-                        PdfMergeSettingsPanel(
-                            settings = settings,
-                            onSettingsChange = { newSettings -> viewModel.updateSettings(newSettings) }
-                        )
-                    }
+                    OmniStatPill(label = "Total Files", value = "$documentsCount")
+                    OmniStatPill(label = "Total Pages", value = "$totalPageCount", valueColor = PdfGreen)
+                    val totalMb = String.format("%.1f MB", totalFileSizeBytes.toDouble() / (1024 * 1024))
+                    OmniStatPill(label = "Input Size", value = totalMb, valueColor = Slate400)
+                }
 
-                    Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
-                    // Action Bar
-                    Column {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OmniStatPill(label = "Total Files", value = "${documents.size}")
-                            OmniStatPill(label = "Total Pages", value = "${viewModel.getTotalPageCount()}", valueColor = PdfGreen)
-                            val totalMb = String.format("%.1f MB", viewModel.getTotalFileSizeBytes().toDouble() / (1024 * 1024))
-                            OmniStatPill(label = "Input Size", value = totalMb, valueColor = Slate400)
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Button(
-                            onClick = { viewModel.mergeDocuments() },
-                            enabled = documents.size >= 2 && !isMerging && settings.hasValidPassword,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(50.dp)
-                                .testTag("merge_pdfs_button"),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = PdfPurple,
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Icon(Icons.AutoMirrored.Filled.MergeType, contentDescription = null)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = if (isMerging) "MERGING PDFS..." else "MERGE & SAVE PDF",
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-                    }
+                Button(
+                    onClick = onMerge,
+                    enabled = documentsCount >= 2 && !isMerging && settings.hasValidPassword,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(50.dp)
+                        .testTag("merge_pdfs_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = PdfPurple,
+                        contentColor = Color.White
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.MergeType, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = if (isMerging) "MERGING PDFS..." else "MERGE & SAVE PDF",
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.5.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
                 }
             }
         }

@@ -68,6 +68,8 @@ import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfStudioViewModel
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Spacer
@@ -75,11 +77,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRowDefaults
-import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
+import androidx.compose.ui.text.style.TextOverflow
 
 enum class WorkspaceDestination(
     val title: String,
@@ -115,64 +114,10 @@ fun OmniConvertApp(
         val isCompact = maxWidth < 600.dp
 
         if (isCompact) {
-            // Phone Handheld Layout: Top Brand Bar + Content + Bottom Scrollable Navigation Bar
+            // Phone Handheld Layout: Clean Unified Screen + Bottom Scrollable Capsule Navigation
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background,
-                topBar = {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .statusBarsPadding()
-                            .background(SurfaceCard)
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Box(
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Slate800)
-                                    .border(1.dp, CyanAccent.copy(alpha = 0.5f), CircleShape),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "OC",
-                                    color = CyanAccent,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = "OmniConvert Studio",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
-                            )
-                        }
-
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(6.dp))
-                                .background(currentWorkspace.accentColor.copy(alpha = 0.15f))
-                                .border(1.dp, currentWorkspace.accentColor.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 8.dp, vertical = 3.dp)
-                        ) {
-                            Text(
-                                text = currentWorkspace.title.uppercase(),
-                                color = currentWorkspace.accentColor,
-                                fontFamily = FontFamily.Monospace,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                },
                 bottomBar = {
                     Surface(
                         modifier = Modifier
@@ -182,48 +127,51 @@ fun OmniConvertApp(
                         border = BorderStroke(1.dp, BorderSubtle),
                         tonalElevation = 8.dp
                     ) {
-                        ScrollableTabRow(
-                            selectedTabIndex = currentWorkspace.ordinal,
-                            containerColor = SurfaceCard,
-                            contentColor = currentWorkspace.accentColor,
-                            edgePadding = 8.dp,
-                            indicator = { tabPositions ->
-                                if (currentWorkspace.ordinal < tabPositions.size) {
-                                    TabRowDefaults.SecondaryIndicator(
-                                        modifier = Modifier.tabIndicatorOffset(tabPositions[currentWorkspace.ordinal]),
-                                        color = currentWorkspace.accentColor,
-                                        height = 3.dp
-                                    )
-                                }
-                            },
-                            divider = {}
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState())
+                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
                             WorkspaceDestination.values().forEach { destination ->
                                 val isSelected = currentWorkspace == destination
-                                Tab(
-                                    selected = isSelected,
+                                Surface(
                                     onClick = { currentWorkspace = destination },
+                                    shape = RoundedCornerShape(20.dp),
+                                    color = if (isSelected) destination.accentColor.copy(alpha = 0.18f) else Color.Transparent,
+                                    border = BorderStroke(
+                                        width = 1.dp,
+                                        color = if (isSelected) destination.accentColor.copy(alpha = 0.6f) else BorderSubtle
+                                    ),
                                     modifier = Modifier
-                                        .height(58.dp)
-                                        .testTag("phone_nav_${destination.name.lowercase()}"),
-                                    text = {
-                                        Text(
-                                            text = destination.title,
-                                            fontSize = 11.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                            color = if (isSelected) destination.accentColor else Slate400,
-                                            maxLines = 1
-                                        )
-                                    },
-                                    icon = {
+                                        .height(46.dp)
+                                        .testTag("phone_nav_${destination.name.lowercase()}")
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
                                         Icon(
                                             imageVector = destination.icon,
                                             contentDescription = destination.title,
                                             tint = if (isSelected) destination.accentColor else Slate400,
-                                            modifier = Modifier.size(20.dp)
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(7.dp))
+                                        Text(
+                                            text = destination.title,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSelected) destination.accentColor else Slate400,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
-                                )
+                                }
                             }
                         }
                     }

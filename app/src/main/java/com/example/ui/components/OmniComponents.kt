@@ -34,6 +34,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.BorderSubtle
@@ -82,7 +83,10 @@ fun OmniBadge(
             color = color,
             fontSize = 10.sp,
             fontFamily = FontFamily.Monospace,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -106,7 +110,10 @@ fun OmniStatPill(
             fontSize = 10.sp,
             fontFamily = FontFamily.Monospace,
             color = Slate400,
-            fontWeight = FontWeight.Medium
+            fontWeight = FontWeight.Medium,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
         Spacer(modifier = Modifier.width(6.dp))
         Text(
@@ -114,7 +121,10 @@ fun OmniStatPill(
             fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
-            color = valueColor
+            color = valueColor,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Ellipsis
         )
     }
 }
@@ -339,12 +349,16 @@ fun OmniEmptyState(
 
 @Composable
 fun OmniPhoneTabSelector(
-    selectedTabIndex: Int,
     tabs: List<String>,
-    accentColor: Color,
     onTabSelected: (Int) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    selectedTabIndex: Int = 0,
+    selectedIndex: Int = selectedTabIndex,
+    accentColor: Color = CyanAccent,
+    activeColor: Color = accentColor
 ) {
+    val activeIdx = if (selectedIndex != 0) selectedIndex else selectedTabIndex
+    val activeCol = if (activeColor != CyanAccent) activeColor else accentColor
     Row(
         modifier = modifier
             .fillMaxWidth()
@@ -355,15 +369,15 @@ fun OmniPhoneTabSelector(
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
         tabs.forEachIndexed { index, title ->
-            val isSelected = selectedTabIndex == index
+            val isSelected = activeIdx == index
             Box(
                 modifier = Modifier
                     .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSelected) accentColor.copy(alpha = 0.18f) else Color.Transparent)
+                    .background(if (isSelected) activeCol.copy(alpha = 0.18f) else Color.Transparent)
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) accentColor.copy(alpha = 0.5f) else Color.Transparent,
+                        color = if (isSelected) activeCol.copy(alpha = 0.5f) else Color.Transparent,
                         shape = RoundedCornerShape(8.dp)
                     )
                     .clickable { onTabSelected(index) }
@@ -375,9 +389,11 @@ fun OmniPhoneTabSelector(
                     text = title,
                     fontSize = 12.sp,
                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isSelected) accentColor else Slate400,
+                    color = if (isSelected) activeCol else Slate400,
                     fontFamily = FontFamily.Monospace,
-                    maxLines = 1
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

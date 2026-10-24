@@ -30,6 +30,7 @@ class MarkdownExporterService(private val context: Context) {
         name: String,
         mimeType: String,
         sizeBytes: Long,
+        parseAllPages: Boolean = false,
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem = withContext(Dispatchers.IO) {
         val lowerName = name.lowercase()
@@ -39,7 +40,14 @@ class MarkdownExporterService(private val context: Context) {
 
         try {
             when {
-                isPdf -> extractFromPdfWithRenderer(uri, name, mimeType, sizeBytes, maxPagesToExtract = 15, onProgress = onProgress)
+                isPdf -> extractFromPdfWithRenderer(
+                    uri = uri,
+                    name = name,
+                    mimeType = mimeType,
+                    sizeBytes = sizeBytes,
+                    maxPagesToExtract = if (parseAllPages) Int.MAX_VALUE else 15,
+                    onProgress = onProgress
+                )
                 isImage -> extractFromImage(uri, name, mimeType, sizeBytes, onProgress)
                 else -> extractFromText(uri, name, mimeType, sizeBytes, onProgress)
             }
@@ -130,27 +138,31 @@ class MarkdownExporterService(private val context: Context) {
 
                     val page = renderer.openPage(pageIndex)
 
-                    // Downsample to max 1280px dimension to avoid memory bloat
-                    val maxDim = 1280
-                    val scale = minOf(1.0f, maxDim.toFloat() / maxOf(page.width, page.height).toFloat())
+                    // Render at high resolution 2200px max dimension for sharp OCR reading
+                    val maxDim = 2200
+                    val scale = maxDim.toFloat() / maxOf(page.width, page.height).toFloat()
                     val renderWidth = (page.width * scale).toInt().coerceAtLeast(1)
                     val renderHeight = (page.height * scale).toInt().coerceAtLeast(1)
 
                     val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = android.graphics.Canvas(bitmap)
+                    canvas.drawColor(android.graphics.Color.WHITE) // White background canvas for clear contrast
                     page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
                     page.close()
 
                     try {
                         val inputImage = InputImage.fromBitmap(bitmap, 0)
                         val visionText = recognizer.process(inputImage).await()
-                        val text = visionText.text.trim()
+                        
+                        // Multi-column and dual-page spatial sorting with hyphenation repair
+                        val pageMarkdown = OcrUtils.processPageBlocks(visionText, renderWidth, renderHeight)
 
-                        if (text.isNotEmpty()) {
+                        if (pageMarkdown.isNotEmpty()) {
                             sb.append("## Page ").append(displayPageNum).append("\n\n")
-                            sb.append(text).append("\n\n")
+                            sb.append(pageMarkdown).append("\n\n")
                         }
                     } finally {
-                        // Immediately recycle bitmap before next iteration
+                        // Immediately recycle bitmap before next iteration to keep RAM footprint low
                         bitmap.recycle()
                     }
 
@@ -158,7 +170,7 @@ class MarkdownExporterService(private val context: Context) {
                 }
 
                 if (totalPages > endPage) {
-                    sb.append("\n> *Preview limited to first $endPage of $totalPages pages. Use 'Parse Remaining Pages' to extract all.*\n")
+                    sb.append("\n> *Preview limited to first $endPage of $totalPages pages. Use 'Parse Remaining Pages' or toggle 'Full Document Extraction' to extract all.*\n")
                 }
             }
         }
@@ -219,13 +231,13 @@ class MarkdownExporterService(private val context: Context) {
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
 
         val result = recognizer.process(image).await()
+        val structuredText = OcrUtils.processPageBlocks(result, bitmap.width, bitmap.height)
         bitmap.recycle()
 
-        val rawText = result.text.trim()
-        val structured = if (rawText.isEmpty()) {
+        val structured = if (structuredText.isEmpty()) {
             "# $name\n\n*(No text detected in image)*"
         } else {
-            "# $name (OCR Extracted)\n\n$rawText\n"
+            "# $name (OCR Extracted)\n\n$structuredText\n"
         }
 
         onProgress(1.0f, "OCR extraction complete")
