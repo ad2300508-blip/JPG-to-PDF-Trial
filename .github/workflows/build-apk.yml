@@ -44,6 +44,13 @@ jobs:
       - name: Grant Execute Permissions for Gradlew
         run: chmod +x gradlew
 
+      - name: Ensure Debug Keystore Exists
+        run: |
+          if [ ! -f "debug.keystore" ]; then
+            echo "debug.keystore not found, generating standard debug keystore..."
+            keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
+          fi
+
       - name: Build Debug APK
         run: ./gradlew assembleDebug --stacktrace
 

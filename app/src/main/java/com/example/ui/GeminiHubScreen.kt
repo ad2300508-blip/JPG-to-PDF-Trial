@@ -34,8 +34,8 @@ import androidx.compose.material.icons.filled.Key
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Psychology
+import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material.icons.filled.Translate
 import androidx.compose.material3.AlertDialog
@@ -347,7 +347,7 @@ fun GeminiHubScreen(
                             .height(44.dp)
                             .testTag("run_gemini_button")
                     ) {
-                        Icon(Icons.Default.Send, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
                         Text("EXECUTE WITH ${selectedModel.displayName.uppercase()}", fontWeight = FontWeight.Bold, fontSize = 11.sp)
                     }

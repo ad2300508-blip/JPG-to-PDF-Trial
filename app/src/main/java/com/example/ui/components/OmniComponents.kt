@@ -336,3 +336,50 @@ fun OmniEmptyState(
         }
     }
 }
+
+@Composable
+fun OmniPhoneTabSelector(
+    selectedTabIndex: Int,
+    tabs: List<String>,
+    accentColor: Color,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(SurfaceCard)
+            .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+            .padding(4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        tabs.forEachIndexed { index, title ->
+            val isSelected = selectedTabIndex == index
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isSelected) accentColor.copy(alpha = 0.18f) else Color.Transparent)
+                    .border(
+                        width = 1.dp,
+                        color = if (isSelected) accentColor.copy(alpha = 0.5f) else Color.Transparent,
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    .clickable { onTabSelected(index) }
+                    .padding(vertical = 10.dp)
+                    .testTag("phone_tab_$index"),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = title,
+                    fontSize = 12.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) accentColor else Slate400,
+                    fontFamily = FontFamily.Monospace,
+                    maxLines = 1
+                )
+            }
+        }
+    }
+}

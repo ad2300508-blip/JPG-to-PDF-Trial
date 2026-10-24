@@ -22,8 +22,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.ClearAll
-import androidx.compose.material.icons.filled.MergeType
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.UploadFile
 import androidx.compose.material3.Button
@@ -239,7 +239,7 @@ fun PdfMergeScreen(
                             ),
                             shape = RoundedCornerShape(10.dp)
                         ) {
-                            Icon(Icons.Default.MergeType, contentDescription = null)
+                            Icon(Icons.AutoMirrored.Filled.MergeType, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = if (isMerging) "MERGING PDFS..." else "MERGE & SAVE PDF",

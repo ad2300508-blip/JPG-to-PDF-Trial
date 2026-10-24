@@ -20,11 +20,25 @@ android {
     }
 
     signingConfigs {
+        getByName("debug") {
+            val customKeystore = rootProject.file("debug.keystore")
+            if (customKeystore.exists()) {
+                storeFile = customKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+            enableV1Signing = true
+            enableV2Signing = true
+        }
         create("debugConfig") {
-            storeFile = rootProject.file("debug.keystore")
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+            val customKeystore = rootProject.file("debug.keystore")
+            if (customKeystore.exists()) {
+                storeFile = customKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
             enableV1Signing = true
             enableV2Signing = true
         }
@@ -39,15 +53,12 @@ android {
             )
         }
         debug {
-            signingConfig = signingConfigs.getByName("debugConfig")
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
-    }
-    kotlinOptions {
-        jvmTarget = "17"
     }
     buildFeatures {
         compose = true
@@ -55,6 +66,12 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+}
+
+kotlin {
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
     }
 }
 
