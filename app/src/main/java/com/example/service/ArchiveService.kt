@@ -1,138 +1,77 @@
 package com.example.service
 
+import android.content.ContentValues
 import android.content.Context
 import android.net.Uri
-import android.provider.OpenableColumns
-import com.example.model.ArchiveFileItem
-import com.example.model.ArchiveResult
-import com.example.model.ArchiveSettings
-import com.example.model.ZipCompressionLevel
-import com.example.util.DownloadUtils
+import android.os.Build
+import android.os.Environment
+import android.provider.MediaStore
+import com.example.model.ArchiveConfig
+import com.example.model.ArchiveItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.BufferedOutputStream
-import java.io.File
-import java.io.FileOutputStream
-import java.util.UUID
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
 
-object ArchiveService {
+class ArchiveService(private val context: Context) {
 
-  suspend fun extractMetadata(context: Context, uri: Uri): ArchiveFileItem = withContext(Dispatchers.IO) {
-    var fileName = "file_${System.currentTimeMillis()}"
-    var fileSize = 0L
+    suspend fun createZip(
+        items: List<ArchiveItem>,
+        config: ArchiveConfig,
+        onProgress: (Int, Int) -> Unit
+    ): Result<Pair<Uri, Long>> = withContext(Dispatchers.IO) {
+        try {
+            val byteStream = ByteArrayOutputStream()
+            val zipOut = ZipOutputStream(byteStream)
+            zipOut.setLevel(config.compressionLevel.coerceIn(0, 9))
 
-    try {
-      context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-        if (cursor.moveToFirst()) {
-          val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-          val sizeIndex = cursor.getColumnIndex(OpenableColumns.SIZE)
-          if (nameIndex != -1) {
-            val name = cursor.getString(nameIndex)
-            if (!name.isNullOrBlank()) fileName = name
-          }
-          if (sizeIndex != -1 && !cursor.isNull(sizeIndex)) {
-            fileSize = cursor.getLong(sizeIndex)
-          }
-        }
-      }
-    } catch (_: Exception) { }
+            val buffer = ByteArray(8192)
+            val total = items.size
 
-    val mime = context.contentResolver.getType(uri) ?: "*/*"
+            for ((index, item) in items.withIndex()) {
+                onProgress(index + 1, total)
+                val inputStream = context.contentResolver.openInputStream(item.uri) ?: continue
+                val bufferedIn = BufferedInputStream(inputStream)
 
-    ArchiveFileItem(
-      id = UUID.randomUUID().toString(),
-      uri = uri,
-      fileName = fileName,
-      sizeBytes = fileSize,
-      mimeType = mime
-    )
-  }
+                val zipEntry = ZipEntry(item.name)
+                zipOut.putNextEntry(zipEntry)
 
-  suspend fun createZipArchive(
-    context: Context,
-    items: List<ArchiveFileItem>,
-    settings: ArchiveSettings,
-    onProgress: (progress: Float, currentFile: String) -> Unit
-  ): Result<ArchiveResult> = withContext(Dispatchers.IO) {
-    try {
-      if (items.isEmpty()) throw IllegalArgumentException("No files selected to archive")
+                var count: Int
+                while (bufferedIn.read(buffer).also { count = it } != -1) {
+                    zipOut.write(buffer, 0, count)
+                }
 
-      val rawName = settings.archiveName.trim().ifEmpty { "Archive_${System.currentTimeMillis() / 1000}" }
-      val cleanName = if (rawName.endsWith(".zip", ignoreCase = true)) rawName else "$rawName.zip"
-      val outputFile = File(context.cacheDir, "omni_${System.currentTimeMillis()}_$cleanName")
-
-      val usedNames = mutableSetOf<String>()
-      var originalTotalBytes = 0L
-
-      ZipOutputStream(BufferedOutputStream(FileOutputStream(outputFile))).use { zipOut ->
-        zipOut.setLevel(settings.compressionLevel.level)
-
-        val total = items.size
-        val buffer = ByteArray(16384)
-
-        for (i in 0 until total) {
-          val item = items[i]
-          onProgress(i.toFloat() / total.toFloat(), item.fileName)
-
-          // Deduplicate entry names
-          var entryName = item.fileName
-          var counter = 1
-          while (usedNames.contains(entryName)) {
-            val base = item.fileName.substringBeforeLast(".")
-            val ext = item.fileName.substringAfterLast(".", "")
-            entryName = if (ext.isNotEmpty() && ext != item.fileName) {
-              "${base}_$counter.$ext"
-            } else {
-              "${item.fileName}_$counter"
+                zipOut.closeEntry()
+                bufferedIn.close()
             }
-            counter++
-          }
-          usedNames.add(entryName)
 
-          val entry = ZipEntry(entryName)
-          zipOut.putNextEntry(entry)
+            zipOut.finish()
+            zipOut.close()
 
-          var fileBytesRead = 0L
-          context.contentResolver.openInputStream(item.uri)?.use { inStream ->
-            var read: Int
-            while (inStream.read(buffer).also { read = it } != -1) {
-              zipOut.write(buffer, 0, read)
-              fileBytesRead += read
+            val zipBytes = byteStream.toByteArray()
+            val filename = "${config.zipFileName.ifBlank { "OmniArchive" }}_${System.currentTimeMillis()}.zip"
+
+            val resolver = context.contentResolver
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+                put(MediaStore.MediaColumns.MIME_TYPE, "application/zip")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/Archives")
+                }
             }
-          }
-          zipOut.closeEntry()
 
-          originalTotalBytes += if (item.sizeBytes > 0) item.sizeBytes else fileBytesRead
+            val outputUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+                ?: return@withContext Result.failure(Exception("Could not create MediaStore entry for ZIP"))
+
+            resolver.openOutputStream(outputUri)?.use { out ->
+                out.write(zipBytes)
+            }
+
+            Result.success(Pair(outputUri, zipBytes.size.toLong()))
+        } catch (t: Throwable) {
+            Result.failure(t)
         }
-      }
-
-      onProgress(1f, "Finalizing archive...")
-
-      Result.success(
-        ArchiveResult(
-          file = outputFile,
-          fileName = cleanName,
-          originalTotalBytes = originalTotalBytes,
-          compressedBytes = outputFile.length()
-        )
-      )
-    } catch (e: Exception) {
-      Result.failure(e)
     }
-  }
-
-  suspend fun exportArchiveToDownloads(
-    context: Context,
-    result: ArchiveResult
-  ): Result<DownloadUtils.DownloadResult> {
-    return DownloadUtils.saveFileToDownloads(
-      context = context,
-      sourceFile = result.file,
-      desiredFileName = result.fileName,
-      mimeType = "application/zip",
-      subfolder = "OmniConvert/Archives"
-    )
-  }
 }

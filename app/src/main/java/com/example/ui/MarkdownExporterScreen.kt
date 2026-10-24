@@ -2,15 +2,11 @@ package com.example.ui
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -24,783 +20,418 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ClearAll
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.ErrorOutline
-import androidx.compose.material.icons.filled.FolderOpen
-import androidx.compose.material.icons.filled.Psychology
-import androidx.compose.material.icons.filled.Stop
-import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.automirrored.filled.NoteAdd
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.example.model.CompiledMarkdownResult
 import com.example.model.LlmPromptWrapper
-import com.example.model.MarkdownExportSettings
 import com.example.model.MarkdownSourceItem
-import com.example.model.SourceFileType
-import com.example.ui.theme.BadgeAud
-import com.example.ui.theme.BadgeAudBg
-import com.example.ui.theme.BadgeImg
-import com.example.ui.theme.BadgeImgBg
-import com.example.ui.theme.BadgeMd
-import com.example.ui.theme.BadgeMdBg
-import com.example.ui.theme.BadgePdf
-import com.example.ui.theme.BadgePdfBg
-import com.example.ui.theme.BorderCrisp
-import com.example.ui.theme.CardSurface
-import com.example.ui.theme.CodeTextStyle
-import com.example.ui.theme.ErrorRed
-import com.example.ui.theme.PanelElevated
-import com.example.ui.theme.SuccessGreen
+import com.example.ui.components.OmniBadge
+import com.example.ui.components.OmniCard
+import com.example.ui.components.OmniEmptyState
+import com.example.ui.components.OmniErrorBanner
+import com.example.ui.components.OmniHeader
+import com.example.ui.components.OmniLinearProgress
+import com.example.ui.components.OmniStatPill
+import com.example.ui.components.OmniSuccessBanner
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.CyanAccent
+import com.example.ui.theme.EmeraldAccent
+import com.example.ui.theme.IndigoAccent
+import com.example.ui.theme.RoseAccent
+import com.example.ui.theme.Slate300
+import com.example.ui.theme.Slate400
+import com.example.ui.theme.Slate700
+import com.example.ui.theme.Slate800
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceElevated
 import com.example.viewmodel.MarkdownExporterViewModel
 
 @Composable
 fun MarkdownExporterScreen(
-  viewModel: MarkdownExporterViewModel,
-  modifier: Modifier = Modifier
+    viewModel: MarkdownExporterViewModel,
+    modifier: Modifier = Modifier
 ) {
-  val items by viewModel.items.collectAsStateWithLifecycle()
-  val settings by viewModel.settings.collectAsStateWithLifecycle()
-  val isExtracting by viewModel.isExtracting.collectAsStateWithLifecycle()
-  val extractionProgress by viewModel.extractionProgress.collectAsStateWithLifecycle()
-  val extractionStatusText by viewModel.extractionStatusText.collectAsStateWithLifecycle()
-  val isCompiling by viewModel.isCompiling.collectAsStateWithLifecycle()
-  val compiledResult by viewModel.compiledResult.collectAsStateWithLifecycle()
-  val errorNotice by viewModel.errorNotice.collectAsStateWithLifecycle()
-  val clipboardMessage by viewModel.clipboardMessage.collectAsStateWithLifecycle()
-  val exportMessage by viewModel.exportMessage.collectAsStateWithLifecycle()
+    val items by viewModel.items.collectAsState()
+    val settings by viewModel.settings.collectAsState()
+    val isIngesting by viewModel.isIngesting.collectAsState()
+    val extractionProgress by viewModel.extractionProgress.collectAsState()
+    val extractionStatusText by viewModel.extractionStatusText.collectAsState()
+    val compiledResult by viewModel.compiledResult.collectAsState()
+    val errorNotice by viewModel.errorNotice.collectAsState()
+    val copySuccess by viewModel.copySuccessMessage.collectAsState()
+    val savedUri by viewModel.savedUri.collectAsState()
 
-  val pickerLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.OpenMultipleDocuments()
-  ) { uris ->
-    if (uris.isNotEmpty()) {
-      viewModel.addUris(uris)
-    }
-  }
-
-  val snackbarHostState = remember { SnackbarHostState() }
-
-  LaunchedEffect(clipboardMessage) {
-    clipboardMessage?.let {
-      snackbarHostState.showSnackbar(it)
-      viewModel.clearClipboardMessage()
-    }
-  }
-
-  LaunchedEffect(exportMessage) {
-    exportMessage?.let {
-      snackbarHostState.showSnackbar(it)
-      viewModel.clearExportMessage()
-    }
-  }
-
-  BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-    val isTabletLandscape = maxWidth >= 840.dp
-
-    Column(modifier = Modifier.fillMaxSize()) {
-      // Dismissible Error Banner
-      AnimatedVisibility(
-        visible = errorNotice != null,
-        enter = fadeIn(),
-        exit = fadeOut()
-      ) {
-        errorNotice?.let { notice ->
-          Surface(
-            color = Color(0xFF2A1218),
-            shape = RoundedCornerShape(12.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, ErrorRed.copy(alpha = 0.6f)),
-            modifier = Modifier
-              .fillMaxWidth()
-              .padding(horizontal = 16.dp, vertical = 6.dp)
-              .testTag("md_error_notice_banner")
-          ) {
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Icon(
-                imageVector = Icons.Default.ErrorOutline,
-                contentDescription = null,
-                tint = ErrorRed,
-                modifier = Modifier.size(20.dp)
-              )
-              Spacer(modifier = Modifier.width(10.dp))
-              Text(
-                text = notice,
-                style = MaterialTheme.typography.bodySmall,
-                color = Color(0xFFFCA5A5),
-                fontWeight = FontWeight.Medium,
-                modifier = Modifier.weight(1f)
-              )
-              IconButton(
-                onClick = { viewModel.dismissErrorNotice() },
-                modifier = Modifier.size(28.dp)
-              ) {
-                Icon(
-                  imageVector = Icons.Default.Close,
-                  contentDescription = "Dismiss error",
-                  tint = ErrorRed,
-                  modifier = Modifier.size(16.dp)
-                )
-              }
-            }
-          }
+    val filePicker = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.addFiles(uris)
         }
-      }
-
-      if (isTabletLandscape) {
-        // Bespoke Asymmetric Dual-Pane Layout: 38% Left Source List, 62% Right AI Prompt Engine
-        Row(
-          modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth()
-        ) {
-          Box(
-            modifier = Modifier
-              .weight(0.38f)
-              .fillMaxHeight()
-              .padding(start = 16.dp, top = 4.dp, bottom = 16.dp, end = 8.dp)
-          ) {
-            MarkdownSourceListPane(
-              items = items,
-              isExtracting = isExtracting,
-              extractionProgress = extractionProgress,
-              extractionStatusText = extractionStatusText,
-              onCancelExtraction = { viewModel.cancelExtraction() },
-              onPickSources = { pickerLauncher.launch(arrayOf("*/*")) },
-              onRemoveItem = { viewModel.removeItem(it) },
-              onClearAll = { viewModel.clearAll() }
-            )
-          }
-
-          Box(
-            modifier = Modifier
-              .weight(0.62f)
-              .fillMaxHeight()
-              .padding(start = 8.dp, top = 4.dp, bottom = 16.dp, end = 16.dp)
-          ) {
-            MarkdownCompiledPane(
-              items = items,
-              settings = settings,
-              compiledResult = compiledResult,
-              isExtracting = isExtracting,
-              extractionProgress = extractionProgress,
-              extractionStatusText = extractionStatusText,
-              isCompiling = isCompiling,
-              onSettingsUpdate = { viewModel.updateSettings(it) },
-              onCopyToClipboard = { viewModel.copyToClipboard() },
-              onExportMarkdown = { viewModel.exportToDownloads() }
-            )
-          }
-        }
-      } else {
-        // Mobile Single-Pane Column with Vertical Scroll
-        Column(
-          modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth()
-            .verticalScroll(rememberScrollState())
-            .padding(16.dp),
-          verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-          MarkdownCompiledPane(
-            items = items,
-            settings = settings,
-            compiledResult = compiledResult,
-            isExtracting = isExtracting,
-            extractionProgress = extractionProgress,
-            extractionStatusText = extractionStatusText,
-            isCompiling = isCompiling,
-            onSettingsUpdate = { viewModel.updateSettings(it) },
-            onCopyToClipboard = { viewModel.copyToClipboard() },
-            onExportMarkdown = { viewModel.exportToDownloads() }
-          )
-
-          MarkdownSourceListPane(
-            items = items,
-            isExtracting = isExtracting,
-            extractionProgress = extractionProgress,
-            extractionStatusText = extractionStatusText,
-            onCancelExtraction = { viewModel.cancelExtraction() },
-            onPickSources = { pickerLauncher.launch(arrayOf("*/*")) },
-            onRemoveItem = { viewModel.removeItem(it) },
-            onClearAll = { viewModel.clearAll() }
-          )
-        }
-      }
     }
 
-    Box(
-      modifier = Modifier
-        .align(Alignment.BottomCenter)
-        .padding(bottom = 16.dp)
-    ) {
-      SnackbarHost(hostState = snackbarHostState)
-    }
-  }
-}
-
-@Composable
-private fun MarkdownSourceListPane(
-  items: List<MarkdownSourceItem>,
-  isExtracting: Boolean,
-  extractionProgress: Float,
-  extractionStatusText: String,
-  onCancelExtraction: () -> Unit,
-  onPickSources: () -> Unit,
-  onRemoveItem: (String) -> Unit,
-  onClearAll: () -> Unit,
-  modifier: Modifier = Modifier
-) {
-  Surface(
-    color = CardSurface,
-    shape = RoundedCornerShape(20.dp),
-    border = androidx.compose.foundation.BorderStroke(1.dp, BorderCrisp),
-    modifier = modifier.fillMaxSize()
-  ) {
     Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(16.dp)
+        modifier = modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .testTag("markdown_exporter_screen")
     ) {
-      // Header
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Column {
-          Text(
-            text = "SOURCE CONTEXT",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-          )
-          Text(
-            text = "Ingested Files (${items.size})",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-          )
-        }
-
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-          if (items.isNotEmpty()) {
-            OutlinedButton(
-              onClick = onClearAll,
-              shape = RoundedCornerShape(10.dp),
-              modifier = Modifier.testTag("md_clear_all")
-            ) {
-              Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(14.dp))
-              Spacer(modifier = Modifier.width(4.dp))
-              Text("Clear", style = MaterialTheme.typography.labelMedium)
+        OmniHeader(
+            workspaceTitle = "AI Markdown",
+            categoryBadge = "Document Intelligence & OCR",
+            badgeColor = CyanAccent,
+            itemCount = items.size,
+            isProcessing = isIngesting,
+            actions = {
+                OutlinedButton(
+                    onClick = { filePicker.launch("*/*") },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = CyanAccent),
+                    modifier = Modifier.testTag("markdown_add_docs_button")
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Import Docs / PDFs")
+                }
+                if (items.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = { viewModel.clearAll() }) {
+                        Icon(Icons.Default.ClearAll, contentDescription = "Clear All", tint = Slate400)
+                    }
+                }
             }
-          }
-          Button(
-            onClick = onPickSources,
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.testTag("md_add_sources")
-          ) {
-            Icon(Icons.Default.FolderOpen, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(6.dp))
-            Text(if (items.isEmpty()) "Import Files" else "Add More", style = MaterialTheme.typography.labelMedium)
-          }
-        }
-      }
-
-      // Determinate Extraction Progress with Status & Cancel Button
-      if (isExtracting) {
-        Spacer(modifier = Modifier.height(14.dp))
-        Surface(
-          color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-          shape = RoundedCornerShape(10.dp),
-          border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
-          modifier = Modifier.fillMaxWidth()
-        ) {
-          Column(modifier = Modifier.padding(10.dp)) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Text(
-                text = extractionStatusText.ifBlank { "Streaming document chunks..." },
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-              )
-              IconButton(
-                onClick = onCancelExtraction,
-                modifier = Modifier.size(24.dp)
-              ) {
-                Icon(
-                  imageVector = Icons.Default.Stop,
-                  contentDescription = "Cancel",
-                  tint = MaterialTheme.colorScheme.error,
-                  modifier = Modifier.size(16.dp)
-                )
-              }
-            }
-            Spacer(modifier = Modifier.height(6.dp))
-            LinearProgressIndicator(
-              progress = { extractionProgress },
-              modifier = Modifier
-                .fillMaxWidth()
-                .height(4.dp)
-                .clip(RoundedCornerShape(2.dp))
-            )
-          }
-        }
-      }
-
-      Spacer(modifier = Modifier.height(14.dp))
-
-      if (items.isEmpty()) {
-        Box(
-          modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f),
-          contentAlignment = Alignment.Center
-        ) {
-          Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            modifier = Modifier.padding(24.dp)
-          ) {
-            Box(
-              modifier = Modifier
-                .size(72.dp)
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f), CircleShape),
-              contentAlignment = Alignment.Center
-            ) {
-              Icon(
-                imageVector = Icons.Default.Psychology,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(36.dp)
-              )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Text(
-              text = "Multi-Source AI Context",
-              style = MaterialTheme.typography.titleMedium,
-              fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-              text = "Import large PDFs (up to 150MB+), screenshots (OCR), code files, and notes. Chunked streaming protects device memory automatically.",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-              textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Button(
-              onClick = onPickSources,
-              shape = RoundedCornerShape(12.dp),
-              modifier = Modifier.testTag("md_empty_import_button")
-            ) {
-              Icon(Icons.Default.FolderOpen, contentDescription = null)
-              Spacer(modifier = Modifier.width(8.dp))
-              Text("Select Documents & Media")
-            }
-          }
-        }
-      } else {
-        LazyColumn(
-          modifier = Modifier
-            .fillMaxWidth()
-            .weight(1f),
-          verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-          items(items, key = { it.id }) { item ->
-            MarkdownSourceItemCard(
-              item = item,
-              onRemove = { onRemoveItem(item.id) }
-            )
-          }
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun MarkdownSourceItemCard(
-  item: MarkdownSourceItem,
-  onRemove: () -> Unit
-) {
-  val hasError = item.error != null
-  val (badgeBg, badgeColor) = if (hasError) {
-    Color(0xFF2A1218) to ErrorRed
-  } else {
-    when (item.fileType) {
-      SourceFileType.PDF -> BadgePdfBg to BadgePdf
-      SourceFileType.IMAGE_OCR -> BadgeImgBg to BadgeImg
-      SourceFileType.AUDIO_NOTE -> BadgeAudBg to BadgeAud
-      SourceFileType.CODE_FILE -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
-      SourceFileType.TEXT_DOCUMENT -> BadgeMdBg to BadgeMd
-    }
-  }
-
-  Surface(
-    color = if (hasError) Color(0xFF1A1217) else PanelElevated,
-    shape = RoundedCornerShape(12.dp),
-    border = androidx.compose.foundation.BorderStroke(
-      1.dp,
-      if (hasError) ErrorRed.copy(alpha = 0.6f) else BorderCrisp
-    ),
-    modifier = Modifier
-      .fillMaxWidth()
-      .testTag("md_source_item_${item.id}")
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(12.dp),
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      // Type Badge
-      Surface(
-        color = badgeBg,
-        shape = RoundedCornerShape(6.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, badgeColor.copy(alpha = 0.5f))
-      ) {
-        Text(
-          text = if (hasError) "ERR" else item.fileType.badgeText,
-          style = MaterialTheme.typography.labelSmall,
-          color = badgeColor,
-          fontWeight = FontWeight.Bold,
-          modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
         )
-      }
 
-      Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-          text = item.fileName,
-          style = MaterialTheme.typography.titleSmall,
-          fontWeight = FontWeight.SemiBold,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-
-        if (hasError) {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-              imageVector = Icons.Default.Warning,
-              contentDescription = null,
-              tint = ErrorRed,
-              modifier = Modifier.size(12.dp)
-            )
-            Spacer(modifier = Modifier.width(4.dp))
-            Text(
-              text = item.error ?: "Parsing error",
-              style = MaterialTheme.typography.labelSmall,
-              color = ErrorRed,
-              maxLines = 1,
-              overflow = TextOverflow.Ellipsis
-            )
-          }
-        } else {
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-              text = item.displaySize,
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-              text = " • ",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-              text = "~${item.tokenEstimate} TOKENS",
-              style = MaterialTheme.typography.labelSmall,
-              color = SuccessGreen,
-              fontWeight = FontWeight.Bold
-            )
-          }
-        }
-      }
-
-      IconButton(
-        onClick = onRemove,
-        modifier = Modifier.size(32.dp).testTag("md_remove_source_${item.id}")
-      ) {
-        Icon(
-          imageVector = Icons.Default.Close,
-          contentDescription = "Remove",
-          tint = MaterialTheme.colorScheme.onSurfaceVariant,
-          modifier = Modifier.size(16.dp)
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun MarkdownCompiledPane(
-  items: List<MarkdownSourceItem>,
-  settings: MarkdownExportSettings,
-  compiledResult: CompiledMarkdownResult?,
-  isExtracting: Boolean,
-  extractionProgress: Float,
-  extractionStatusText: String,
-  isCompiling: Boolean,
-  onSettingsUpdate: ((MarkdownExportSettings) -> MarkdownExportSettings) -> Unit,
-  onCopyToClipboard: () -> Unit,
-  onExportMarkdown: () -> Unit,
-  modifier: Modifier = Modifier
-) {
-  Surface(
-    color = CardSurface,
-    shape = RoundedCornerShape(20.dp),
-    border = androidx.compose.foundation.BorderStroke(1.dp, BorderCrisp),
-    modifier = modifier.fillMaxSize()
-  ) {
-    Column(
-      modifier = Modifier
-        .fillMaxSize()
-        .padding(20.dp)
-    ) {
-      // Top Controls: Bundle Title & Stats
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Column {
-          Text(
-            text = "LLM EXPORTER ENGINE",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.Bold
-          )
-          Text(
-            text = "Compiled AI Markdown",
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-          )
+        if (errorNotice != null) {
+            OmniErrorBanner(message = errorNotice!!, onDismiss = { viewModel.dismissErrorNotice() })
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
-        if (compiledResult != null) {
-          Surface(
-            color = BadgeMdBg,
-            shape = RoundedCornerShape(10.dp),
-            border = androidx.compose.foundation.BorderStroke(1.dp, BadgeMd.copy(alpha = 0.5f))
-          ) {
-            Row(
-              modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Icon(
-                imageVector = Icons.Default.AutoAwesome,
-                contentDescription = null,
-                tint = BadgeMd,
-                modifier = Modifier.size(14.dp)
-              )
-              Spacer(modifier = Modifier.width(6.dp))
-              Text(
-                text = "~${compiledResult.estimatedTokens} TOKENS • ${compiledResult.totalWordCount} WORDS",
-                style = MaterialTheme.typography.labelSmall,
-                color = BadgeMd,
-                fontWeight = FontWeight.Bold
-              )
-            }
-          }
+        if (copySuccess != null) {
+            OmniSuccessBanner(message = copySuccess!!, onDismiss = { viewModel.dismissCopySuccess() })
+            Spacer(modifier = Modifier.height(10.dp))
         }
-      }
 
-      // Live processing progress bar
-      if (isExtracting || isCompiling) {
-        Spacer(modifier = Modifier.height(10.dp))
+        if (savedUri != null) {
+            OmniSuccessBanner(message = "Saved to Downloads/OmniConvert/Markdown", onDismiss = { viewModel.clearAll() })
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        if (isIngesting) {
+            OmniLinearProgress(
+                progress = extractionProgress,
+                statusText = extractionStatusText,
+                onCancel = { viewModel.cancelExtraction() }
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        // Asymmetric Tablet Layout: 38% Left Ingested Sources, 62% Right Prompt Command Center
         Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-          Text(
-            text = if (isExtracting) extractionStatusText else "Compiling Markdown context bundle...",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.primary,
-            fontWeight = FontWeight.SemiBold
-          )
-          if (isExtracting) {
-            Text(
-              text = "${(extractionProgress * 100).toInt()}%",
-              style = MaterialTheme.typography.labelSmall,
-              color = MaterialTheme.colorScheme.primary,
-              fontWeight = FontWeight.Bold
-            )
-          }
-        }
-        Spacer(modifier = Modifier.height(4.dp))
-        LinearProgressIndicator(
-          progress = { if (isExtracting) extractionProgress else 0.5f },
-          modifier = Modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .clip(RoundedCornerShape(2.dp))
-        )
-      }
-
-      Spacer(modifier = Modifier.height(14.dp))
-
-      // LLM Prompt Wrapper Tabs
-      Text(
-        text = "PROMPT FORMATTING WRAPPER",
-        style = MaterialTheme.typography.labelSmall,
-        color = MaterialTheme.colorScheme.onSurfaceVariant
-      )
-      Spacer(modifier = Modifier.height(6.dp))
-
-      TabRow(
-        selectedTabIndex = settings.llmWrapper.ordinal,
-        containerColor = PanelElevated,
-        modifier = Modifier.clip(RoundedCornerShape(12.dp))
-      ) {
-        LlmPromptWrapper.values().forEach { wrapper ->
-          Tab(
-            selected = settings.llmWrapper == wrapper,
-            onClick = { onSettingsUpdate { it.copy(llmWrapper = wrapper) } },
-            text = {
-              Text(
-                text = wrapper.displayName,
-                fontSize = 11.sp,
-                fontWeight = if (settings.llmWrapper == wrapper) FontWeight.Bold else FontWeight.Medium
-              )
-            }
-          )
-        }
-      }
-
-      Spacer(modifier = Modifier.height(14.dp))
-
-      // Markdown Preview Canvas (Monospace with JetBrains Mono)
-      Surface(
-        color = Color(0xFF070B12),
-        shape = RoundedCornerShape(14.dp),
-        border = androidx.compose.foundation.BorderStroke(1.dp, BorderCrisp),
-        modifier = Modifier
-          .fillMaxWidth()
-          .weight(1f)
-      ) {
-        if (compiledResult == null || compiledResult.compiledMarkdown.isBlank()) {
-          Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
-          ) {
-            Text(
-              text = if (isExtracting) "Extracting & structuring document intelligence..." else "Add documents on the left to generate clean, prompt-ready Markdown",
-              style = CodeTextStyle,
-              color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-          }
-        } else {
-          SelectionContainer(modifier = Modifier.fillMaxSize()) {
+            // Left Pane (38%): Source Documents List
             Box(
-              modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .horizontalScroll(rememberScrollState())
-                .padding(16.dp)
+                modifier = Modifier
+                    .weight(0.38f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+                    .padding(14.dp)
             ) {
-              Text(
-                text = compiledResult.compiledMarkdown,
-                style = CodeTextStyle,
-                color = Color(0xFFE2E8F0)
-              )
+                if (items.isEmpty()) {
+                    OmniEmptyState(
+                        icon = Icons.Default.SmartToy,
+                        title = "No Ingested Sources",
+                        description = "Add PDFs, book screenshots, text files, or notes. They are parsed into structured Markdown with OCR and token analysis."
+                    ) {
+                        Button(
+                            onClick = { filePicker.launch("*/*") },
+                            colors = ButtonDefaults.buttonColors(containerColor = CyanAccent, contentColor = Color.Black)
+                        ) {
+                            Text("Import Files")
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(items, key = { it.id }) { item ->
+                            SourceDocCard(
+                                item = item,
+                                onRemove = { viewModel.removeItem(item.id) }
+                            )
+                        }
+                    }
+                }
             }
-          }
-        }
-      }
 
-      Spacer(modifier = Modifier.height(16.dp))
+            // Right Pane (62%): LLM Prompt Architect & Output Command Center
+            Box(
+                modifier = Modifier
+                    .weight(0.62f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+                    .padding(18.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .verticalScroll(rememberScrollState())
+                    ) {
+                        Text(
+                            text = "LLM PROMPT ARCHITECT & FORMATTING",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Slate400
+                        )
 
-      // Action Bar: Copy to Clipboard & Save to .md
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
-      ) {
-        Button(
-          onClick = onCopyToClipboard,
-          enabled = compiledResult != null && compiledResult.compiledMarkdown.isNotBlank(),
-          shape = RoundedCornerShape(12.dp),
-          modifier = Modifier
-            .weight(1.3f)
-            .height(50.dp)
-            .testTag("md_copy_clipboard_button")
-        ) {
-          Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Copy to Clipboard (LLM Prompt)",
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
-          )
-        }
+                        Spacer(modifier = Modifier.height(14.dp))
 
-        OutlinedButton(
-          onClick = onExportMarkdown,
-          enabled = compiledResult != null && compiledResult.compiledMarkdown.isNotBlank(),
-          shape = RoundedCornerShape(12.dp),
-          modifier = Modifier
-            .weight(1f)
-            .height(50.dp)
-            .testTag("md_export_file_button")
-        ) {
-          Icon(Icons.Default.Download, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(8.dp))
-          Text(
-            text = "Save as .md",
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp
-          )
+                        // Prompt Wrapper Selection Grid
+                        Text(
+                            text = "Target AI Prompt Wrapper",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LlmPromptWrapper.values().forEach { wrapper ->
+                                val selected = settings.promptWrapper == wrapper
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (selected) CyanAccent.copy(alpha = 0.15f) else SurfaceElevated)
+                                        .border(1.dp, if (selected) CyanAccent else BorderSubtle, RoundedCornerShape(10.dp))
+                                        .clickable { viewModel.updateSettings(settings.copy(promptWrapper = wrapper)) }
+                                        .padding(12.dp)
+                                        .testTag("wrapper_${wrapper.name}")
+                                ) {
+                                    Column {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = wrapper.displayName,
+                                                color = if (selected) CyanAccent else MaterialTheme.colorScheme.onSurface,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp
+                                            )
+                                            if (selected) {
+                                                OmniBadge(text = "ACTIVE", color = CyanAccent)
+                                            }
+                                        }
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = wrapper.description,
+                                            color = Slate400,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(18.dp))
+
+                        // Markdown Live Code Preview Box
+                        Text(
+                            text = "Compiled Markdown Output Preview",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(180.dp)
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(SurfaceElevated)
+                                .border(1.dp, BorderSubtle, RoundedCornerShape(10.dp))
+                                .padding(12.dp)
+                        ) {
+                            val text = compiledResult?.wrappedPrompt ?: "No compiled content. Ingest documents to generate preview."
+                            Text(
+                                text = text,
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 11.sp,
+                                color = if (compiledResult != null) Slate300 else Slate400,
+                                lineHeight = 16.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    // Bottom Action & Telemetry Deck
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            val tokens = compiledResult?.totalTokens ?: 0
+                            val chars = compiledResult?.totalChars ?: 0
+                            OmniStatPill(label = "Est. Tokens", value = "~$tokens", valueColor = CyanAccent)
+                            OmniStatPill(label = "Characters", value = "$chars", valueColor = Slate400)
+                            OmniStatPill(label = "Documents", value = "${compiledResult?.docCount ?: 0}", valueColor = EmeraldAccent)
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Button(
+                                onClick = { viewModel.copyPromptToClipboard() },
+                                enabled = compiledResult != null && !isIngesting,
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(50.dp)
+                                    .testTag("copy_prompt_button"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = CyanAccent,
+                                    contentColor = Color.Black
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "COPY TO CLIPBOARD (FOR LLM)",
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.5.sp
+                                )
+                            }
+
+                            Button(
+                                onClick = { viewModel.saveAsMarkdown("OmniContext") },
+                                enabled = compiledResult != null && !isIngesting,
+                                modifier = Modifier
+                                    .weight(0.6f)
+                                    .height(50.dp)
+                                    .testTag("save_markdown_button"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = SurfaceElevated,
+                                    contentColor = CyanAccent
+                                ),
+                                shape = RoundedCornerShape(10.dp)
+                            ) {
+                                Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("SAVE .MD", fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            }
         }
-      }
     }
-  }
+}
+
+@Composable
+private fun SourceDocCard(
+    item: MarkdownSourceItem,
+    onRemove: () -> Unit
+) {
+    val isError = item.error != null
+    OmniCard(
+        borderColor = if (isError) RoseAccent.copy(alpha = 0.5f) else BorderSubtle,
+        backgroundColor = SurfaceElevated
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isError) RoseAccent.copy(alpha = 0.2f) else Slate800),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isError) Icons.Default.ErrorOutline else Icons.Default.Description,
+                    contentDescription = null,
+                    tint = if (isError) RoseAccent else CyanAccent,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                if (isError) {
+                    Text(
+                        text = item.error ?: "Failed to parse",
+                        color = RoseAccent,
+                        fontSize = 11.sp,
+                        maxLines = 2
+                    )
+                } else {
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        OmniBadge(text = "~${item.estimatedTokens} TOKENS", color = CyanAccent)
+                        OmniBadge(text = "${item.sizeBytes / 1024} KB", color = Slate400)
+                        if (item.pageCount > 1) {
+                            OmniBadge(text = "${item.pageCount} PAGES", color = IndigoAccent)
+                        }
+                    }
+                }
+            }
+
+            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = RoseAccent, modifier = Modifier.size(18.dp))
+            }
+        }
+    }
 }

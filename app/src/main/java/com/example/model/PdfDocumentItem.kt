@@ -1,51 +1,32 @@
 package com.example.model
 
-import android.graphics.Bitmap
 import android.net.Uri
-import java.util.Locale
-import java.util.UUID
 
 data class PdfDocumentItem(
-  val id: String = UUID.randomUUID().toString(),
-  val uri: Uri,
-  val fileName: String,
-  val fileSizeBytes: Long = 0L,
-  val pageCount: Int = 0,
-  val thumbnailBitmap: Bitmap? = null,
-  val timestampMs: Long = System.currentTimeMillis(),
-  val pageRange: String = "", // e.g. "" = All pages, "1-3", "2,4,6-8"
-  val isEncrypted: Boolean = false,
-  val isCorrupted: Boolean = false,
-  val errorMessage: String? = null,
-) {
-  val formattedSize: String
-    get() {
-      val kb = fileSizeBytes / 1024.0
-      val mb = kb / 1024.0
-      return when {
-        mb >= 1.0 -> String.format(Locale.US, "%.1f MB", mb)
-        kb >= 1.0 -> String.format(Locale.US, "%.0f KB", kb)
-        fileSizeBytes > 0 -> "$fileSizeBytes B"
-        else -> "Unknown size"
-      }
-    }
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val uri: Uri? = null,
+    val name: String,
+    val sizeBytes: Long = 0,
+    val isSplitSpread: Boolean = false,
+    val splitPart: Int = 1, // 1 for left page, 2 for right page
+    val rotationDegrees: Int = 0,
+    val contrastBoost: Float = 1.0f,
+    val isBinarized: Boolean = false,
+    val cropRectNormalized: CropRect? = null
+)
 
-  val displayPageCount: String
-    get() = when {
-      isEncrypted -> "Password protected"
-      isCorrupted -> "Unsupported format"
-      pageCount == 1 -> "1 page"
-      pageCount > 1 -> "$pageCount pages"
-      else -> "Reading..."
-    }
-}
+data class CropRect(
+    val left: Float = 0f,
+    val top: Float = 0f,
+    val right: Float = 1f,
+    val bottom: Float = 1f
+)
 
-data class PdfMergeSettings(
-  val outputFileName: String = "",
-  val enableEncryption: Boolean = false,
-  val userPassword: String = "",
-  val ownerPassword: String = "",
-) {
-  val hasValidPassword: Boolean
-    get() = !enableEncryption || userPassword.isNotBlank() || ownerPassword.isNotBlank()
-}
+data class PdfExportConfig(
+    val pageSize: String = "A4", // "A4", "Letter", "Original"
+    val marginMm: Int = 10,
+    val compressionQuality: Int = 85,
+    val autoContrastClean: Boolean = true,
+    val splitDoublePages: Boolean = false,
+    val title: String = "Document"
+)

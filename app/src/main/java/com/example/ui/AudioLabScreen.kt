@@ -4,9 +4,9 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,597 +19,367 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Download
-import androidx.compose.material.icons.filled.GraphicEq
-import androidx.compose.material.icons.filled.Headphones
-import androidx.compose.material.icons.filled.HighQuality
-import androidx.compose.material.icons.filled.LibraryMusic
+import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.model.AudioBitrate
-import com.example.model.AudioLabItem
-import com.example.model.AudioLabSettings
-import com.example.model.AudioOutputMode
-import com.example.ui.theme.SuccessGreen
+import com.example.model.AudioConversionSettings
+import com.example.model.AudioConvertItem
+import com.example.model.AudioOutputFormat
+import com.example.ui.components.OmniBadge
+import com.example.ui.components.OmniCard
+import com.example.ui.components.OmniEmptyState
+import com.example.ui.components.OmniErrorBanner
+import com.example.ui.components.OmniHeader
+import com.example.ui.components.OmniLinearProgress
+import com.example.ui.components.OmniStatPill
+import com.example.ui.theme.BorderSubtle
+import com.example.ui.theme.CyanAccent
+import com.example.ui.theme.IndigoAccent
+import com.example.ui.theme.RoseAccent
+import com.example.ui.theme.Slate400
+import com.example.ui.theme.Slate700
+import com.example.ui.theme.Slate800
+import com.example.ui.theme.SurfaceCard
+import com.example.ui.theme.SurfaceElevated
 import com.example.viewmodel.AudioLabViewModel
 
 @Composable
 fun AudioLabScreen(
-  viewModel: AudioLabViewModel,
-  modifier: Modifier = Modifier
+    viewModel: AudioLabViewModel,
+    modifier: Modifier = Modifier
 ) {
-  val items by viewModel.items.collectAsStateWithLifecycle()
-  val settings by viewModel.settings.collectAsStateWithLifecycle()
-  val isProcessing by viewModel.isProcessing.collectAsStateWithLifecycle()
-  val progressFraction by viewModel.progressFraction.collectAsStateWithLifecycle()
-  val statusMessage by viewModel.statusMessage.collectAsStateWithLifecycle()
-  val exportMessage by viewModel.exportMessage.collectAsStateWithLifecycle()
+    val items by viewModel.items.collectAsState()
+    val settings by viewModel.settings.collectAsState()
+    val isTranscoding by viewModel.isTranscoding.collectAsState()
+    val progress by viewModel.progress.collectAsState()
+    val errorMessage by viewModel.errorMessage.collectAsState()
 
-  val pickerLauncher = rememberLauncherForActivityResult(
-    contract = ActivityResultContracts.OpenMultipleDocuments()
-  ) { uris ->
-    if (uris.isNotEmpty()) {
-      viewModel.addUris(uris)
-    }
-  }
-
-  val snackbarHostState = remember { SnackbarHostState() }
-
-  LaunchedEffect(exportMessage) {
-    exportMessage?.let {
-      snackbarHostState.showSnackbar(it)
-      viewModel.clearExportMessage()
-    }
-  }
-
-  BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-    val isDualPane = maxWidth >= 760.dp
-
-    if (isDualPane) {
-      Row(modifier = Modifier.fillMaxSize()) {
-        // Left Pane: Audio Files List
-        Box(
-          modifier = Modifier
-            .weight(1.15f)
-            .fillMaxHeight()
-            .padding(16.dp)
-        ) {
-          AudioLabListPane(
-            items = items,
-            onPickAudio = { pickerLauncher.launch(arrayOf("audio/*")) },
-            onRemoveItem = { viewModel.removeItem(it) },
-            onClearAll = { viewModel.clearAll() }
-          )
+    val pickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetMultipleContents()
+    ) { uris ->
+        if (uris.isNotEmpty()) {
+            viewModel.addAudioFiles(uris)
         }
-
-        // Right Pane: Settings Command Center
-        Box(
-          modifier = Modifier
-            .weight(0.85f)
-            .fillMaxHeight()
-            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f))
-            .padding(16.dp)
-        ) {
-          AudioLabControlPanel(
-            items = items,
-            settings = settings,
-            isProcessing = isProcessing,
-            onSettingsUpdate = { viewModel.updateSettings(it) },
-            onTranscodeAll = { viewModel.transcodeAll() },
-            onExportAll = { viewModel.exportAllToDownloads() }
-          )
-        }
-      }
-    } else {
-      // Mobile Single Column
-      Column(
-        modifier = Modifier
-          .fillMaxSize()
-          .verticalScroll(rememberScrollState())
-          .padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-      ) {
-        AudioLabControlPanel(
-          items = items,
-          settings = settings,
-          isProcessing = isProcessing,
-          onSettingsUpdate = { viewModel.updateSettings(it) },
-          onTranscodeAll = { viewModel.transcodeAll() },
-          onExportAll = { viewModel.exportAllToDownloads() }
-        )
-
-        AudioLabListPane(
-          items = items,
-          onPickAudio = { pickerLauncher.launch(arrayOf("audio/*")) },
-          onRemoveItem = { viewModel.removeItem(it) },
-          onClearAll = { viewModel.clearAll() }
-        )
-      }
     }
 
-    // Processing Dialog
-    if (isProcessing) {
-      AlertDialog(
-        onDismissRequest = { /* Modal during processing */ },
-        icon = {
-          CircularProgressIndicator(modifier = Modifier.size(36.dp))
-        },
-        title = { Text("Transcoding Audio...", fontWeight = FontWeight.Bold) },
-        text = {
-          Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(statusMessage, style = MaterialTheme.typography.bodyMedium)
-            LinearProgressIndicator(
-              progress = { progressFraction },
-              modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp))
-            )
-          }
-        },
-        confirmButton = { }
-      )
-    }
-
-    Box(
-      modifier = Modifier
-        .align(Alignment.BottomCenter)
-        .padding(bottom = 16.dp)
-    ) {
-      SnackbarHost(hostState = snackbarHostState)
-    }
-  }
-}
-
-@Composable
-private fun AudioLabListPane(
-  items: List<AudioLabItem>,
-  onPickAudio: () -> Unit,
-  onRemoveItem: (String) -> Unit,
-  onClearAll: () -> Unit,
-  modifier: Modifier = Modifier
-) {
-  Column(modifier = modifier.fillMaxSize()) {
-    // Header
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
-      verticalAlignment = Alignment.CenterVertically
-    ) {
-      Column {
-        Text(
-          text = "Audio Queue (${items.size})",
-          style = MaterialTheme.typography.titleLarge,
-          fontWeight = FontWeight.Bold
-        )
-        if (items.isNotEmpty()) {
-          val totalOriginal = items.sumOf { it.sizeBytes }
-          val totalConverted = items.sumOf { it.convertedSizeBytes }
-          val subtitle = if (totalConverted > 0) {
-            "Total: ${AudioLabItem.formatBytes(totalOriginal)} ➔ ${AudioLabItem.formatBytes(totalConverted)}"
-          } else {
-            "Total: ${AudioLabItem.formatBytes(totalOriginal)}"
-          }
-          Text(
-            text = subtitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
-        }
-      }
-
-      Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        if (items.isNotEmpty()) {
-          OutlinedButton(
-            onClick = onClearAll,
-            modifier = Modifier.testTag("audio_lab_clear_all")
-          ) {
-            Icon(Icons.Default.Clear, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("Clear")
-          }
-        }
-        Button(
-          onClick = onPickAudio,
-          modifier = Modifier.testTag("audio_lab_pick_audio")
-        ) {
-          Icon(Icons.Default.LibraryMusic, contentDescription = null, modifier = Modifier.size(18.dp))
-          Spacer(modifier = Modifier.width(6.dp))
-          Text(if (items.isEmpty()) "Select Audio" else "Add Audio")
-        }
-      }
-    }
-
-    Spacer(modifier = Modifier.height(16.dp))
-
-    if (items.isEmpty()) {
-      // Empty State
-      Card(
-        modifier = Modifier
-          .fillMaxWidth()
-          .weight(1f),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(20.dp)
-      ) {
-        Column(
-          modifier = Modifier
+    Column(
+        modifier = modifier
             .fillMaxSize()
-            .padding(32.dp),
-          verticalArrangement = Arrangement.Center,
-          horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-          Box(
-            modifier = Modifier
-              .size(80.dp)
-              .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
-            contentAlignment = Alignment.Center
-          ) {
-            Icon(
-              imageVector = Icons.Default.Audiotrack,
-              contentDescription = null,
-              tint = MaterialTheme.colorScheme.primary,
-              modifier = Modifier.size(44.dp)
-            )
-          }
-
-          Spacer(modifier = Modifier.height(20.dp))
-
-          Text(
-            text = "Native Audio Transcoder",
-            style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold
-          )
-
-          Spacer(modifier = Modifier.height(8.dp))
-
-          Text(
-            text = "Batch compress voice recordings and music without quality loss.\nPowered 100% natively by Android MediaCodec hardware.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = androidx.compose.ui.text.style.TextAlign.Center
-          )
-
-          Spacer(modifier = Modifier.height(24.dp))
-
-          Button(
-            onClick = onPickAudio,
-            modifier = Modifier.testTag("empty_state_pick_audio_button")
-          ) {
-            Icon(Icons.Default.LibraryMusic, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Select Audio Files")
-          }
-        }
-      }
-    } else {
-      LazyColumn(
-        modifier = Modifier
-          .fillMaxWidth()
-          .weight(1f),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-      ) {
-        items(items, key = { it.id }) { item ->
-          AudioLabItemCard(
-            item = item,
-            onRemove = { onRemoveItem(item.id) }
-          )
-        }
-      }
-    }
-  }
-}
-
-@Composable
-private fun AudioLabItemCard(
-  item: AudioLabItem,
-  onRemove: () -> Unit
-) {
-  Card(
-    modifier = Modifier
-      .fillMaxWidth()
-      .testTag("audio_lab_item_${item.id}"),
-    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-    shape = RoundedCornerShape(16.dp),
-    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .padding(14.dp),
-      verticalAlignment = Alignment.CenterVertically
+            .padding(16.dp)
+            .testTag("audio_lab_screen")
     ) {
-      Box(
-        modifier = Modifier
-          .size(54.dp)
-          .clip(RoundedCornerShape(12.dp))
-          .background(MaterialTheme.colorScheme.primaryContainer),
-        contentAlignment = Alignment.Center
-      ) {
-        Icon(
-          imageVector = Icons.Default.GraphicEq,
-          contentDescription = null,
-          tint = MaterialTheme.colorScheme.primary,
-          modifier = Modifier.size(28.dp)
-        )
-      }
-
-      Spacer(modifier = Modifier.width(14.dp))
-
-      Column(modifier = Modifier.weight(1f)) {
-        Text(
-          text = item.fileName,
-          style = MaterialTheme.typography.titleMedium,
-          fontWeight = FontWeight.SemiBold,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis
-        )
-
-        Spacer(modifier = Modifier.height(4.dp))
-
-        val channelLabel = if (item.channels == 1) "Mono" else "Stereo"
-        val sampleRateLabel = "${item.sampleRate / 1000.0} kHz"
-        Text(
-          text = "${item.displayDuration} • $sampleRateLabel • $channelLabel • ${item.displayOriginalSize}",
-          style = MaterialTheme.typography.bodySmall,
-          color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        if (item.convertedSizeBytes > 0) {
-          Spacer(modifier = Modifier.height(6.dp))
-          Surface(
-            shape = RoundedCornerShape(6.dp),
-            color = SuccessGreen.copy(alpha = 0.15f),
-            modifier = Modifier.border(1.dp, SuccessGreen.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
-          ) {
-            Row(
-              modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = null,
-                tint = SuccessGreen,
-                modifier = Modifier.size(13.dp)
-              )
-              Spacer(modifier = Modifier.width(4.dp))
-              Text(
-                text = "${item.displayConvertedSize} (${if (item.savingsPercentage >= 0) "-${item.savingsPercentage}%" else "+${-item.savingsPercentage}%"})",
-                style = MaterialTheme.typography.labelSmall,
-                fontWeight = FontWeight.Bold,
-                color = SuccessGreen
-              )
+        OmniHeader(
+            workspaceTitle = "Audio Lab",
+            categoryBadge = "Transcoder & Compressor",
+            badgeColor = IndigoAccent,
+            itemCount = items.size,
+            isProcessing = isTranscoding,
+            actions = {
+                OutlinedButton(
+                    onClick = { pickerLauncher.launch("audio/*") },
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = IndigoAccent),
+                    modifier = Modifier.testTag("audio_add_button")
+                ) {
+                    Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("Add Audio")
+                }
+                if (items.isNotEmpty()) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    IconButton(onClick = { viewModel.clearAll() }) {
+                        Icon(Icons.Default.ClearAll, contentDescription = "Clear All", tint = Slate400)
+                    }
+                }
             }
-          }
-        }
-
-        if (item.error != null) {
-          Spacer(modifier = Modifier.height(4.dp))
-          Text(
-            text = "Error: ${item.error}",
-            style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.error
-          )
-        }
-      }
-
-      IconButton(
-        onClick = onRemove,
-        modifier = Modifier.testTag("remove_audio_lab_item_${item.id}")
-      ) {
-        Icon(
-          imageVector = Icons.Default.Close,
-          contentDescription = "Remove",
-          tint = MaterialTheme.colorScheme.onSurfaceVariant
         )
-      }
-    }
-  }
-}
 
-@Composable
-private fun AudioLabControlPanel(
-  items: List<AudioLabItem>,
-  settings: AudioLabSettings,
-  isProcessing: Boolean,
-  onSettingsUpdate: ((AudioLabSettings) -> AudioLabSettings) -> Unit,
-  onTranscodeAll: () -> Unit,
-  onExportAll: () -> Unit
-) {
-  val hasConverted = items.any { it.convertedFile != null }
+        Spacer(modifier = Modifier.height(12.dp))
 
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .verticalScroll(rememberScrollState()),
-    verticalArrangement = Arrangement.spacedBy(16.dp)
-  ) {
-    Text(
-      text = "Audio Settings",
-      style = MaterialTheme.typography.titleLarge,
-      fontWeight = FontWeight.Bold
-    )
-
-    // Mode Selector: M4A/AAC vs Lossless WAV
-    TabRow(
-      selectedTabIndex = if (settings.mode == AudioOutputMode.LOSSY_M4A_AAC) 0 else 1,
-      containerColor = MaterialTheme.colorScheme.surface,
-      modifier = Modifier.clip(RoundedCornerShape(12.dp))
-    ) {
-      Tab(
-        selected = settings.mode == AudioOutputMode.LOSSY_M4A_AAC,
-        onClick = { onSettingsUpdate { it.copy(mode = AudioOutputMode.LOSSY_M4A_AAC) } },
-        text = { Text("M4A / AAC (Lossy)", fontWeight = FontWeight.SemiBold) }
-      )
-      Tab(
-        selected = settings.mode == AudioOutputMode.LOSSLESS_WAV_PCM,
-        onClick = { onSettingsUpdate { it.copy(mode = AudioOutputMode.LOSSLESS_WAV_PCM) } },
-        text = { Text("WAV PCM (Lossless)", fontWeight = FontWeight.SemiBold) }
-      )
-    }
-
-    if (settings.mode == AudioOutputMode.LOSSY_M4A_AAC) {
-      // Bitrate Presets Card
-      Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        shape = RoundedCornerShape(16.dp)
-      ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-          Text(
-            text = "Target Bitrate",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.SemiBold
-          )
-          Spacer(modifier = Modifier.height(10.dp))
-
-          AudioBitrate.values().forEach { bitrate ->
-            Row(
-              modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 4.dp),
-              verticalAlignment = Alignment.CenterVertically
-            ) {
-              FilterChip(
-                selected = settings.bitrate == bitrate,
-                onClick = { onSettingsUpdate { it.copy(bitrate = bitrate) } },
-                label = { Text(bitrate.label, fontSize = 13.sp) },
-                modifier = Modifier.fillMaxWidth()
-              )
-            }
-          }
+        if (errorMessage != null) {
+            OmniErrorBanner(message = errorMessage!!, onDismiss = { viewModel.dismissError() })
+            Spacer(modifier = Modifier.height(10.dp))
         }
-      }
-    } else {
-      Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f)),
-        shape = RoundedCornerShape(16.dp)
-      ) {
+
+        if (isTranscoding) {
+            OmniLinearProgress(progress = progress, statusText = "Transcoding audio tracks...")
+            Spacer(modifier = Modifier.height(10.dp))
+        }
+
+        // Dual Pane Tablet Layout: Left 42% Audio Queue, Right 58% Transcode Controls
         Row(
-          modifier = Modifier.padding(16.dp),
-          verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f),
+            horizontalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-          Icon(
-            imageVector = Icons.Default.HighQuality,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-            modifier = Modifier.size(28.dp)
-          )
-          Spacer(modifier = Modifier.width(12.dp))
-          Text(
-            text = "Uncompressed 16-bit PCM WAV: Bit-perfect studio fidelity with universal compatibility across all digital audio workstations.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
-          )
+            // Left Pane: Audio Queue
+            Box(
+                modifier = Modifier
+                    .weight(0.42f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+                    .padding(14.dp)
+            ) {
+                if (items.isEmpty()) {
+                    OmniEmptyState(
+                        icon = Icons.Default.MusicNote,
+                        title = "No Audio Files Added",
+                        description = "Import MP3, WAV, M4A, FLAC, or OGG tracks to transcode with native Android MediaCodec."
+                    ) {
+                        Button(
+                            onClick = { pickerLauncher.launch("audio/*") },
+                            colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent, contentColor = Color.White)
+                        ) {
+                            Text("Import Audio")
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        items(items, key = { it.id }) { item ->
+                            AudioItemCard(item = item, onRemove = { viewModel.removeItem(item.id) })
+                        }
+                    }
+                }
+            }
+
+            // Right Pane: Output Mode & Bitrate
+            Box(
+                modifier = Modifier
+                    .weight(0.58f)
+                    .fillMaxHeight()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(SurfaceCard)
+                    .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
+                    .padding(18.dp)
+            ) {
+                Column(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = "AUDIO CODEC & ENCODING",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Slate400
+                        )
+
+                        Spacer(modifier = Modifier.height(14.dp))
+
+                        // Lossless vs Lossy Mode Selector
+                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            AudioOutputFormat.values().forEach { fmt ->
+                                val selected = settings.outputFormat == fmt
+                                Box(
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(if (selected) IndigoAccent.copy(alpha = 0.2f) else SurfaceElevated)
+                                        .border(1.dp, if (selected) IndigoAccent else BorderSubtle, RoundedCornerShape(10.dp))
+                                        .clickable { viewModel.updateSettings(settings.copy(outputFormat = fmt)) }
+                                        .padding(14.dp)
+                                        .testTag("audio_format_${fmt.name}")
+                                ) {
+                                    Column {
+                                        Text(
+                                            text = fmt.displayName,
+                                            color = if (selected) IndigoAccent else MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 13.sp
+                                        )
+                                        Spacer(modifier = Modifier.height(4.dp))
+                                        Text(
+                                            text = if (fmt.isLossless) "Bit-perfect uncompressed PCM" else "High-efficiency AAC compression",
+                                            color = Slate400,
+                                            fontSize = 11.sp
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Bitrate options for AAC
+                        if (settings.outputFormat == AudioOutputFormat.M4A_AAC) {
+                            Text(
+                                text = "AAC Bitrate Preset",
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                AudioBitrate.values().forEach { b ->
+                                    val selected = settings.bitrate == b
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(if (selected) IndigoAccent.copy(alpha = 0.15f) else SurfaceElevated)
+                                            .border(1.dp, if (selected) IndigoAccent else BorderSubtle, RoundedCornerShape(8.dp))
+                                            .clickable { viewModel.updateSettings(settings.copy(bitrate = b)) }
+                                            .padding(horizontal = 14.dp, vertical = 10.dp)
+                                            .testTag("bitrate_${b.kbps}")
+                                    ) {
+                                        Text(
+                                            text = b.label,
+                                            color = if (selected) IndigoAccent else MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = FontWeight.Medium,
+                                            fontSize = 12.sp,
+                                            fontFamily = FontFamily.Monospace
+                                        )
+                                    }
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+
+                            // Force mono switch
+                            OmniCard(borderColor = BorderSubtle, backgroundColor = SurfaceElevated) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Downmix to Mono",
+                                            style = MaterialTheme.typography.titleMedium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = "Reduces file size by another 50% for voice recordings and lectures.",
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = Slate400
+                                        )
+                                    }
+                                    Switch(
+                                        checked = settings.forceMono,
+                                        onCheckedChange = { viewModel.updateSettings(settings.copy(forceMono = it)) },
+                                        colors = SwitchDefaults.colors(checkedThumbColor = IndigoAccent, checkedTrackColor = Slate800)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    // Action Bar
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            OmniStatPill(label = "Tracks", value = "${items.size}")
+                            OmniStatPill(label = "Format", value = settings.outputFormat.extension.uppercase(), valueColor = IndigoAccent)
+                        }
+
+                        Spacer(modifier = Modifier.height(12.dp))
+
+                        Button(
+                            onClick = { viewModel.transcodeAll() },
+                            enabled = items.isNotEmpty() && !isTranscoding,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(50.dp)
+                                .testTag("transcode_audio_button"),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = IndigoAccent,
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(10.dp)
+                        ) {
+                            Icon(Icons.Default.PlayArrow, contentDescription = null)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = if (isTranscoding) "TRANSCODING..." else "TRANSCODE & SAVE AUDIO",
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                    }
+                }
+            }
         }
-      }
     }
+}
 
-    // Channels Downmix Card
-    Card(
-      colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-      shape = RoundedCornerShape(16.dp)
-    ) {
-      Row(
-        modifier = Modifier
-          .fillMaxWidth()
-          .padding(16.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically
-      ) {
-        Column(modifier = Modifier.weight(1f)) {
-          Text(
-            text = "Force Mono Audio",
-            style = MaterialTheme.typography.titleSmall,
-            fontWeight = FontWeight.SemiBold
-          )
-          Text(
-            text = "Averages stereo channels into 1 channel. Cuts file size by 50% for speech, meetings, and voice notes.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-          )
+@Composable
+private fun AudioItemCard(
+    item: AudioConvertItem,
+    onRemove: () -> Unit
+) {
+    OmniCard(borderColor = BorderSubtle, backgroundColor = SurfaceElevated) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Slate800),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Default.MusicNote, contentDescription = null, tint = IndigoAccent, modifier = Modifier.size(24.dp))
+            }
+
+            Spacer(modifier = Modifier.width(12.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = item.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    val sec = item.durationMs / 1000
+                    val min = sec / 60
+                    val rem = sec % 60
+                    OmniBadge(text = "%02d:%02d".format(min, rem), color = Slate400)
+                    OmniBadge(text = "${item.originalSizeBytes / 1024} KB", color = Slate400)
+
+                    if (item.convertedSizeBytes != null) {
+                        OmniBadge(text = "CONVERTED (${item.convertedSizeBytes / 1024} KB)", color = IndigoAccent)
+                    }
+                }
+            }
+
+            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+                Icon(Icons.Default.Delete, contentDescription = "Remove", tint = RoseAccent, modifier = Modifier.size(18.dp))
+            }
         }
-        Switch(
-          checked = settings.forceMono,
-          onCheckedChange = { onSettingsUpdate { s -> s.copy(forceMono = it) } }
-        )
-      }
     }
-
-    // Action Buttons
-    Button(
-      onClick = onTranscodeAll,
-      enabled = items.isNotEmpty() && !isProcessing,
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(52.dp)
-        .testTag("audio_lab_transcode_all_button"),
-      shape = RoundedCornerShape(14.dp)
-    ) {
-      Icon(Icons.Default.PlayArrow, contentDescription = null)
-      Spacer(modifier = Modifier.width(8.dp))
-      Text(
-        text = if (items.isEmpty()) "Add Audio to Transcode" else "Transcode All (${items.size} Tracks)",
-        fontWeight = FontWeight.Bold,
-        fontSize = 16.sp
-      )
-    }
-
-    if (hasConverted) {
-      Button(
-        onClick = onExportAll,
-        colors = ButtonDefaults.buttonColors(containerColor = SuccessGreen),
-        modifier = Modifier
-          .fillMaxWidth()
-          .height(50.dp)
-          .testTag("audio_lab_export_all_button"),
-        shape = RoundedCornerShape(14.dp)
-      ) {
-        Icon(Icons.Default.Download, contentDescription = null)
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-          text = "Save All to Downloads",
-          fontWeight = FontWeight.Bold,
-          color = Color.White
-        )
-      }
-    }
-  }
 }
