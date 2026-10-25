@@ -332,7 +332,7 @@ private fun ImageSettingsPane(
                                     text = fmt.name.replace("_", " "),
                                     color = if (selected) EmeraldAccent else MaterialTheme.colorScheme.onSurface,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 11.sp,
+                                    fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
                                     maxLines = 1,
                                     softWrap = false,
@@ -342,8 +342,9 @@ private fun ImageSettingsPane(
                                 Text(
                                     text = if (fmt.isLossless) "LOSSLESS" else "LOSSY",
                                     color = if (fmt.isLossless) CyanAccent else Slate400,
-                                    fontSize = 9.sp,
+                                    fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
+                                    fontWeight = FontWeight.Medium,
                                     maxLines = 1,
                                     softWrap = false
                                 )

@@ -247,9 +247,15 @@ private fun AudioQueuePane(
         ) {
             Button(
                 onClick = onPickAudio,
-                colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent, contentColor = Color.White)
+                colors = ButtonDefaults.buttonColors(containerColor = IndigoAccent, contentColor = Color.White),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(48.dp)
             ) {
-                Text("Import Audio")
+                Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Import Audio Files", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
         }
     } else {

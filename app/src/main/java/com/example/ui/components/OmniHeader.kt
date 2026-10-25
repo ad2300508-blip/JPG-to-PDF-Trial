@@ -66,7 +66,7 @@ fun OmniHeader(
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp)
+                    .padding(horizontal = 16.dp, vertical = 12.dp)
             ) {
                 // Top row on phone: Category Badge + Status Pill
                 Row(
@@ -79,13 +79,13 @@ fun OmniHeader(
                             .clip(RoundedCornerShape(6.dp))
                             .background(badgeColor.copy(alpha = 0.15f))
                             .border(1.dp, badgeColor.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 2.5.dp)
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = categoryBadge.uppercase(),
                             color = badgeColor,
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp
+                            fontSize = 12.sp
                         )
                     }
 
@@ -94,20 +94,20 @@ fun OmniHeader(
                         modifier = Modifier
                             .clip(CircleShape)
                             .background(if (isProcessing) CyanAccent.copy(alpha = 0.2f) else Slate800)
-                            .padding(horizontal = 8.dp, vertical = 2.5.dp)
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Box(
                                 modifier = Modifier
-                                    .size(6.dp)
+                                    .size(7.dp)
                                     .clip(CircleShape)
                                     .background(if (isProcessing) CyanAccent else EmeraldAccent)
                             )
-                            Spacer(modifier = Modifier.width(5.dp))
+                            Spacer(modifier = Modifier.width(6.dp))
                             Text(
                                 text = if (isProcessing) "PROCESSING" else "$itemCount ITEMS",
                                 color = if (isProcessing) CyanAccent else Slate400,
-                                fontSize = 9.sp,
+                                fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace,
                                 fontWeight = FontWeight.Bold
                             )
@@ -115,7 +115,7 @@ fun OmniHeader(
                     }
                 }
 
-                Spacer(modifier = Modifier.height(10.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 // Bottom row on phone: Screen Title + Quick Actions
                 Row(
@@ -126,7 +126,7 @@ fun OmniHeader(
                     Text(
                         text = workspaceTitle,
                         style = MaterialTheme.typography.titleLarge,
-                        fontSize = 19.sp,
+                        fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.weight(1f, fill = false)
@@ -134,7 +134,7 @@ fun OmniHeader(
 
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         actions()
                     }
@@ -170,10 +170,10 @@ fun OmniHeader(
                         Text(
                             text = "OMNICONVERT / $workspaceTitle",
                             color = Slate400,
-                            fontSize = 11.sp,
+                            fontSize = 12.sp,
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Medium,
-                            letterSpacing = 1.sp
+                            letterSpacing = 0.5.sp
                         )
                     }
 
@@ -182,23 +182,23 @@ fun OmniHeader(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text(
                             text = workspaceTitle,
-                            style = MaterialTheme.typography.titleLarge,
+                            style = MaterialTheme.typography.headlineMedium,
                             color = MaterialTheme.colorScheme.onSurface
                         )
 
-                        Spacer(modifier = Modifier.width(12.dp))
+                        Spacer(modifier = Modifier.width(14.dp))
 
                         // Live status pill
                         Box(
                             modifier = Modifier
                                 .clip(CircleShape)
                                 .background(if (isProcessing) CyanAccent.copy(alpha = 0.2f) else Slate800)
-                                .padding(horizontal = 10.dp, vertical = 3.dp)
+                                .padding(horizontal = 12.dp, vertical = 4.dp)
                         ) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     modifier = Modifier
-                                        .size(6.dp)
+                                        .size(7.dp)
                                         .clip(CircleShape)
                                         .background(if (isProcessing) CyanAccent else EmeraldAccent)
                                 )
@@ -206,7 +206,7 @@ fun OmniHeader(
                                 Text(
                                     text = if (isProcessing) "PROCESSING" else "$itemCount ITEMS LOADED",
                                     color = if (isProcessing) CyanAccent else Slate400,
-                                    fontSize = 10.sp,
+                                    fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Bold
                                 )

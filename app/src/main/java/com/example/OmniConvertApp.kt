@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
@@ -114,7 +115,7 @@ fun OmniConvertApp(
         val isCompact = maxWidth < 600.dp
 
         if (isCompact) {
-            // Phone Handheld Layout: Clean Unified Screen + Bottom Scrollable Capsule Navigation
+            // Phone Handheld Layout: Full-Width Workspace with Status Safe Area & Bottom Scrollable Capsule Navigation
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background,
@@ -131,7 +132,7 @@ fun OmniConvertApp(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
@@ -139,14 +140,14 @@ fun OmniConvertApp(
                                 val isSelected = currentWorkspace == destination
                                 Surface(
                                     onClick = { currentWorkspace = destination },
-                                    shape = RoundedCornerShape(20.dp),
+                                    shape = RoundedCornerShape(24.dp),
                                     color = if (isSelected) destination.accentColor.copy(alpha = 0.18f) else Color.Transparent,
                                     border = BorderStroke(
                                         width = 1.dp,
                                         color = if (isSelected) destination.accentColor.copy(alpha = 0.6f) else BorderSubtle
                                     ),
                                     modifier = Modifier
-                                        .height(46.dp)
+                                        .height(48.dp)
                                         .testTag("phone_nav_${destination.name.lowercase()}")
                                 ) {
                                     Row(
@@ -158,13 +159,13 @@ fun OmniConvertApp(
                                             imageVector = destination.icon,
                                             contentDescription = destination.title,
                                             tint = if (isSelected) destination.accentColor else Slate400,
-                                            modifier = Modifier.size(18.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
-                                        Spacer(modifier = Modifier.width(7.dp))
+                                        Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = destination.title,
                                             fontSize = 12.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                                             color = if (isSelected) destination.accentColor else Slate400,
                                             maxLines = 1,
                                             softWrap = false,
@@ -180,6 +181,7 @@ fun OmniConvertApp(
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
+                        .statusBarsPadding()
                         .padding(innerPadding)
                 ) {
                     WorkspaceContent(
@@ -204,12 +206,13 @@ fun OmniConvertApp(
                 Row(
                     modifier = Modifier
                         .fillMaxSize()
+                        .statusBarsPadding()
                         .padding(innerPadding)
                 ) {
                     NavigationRail(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .width(108.dp)
+                            .width(96.dp)
                             .border(
                                 width = 1.dp,
                                 color = BorderSubtle,
@@ -218,21 +221,34 @@ fun OmniConvertApp(
                             .testTag("tablet_navigation_rail"),
                         containerColor = SurfaceCard,
                         header = {
-                            Box(
-                                modifier = Modifier
-                                    .padding(top = 16.dp, bottom = 16.dp)
-                                    .size(52.dp)
-                                    .clip(CircleShape)
-                                    .background(Slate800)
-                                    .border(1.dp, CyanAccent.copy(alpha = 0.5f), CircleShape),
-                                contentAlignment = Alignment.Center
+                            Column(
+                                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
                             ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(46.dp)
+                                        .clip(CircleShape)
+                                        .background(Slate800)
+                                        .border(1.5.dp, CyanAccent.copy(alpha = 0.6f), CircleShape),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "OC",
+                                        color = CyanAccent,
+                                        fontFamily = FontFamily.Monospace,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 17.sp
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(4.dp))
                                 Text(
-                                    text = "OC",
-                                    color = CyanAccent,
+                                    text = "STUDIO",
+                                    color = Slate400,
                                     fontFamily = FontFamily.Monospace,
+                                    fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    fontSize = 18.sp
+                                    letterSpacing = 0.5.sp
                                 )
                             }
                         }
@@ -252,21 +268,22 @@ fun OmniConvertApp(
                                 label = {
                                     Text(
                                         text = destination.title,
-                                        fontSize = 10.sp,
-                                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                        fontFamily = FontFamily.Default,
-                                        maxLines = 1
+                                        fontSize = 12.sp,
+                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                                        maxLines = 1,
+                                        softWrap = false,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 },
                                 colors = NavigationRailItemDefaults.colors(
                                     selectedIconColor = destination.accentColor,
                                     selectedTextColor = destination.accentColor,
-                                    indicatorColor = destination.accentColor.copy(alpha = 0.15f),
+                                    indicatorColor = destination.accentColor.copy(alpha = 0.18f),
                                     unselectedIconColor = Slate400,
                                     unselectedTextColor = Slate400
                                 ),
                                 modifier = Modifier
-                                    .padding(vertical = 2.dp)
+                                    .padding(vertical = 3.dp)
                                     .testTag("nav_item_${destination.name.lowercase()}")
                             )
                         }

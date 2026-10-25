@@ -247,9 +247,15 @@ private fun ArchiveFilesPane(
         ) {
             Button(
                 onClick = onPickFiles,
-                colors = ButtonDefaults.buttonColors(containerColor = AmberAccent, contentColor = Color.Black)
+                colors = ButtonDefaults.buttonColors(containerColor = AmberAccent, contentColor = Color.Black),
+                shape = RoundedCornerShape(10.dp),
+                modifier = Modifier
+                    .fillMaxWidth(0.85f)
+                    .height(48.dp)
             ) {
-                Text("Select Files")
+                Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Select Files to Archive", fontWeight = FontWeight.Bold, maxLines = 1, softWrap = false, overflow = TextOverflow.Ellipsis)
             }
         }
     } else {

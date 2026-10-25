@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -76,12 +77,12 @@ fun OmniBadge(
             .clip(RoundedCornerShape(6.dp))
             .background(color.copy(alpha = 0.15f))
             .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(6.dp))
-            .padding(horizontal = 8.dp, vertical = 2.dp)
+            .padding(horizontal = 9.dp, vertical = 3.dp)
     ) {
         Text(
             text = text.uppercase(),
             color = color,
-            fontSize = 10.sp,
+            fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
             maxLines = 1,
@@ -102,12 +103,12 @@ fun OmniStatPill(
             .clip(RoundedCornerShape(8.dp))
             .background(SurfaceElevated)
             .border(1.dp, BorderSubtle, RoundedCornerShape(8.dp))
-            .padding(horizontal = 10.dp, vertical = 6.dp),
+            .padding(horizontal = 12.dp, vertical = 7.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = label.uppercase(),
-            fontSize = 10.sp,
+            fontSize = 12.sp,
             fontFamily = FontFamily.Monospace,
             color = Slate400,
             fontWeight = FontWeight.Medium,
@@ -115,10 +116,10 @@ fun OmniStatPill(
             softWrap = false,
             overflow = TextOverflow.Ellipsis
         )
-        Spacer(modifier = Modifier.width(6.dp))
+        Spacer(modifier = Modifier.width(7.dp))
         Text(
             text = value,
-            fontSize = 12.sp,
+            fontSize = 13.sp,
             fontFamily = FontFamily.Monospace,
             fontWeight = FontWeight.Bold,
             color = valueColor,
@@ -362,35 +363,35 @@ fun OmniPhoneTabSelector(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(14.dp))
             .background(SurfaceCard)
-            .border(1.dp, BorderSubtle, RoundedCornerShape(12.dp))
+            .border(1.dp, BorderSubtle, RoundedCornerShape(14.dp))
             .padding(4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         tabs.forEachIndexed { index, title ->
             val isSelected = activeIdx == index
             Box(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isSelected) activeCol.copy(alpha = 0.18f) else Color.Transparent)
+                    .heightIn(min = 48.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isSelected) activeCol.copy(alpha = 0.20f) else Color.Transparent)
                     .border(
                         width = 1.dp,
-                        color = if (isSelected) activeCol.copy(alpha = 0.5f) else Color.Transparent,
-                        shape = RoundedCornerShape(8.dp)
+                        color = if (isSelected) activeCol.copy(alpha = 0.6f) else Color.Transparent,
+                        shape = RoundedCornerShape(10.dp)
                     )
                     .clickable { onTabSelected(index) }
-                    .padding(vertical = 10.dp)
+                    .padding(horizontal = 8.dp, vertical = 10.dp)
                     .testTag("phone_tab_$index"),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
                     text = title,
-                    fontSize = 12.sp,
-                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 13.sp,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
                     color = if (isSelected) activeCol else Slate400,
-                    fontFamily = FontFamily.Monospace,
                     maxLines = 1,
                     softWrap = false,
                     overflow = TextOverflow.Ellipsis
