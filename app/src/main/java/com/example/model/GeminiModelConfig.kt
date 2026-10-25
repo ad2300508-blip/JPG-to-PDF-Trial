@@ -1,58 +1,149 @@
 package com.example.model
 
+enum class GeminiModelTier(val label: String) {
+    DAILY_WORKHORSE("500 RPD • Fast & High Quota"),
+    DEEP_REASONING("20 RPD • Deep Reasoning"),
+    ULTRA_QUOTA("14.4K RPD • High Volume Text"),
+    SPECIALIZED("Specialized Audio & Speech")
+}
+
 enum class GeminiTargetModel(
     val displayName: String,
     val technicalModelId: String,
-    val tpmQuota: String,
+    val tier: GeminiModelTier,
+    val maxRpd: Int,
+    val maxRpm: Int,
+    val maxTpm: Int,
     val description: String,
     val categoryBadge: String,
     val hasExtendedThinking: Boolean = false,
+    val supportsVision: Boolean = true,
     val defaultTemperature: Float = 0.7f
 ) {
-    GEMINI_3_FLASH(
-        displayName = "Gemini 3 Flash Live",
-        technicalModelId = "gemini-3-flash",
-        tpmQuota = "65K TPM (Unlimited RPD)",
-        description = "Ultra-fast document summarization, layout extraction & table conversions.",
-        categoryBadge = "FAST STREAMING"
+    // a) High-Quota Daily Workhorses (500 RPD, 15 RPM, 250K TPM)
+    GEMINI_3_8_FLASH_LITE(
+        displayName = "Gemini 3.8 Flash-Lite",
+        technicalModelId = "gemini-3.8-flash-lite",
+        tier = GeminiModelTier.DAILY_WORKHORSE,
+        maxRpd = 500,
+        maxRpm = 15,
+        maxTpm = 250_000,
+        description = "Primary daily workhorse. Ultra-fast layout processing, table cleanup & OCR post-correction.",
+        categoryBadge = "FAST 500 RPD",
+        supportsVision = true
     ),
-    GEMINI_3_8_THINKING(
-        displayName = "Gemini 3.8 Extended Thinking",
+    GEMINI_3_6_FLASH_LITE(
+        displayName = "Gemini 3.6 Flash-Lite",
+        technicalModelId = "gemini-3.6-flash-lite",
+        tier = GeminiModelTier.DAILY_WORKHORSE,
+        maxRpd = 500,
+        maxRpm = 15,
+        maxTpm = 250_000,
+        description = "High-quota failover model. 500 requests per day with rapid JSON and Markdown synthesis.",
+        categoryBadge = "BACKUP 500 RPD",
+        supportsVision = true
+    ),
+    GEMINI_3_1_FLASH_LITE(
+        displayName = "Gemini 3.1 Flash-Lite",
+        technicalModelId = "gemini-3.1-flash-lite",
+        tier = GeminiModelTier.DAILY_WORKHORSE,
+        maxRpd = 500,
+        maxRpm = 15,
+        maxTpm = 250_000,
+        description = "Stable high-speed workhorse for text reformatting, summaries, and Markdown translation.",
+        categoryBadge = "BACKUP 500 RPD",
+        supportsVision = true
+    ),
+
+    // b) Deep Reasoning & Full-Book Context (20 RPD, 5 RPM, 250K TPM)
+    GEMINI_3_8_FLASH(
+        displayName = "Gemini 3.8 Flash",
         technicalModelId = "gemini-3.8-flash",
-        tpmQuota = "65K TPM (Unlimited RPD)",
-        description = "Deep cognitive reasoning with multi-step thinking trace before answering.",
-        categoryBadge = "REASONING",
+        tier = GeminiModelTier.DEEP_REASONING,
+        maxRpd = 20,
+        maxRpm = 5,
+        maxTpm = 250_000,
+        description = "Deep cognitive reasoning with multi-step thinking traces. Best for oral exam simulation & complex analysis.",
+        categoryBadge = "REASONING 20 RPD",
         hasExtendedThinking = true,
+        supportsVision = true,
         defaultTemperature = 0.4f
     ),
-    GEMINI_3_5_TRANSLATE(
-        displayName = "Gemini 3.5 Live Translate",
-        technicalModelId = "gemini-3.5-flash",
-        tpmQuota = "20K TPM (Unlimited RPD)",
-        description = "Context-aware translation preserving Markdown structure, code fences & LaTeX.",
-        categoryBadge = "TRANSLATE"
+    GEMINI_3_6_FLASH(
+        displayName = "Gemini 3.6 Flash",
+        technicalModelId = "gemini-3.6-flash",
+        tier = GeminiModelTier.DEEP_REASONING,
+        maxRpd = 20,
+        maxRpm = 5,
+        maxTpm = 250_000,
+        description = "Advanced analytical synthesis and complex multi-column document comprehension.",
+        categoryBadge = "REASONING 20 RPD",
+        supportsVision = true,
+        defaultTemperature = 0.5f
     ),
-    GEMINI_3_5_TRANSCRIBE(
-        displayName = "Gemini 3.5 Transcribe Live",
-        technicalModelId = "gemini-3.5-flash",
-        tpmQuota = "20K TPM (Unlimited RPD)",
-        description = "Speech-to-text audio transcription directly into structured Markdown notes.",
-        categoryBadge = "AUDIO SPEECH"
-    ),
-    GEMINI_2_5_FLASH_AUDIO(
-        displayName = "Gemini 2.5 Flash Native Audio",
+    GEMINI_2_5_FLASH(
+        displayName = "Gemini 2.5 Flash",
         technicalModelId = "gemini-2.5-flash",
-        tpmQuota = "1M TPM (Unlimited RPD)",
-        description = "Massive 1M token capacity for long audio dialog, podcasts & voice reasoning.",
-        categoryBadge = "HIGH CAPACITY"
+        tier = GeminiModelTier.DEEP_REASONING,
+        maxRpd = 20,
+        maxRpm = 5,
+        maxTpm = 250_000,
+        description = "Full-book context window. Proven model for complex textbook digestion and multi-page research.",
+        categoryBadge = "DEEP CONTEXT 20 RPD",
+        supportsVision = true,
+        defaultTemperature = 0.5f
     ),
-    GEMINI_3_8_LIVE(
-        displayName = "Gemini 3.8 Live",
-        technicalModelId = "gemini-3.8-flash",
-        tpmQuota = "65K TPM (Unlimited RPD)",
-        description = "High-precision analytical synthesis, code generation & document architecture.",
-        categoryBadge = "SYNTHESIS"
-    )
+
+    // c) Ultra-High Quota Text Models (14,400 RPD, 30 RPM, 16K TPM)
+    GEMMA_4_31B_IT(
+        displayName = "Gemma 4 31B IT",
+        technicalModelId = "gemma-4-31b-it",
+        tier = GeminiModelTier.ULTRA_QUOTA,
+        maxRpd = 14_400,
+        maxRpm = 30,
+        maxTpm = 16_000,
+        description = "Immense 14,400 daily requests. Perfect safety net when all other quotas are exhausted.",
+        categoryBadge = "ULTRA 14.4K RPD",
+        supportsVision = false
+    ),
+    GEMMA_4_26B_IT(
+        displayName = "Gemma 4 26B IT",
+        technicalModelId = "gemma-4-26b-it",
+        tier = GeminiModelTier.ULTRA_QUOTA,
+        maxRpd = 14_400,
+        maxRpm = 30,
+        maxTpm = 16_000,
+        description = "Ultra high-volume instruction-tuned open weights model for continuous batch extraction.",
+        categoryBadge = "ULTRA 14.4K RPD",
+        supportsVision = false
+    ),
+
+    // d) Specialized Audio/Speech Models
+    GEMINI_3_8_TRANSCRIBE(
+        displayName = "Gemini 3.8 Transcribe",
+        technicalModelId = "gemini-3.8-transcribe",
+        tier = GeminiModelTier.SPECIALIZED,
+        maxRpd = 15,
+        maxRpm = 5,
+        maxTpm = 250_000,
+        description = "Specialized audio speech-to-text model. Transcribes lectures and voice notes directly into Markdown.",
+        categoryBadge = "TRANSCRIBE 15 RPD",
+        supportsVision = false
+    ),
+    GEMINI_3_8_FLASH_TTS(
+        displayName = "Gemini 3.8 Flash TTS",
+        technicalModelId = "gemini-3.8-flash-tts",
+        tier = GeminiModelTier.SPECIALIZED,
+        maxRpd = 10,
+        maxRpm = 5,
+        maxTpm = 250_000,
+        description = "Generates concise speech audio summaries and spoken exam flashcards.",
+        categoryBadge = "TTS AUDIO 10 RPD",
+        supportsVision = false
+    );
+
+    val tpmQuotaLabel: String
+        get() = "${maxTpm / 1000}K TPM • $maxRpd RPD"
 }
 
 data class GeminiPromptPreset(
@@ -69,7 +160,15 @@ data class GeminiGenerationState(
     val thinkingTrace: String = "",
     val outputText: String = "",
     val error: String? = null,
-    val modelUsed: GeminiTargetModel = GeminiTargetModel.GEMINI_3_FLASH,
+    val modelUsed: GeminiTargetModel = GeminiTargetModel.GEMINI_3_8_FLASH_LITE,
     val latencyMs: Long = 0,
-    val estimatedTokens: Int = 0
+    val estimatedTokens: Int = 0,
+    val fallbackNotice: String? = null
+)
+
+data class ModelQuotaUsage(
+    val model: GeminiTargetModel,
+    val usedRpd: Int,
+    val remainingRpd: Int,
+    val isThrottled: Boolean
 )

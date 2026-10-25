@@ -174,7 +174,7 @@ fun PdfStudioScreen(
                 Column(modifier = Modifier.fillMaxSize()) {
                     OmniPhoneTabSelector(
                         selectedTabIndex = phoneTabIndex,
-                        tabs = listOf("Pages (${items.size})", "Settings & Build"),
+                        tabs = listOf("Pages (${items.size})", "PDF Settings & Export"),
                         accentColor = CyanAccent,
                         onTabSelected = { phoneTabIndex = it },
                         modifier = Modifier.padding(bottom = 10.dp)
@@ -411,12 +411,17 @@ private fun PdfConfigPane(
                                 Text(
                                     text = "Auto Contrast & Background Clean",
                                     style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    softWrap = false,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                                 Text(
                                     text = "Removes page shadows, yellow tint, and enhances text darkness.",
                                     style = MaterialTheme.typography.bodyMedium,
-                                    color = Slate400
+                                    color = Slate400,
+                                    maxLines = 2,
+                                    overflow = TextOverflow.Ellipsis
                                 )
                             }
                             Switch(

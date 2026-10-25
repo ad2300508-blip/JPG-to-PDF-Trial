@@ -534,6 +534,37 @@ private fun MarkdownPromptArchitectPane(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // 1-Tap Direct Integration with Gemini AI Studio
+                Button(
+                    onClick = {
+                        val content = compiledResult?.rawMarkdown ?: ""
+                        if (content.isNotEmpty()) onSendToGemini(content)
+                    },
+                    enabled = compiledResult != null && !isIngesting,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(48.dp)
+                        .testTag("send_to_gemini_hub_button"),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = AmberAccent,
+                        contentColor = Color.Black
+                    ),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Send Extracted Markdown to Gemini AI Studio",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
@@ -543,7 +574,7 @@ private fun MarkdownPromptArchitectPane(
                         enabled = compiledResult != null && !isIngesting,
                         modifier = Modifier
                             .weight(1f)
-                            .height(50.dp)
+                            .height(46.dp)
                             .testTag("copy_prompt_button"),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = CyanAccent,
@@ -551,12 +582,12 @@ private fun MarkdownPromptArchitectPane(
                         ),
                         shape = RoundedCornerShape(10.dp)
                     ) {
-                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = "COPY TO CLIPBOARD (FOR LLM)",
+                            text = "COPY TO CLIPBOARD",
                             fontWeight = FontWeight.Bold,
-                            letterSpacing = 0.5.sp,
+                            fontSize = 11.sp,
                             maxLines = 1,
                             softWrap = false,
                             overflow = TextOverflow.Ellipsis
@@ -567,8 +598,8 @@ private fun MarkdownPromptArchitectPane(
                         onClick = { viewModel.saveAsMarkdown("OmniContext") },
                         enabled = compiledResult != null && !isIngesting,
                         modifier = Modifier
-                            .weight(0.5f)
-                            .height(50.dp)
+                            .weight(0.6f)
+                            .height(46.dp)
                             .testTag("save_markdown_button"),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = SurfaceElevated,
@@ -578,28 +609,14 @@ private fun MarkdownPromptArchitectPane(
                     ) {
                         Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("SAVE", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, softWrap = false)
-                    }
-
-                    Button(
-                        onClick = {
-                            val content = compiledResult?.rawMarkdown ?: ""
-                            if (content.isNotEmpty()) onSendToGemini(content)
-                        },
-                        enabled = compiledResult != null && !isIngesting,
-                        modifier = Modifier
-                            .weight(0.7f)
-                            .height(50.dp)
-                            .testTag("send_to_gemini_hub_button"),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = AmberAccent,
-                            contentColor = Color.Black
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    ) {
-                        Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("AI GEMINI", fontWeight = FontWeight.Bold, fontSize = 11.sp, maxLines = 1, softWrap = false)
+                        Text(
+                            text = "SAVE .MD",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
                 }
             }
