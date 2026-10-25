@@ -12,6 +12,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Archive
@@ -21,7 +26,9 @@ import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.TipsAndUpdates
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
@@ -32,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -51,6 +59,7 @@ import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfMergeScreen
 import com.example.ui.PdfStudioScreen
+import com.example.ui.components.OmniTutorialDialog
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.CyanAccent
@@ -106,6 +115,7 @@ fun OmniConvertApp(
     geminiViewModel: GeminiHubViewModel = viewModel()
 ) {
     var currentWorkspace by remember { mutableStateOf(WorkspaceDestination.PDF_STUDIO) }
+    var showTutorial by rememberSaveable { mutableStateOf(false) }
 
     BackHandler(enabled = currentWorkspace != WorkspaceDestination.PDF_STUDIO) {
         currentWorkspace = WorkspaceDestination.PDF_STUDIO
@@ -136,6 +146,36 @@ fun OmniConvertApp(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Quick Guide Chip
+                            Surface(
+                                onClick = { showTutorial = true },
+                                shape = RoundedCornerShape(24.dp),
+                                color = MaterialTheme.colorScheme.surfaceVariant,
+                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+                                modifier = Modifier
+                                    .height(48.dp)
+                                    .testTag("phone_open_guide_button")
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.TipsAndUpdates,
+                                        contentDescription = "Quick Guide",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Text(
+                                        text = "Guide",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+
                             WorkspaceDestination.values().forEach { destination ->
                                 val isSelected = currentWorkspace == destination
                                 Surface(
@@ -192,17 +232,25 @@ fun OmniConvertApp(
                         .statusBarsPadding()
                         .padding(innerPadding)
                 ) {
-                    WorkspaceContent(
-                        workspace = currentWorkspace,
-                        pdfViewModel = pdfViewModel,
-                        pdfMergeViewModel = pdfMergeViewModel,
-                        imageViewModel = imageViewModel,
-                        audioViewModel = audioViewModel,
-                        archiveViewModel = archiveViewModel,
-                        markdownViewModel = markdownViewModel,
-                        geminiViewModel = geminiViewModel,
-                        onNavigate = { currentWorkspace = it }
-                    )
+                    AnimatedContent(
+                        targetState = currentWorkspace,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                        },
+                        label = "phone_workspace_transition"
+                    ) { targetWorkspace ->
+                        WorkspaceContent(
+                            workspace = targetWorkspace,
+                            pdfViewModel = pdfViewModel,
+                            pdfMergeViewModel = pdfMergeViewModel,
+                            imageViewModel = imageViewModel,
+                            audioViewModel = audioViewModel,
+                            archiveViewModel = archiveViewModel,
+                            markdownViewModel = markdownViewModel,
+                            geminiViewModel = geminiViewModel,
+                            onNavigate = { currentWorkspace = it }
+                        )
+                    }
                 }
             }
         } else {
@@ -245,6 +293,20 @@ fun OmniConvertApp(
                                         contentDescription = "OmniConvert",
                                         tint = MaterialTheme.colorScheme.primary,
                                         modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                IconButton(
+                                    onClick = { showTutorial = true },
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .testTag("tablet_open_guide_button")
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.TipsAndUpdates,
+                                        contentDescription = "Quick Guide",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(20.dp)
                                     )
                                 }
                             }
@@ -295,26 +357,39 @@ fun OmniConvertApp(
                         }
                     }
 
-                    // Main Content Area
+                    // Main Content Area with Smooth Crossfade Animation
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
                     ) {
-                        WorkspaceContent(
-                            workspace = currentWorkspace,
-                            pdfViewModel = pdfViewModel,
-                            pdfMergeViewModel = pdfMergeViewModel,
-                            imageViewModel = imageViewModel,
-                            audioViewModel = audioViewModel,
-                            archiveViewModel = archiveViewModel,
-                            markdownViewModel = markdownViewModel,
-                            geminiViewModel = geminiViewModel,
-                            onNavigate = { currentWorkspace = it }
-                        )
+                        AnimatedContent(
+                            targetState = currentWorkspace,
+                            transitionSpec = {
+                                fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
+                            },
+                            label = "tablet_workspace_transition"
+                        ) { targetWorkspace ->
+                            WorkspaceContent(
+                                workspace = targetWorkspace,
+                                pdfViewModel = pdfViewModel,
+                                pdfMergeViewModel = pdfMergeViewModel,
+                                imageViewModel = imageViewModel,
+                                audioViewModel = audioViewModel,
+                                archiveViewModel = archiveViewModel,
+                                markdownViewModel = markdownViewModel,
+                                geminiViewModel = geminiViewModel,
+                                onNavigate = { currentWorkspace = it }
+                            )
+                        }
                     }
                 }
             }
+        }
+
+        // Feature Tutorial Guide Dialog Overlay
+        if (showTutorial) {
+            OmniTutorialDialog(onDismiss = { showTutorial = false })
         }
     }
 }

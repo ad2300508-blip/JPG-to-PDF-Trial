@@ -1,8 +1,17 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.togetherWith
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -125,6 +134,17 @@ fun Dropzone(
     tintColor: Color = OmniAccent,
     testTag: String = "dropzone_action_button"
 ) {
+    val infiniteTransition = rememberInfiniteTransition(label = "dropzone_pulse")
+    val heroScale by infiniteTransition.animateFloat(
+        initialValue = 1.0f,
+        targetValue = 1.06f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1800, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "hero_scale"
+    )
+
     Surface(
         modifier = modifier
             .fillMaxSize()
@@ -143,6 +163,7 @@ fun Dropzone(
             Box(
                 modifier = Modifier
                     .size(72.dp)
+                    .scale(heroScale)
                     .clip(RoundedCornerShape(RadiusCard))
                     .background(tintColor.copy(alpha = 0.14f)),
                 contentAlignment = Alignment.Center
@@ -578,11 +599,19 @@ fun OmniActionBar(
                     .height(52.dp)
                     .testTag(testTag)
             ) {
-                Text(
-                    text = primaryButtonLabel,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 15.sp
-                )
+                AnimatedContent(
+                    targetState = primaryButtonLabel,
+                    transitionSpec = {
+                        fadeIn(animationSpec = tween(150)) togetherWith fadeOut(animationSpec = tween(150))
+                    },
+                    label = "action_bar_label_anim"
+                ) { label ->
+                    Text(
+                        text = label,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 15.sp
+                    )
+                }
             }
         }
     }

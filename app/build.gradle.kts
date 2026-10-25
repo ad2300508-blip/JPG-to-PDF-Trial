@@ -8,12 +8,15 @@ android {
     namespace = "com.example"
     compileSdk = 35
 
+    val buildVersionCode = project.findProperty("versionCode")?.toString()?.toIntOrNull() ?: 2
+    val buildVersionName = project.findProperty("versionName")?.toString() ?: "1.0.2"
+
     defaultConfig {
         applicationId = "com.aistudio.omniconvert.kxmpzq"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = buildVersionCode
+        versionName = buildVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         buildConfigField("String", "GEMINI_API_KEY", "\"\"")

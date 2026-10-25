@@ -37,15 +37,18 @@ jobs:
       - name: Grant Execute Permissions for Gradlew
         run: chmod +x gradlew
 
-      - name: Ensure Debug Keystore Exists
+      - name: Ensure Permanent Signing Keystore Exists
         run: |
-          if [ ! -f "debug.keystore" ]; then
+          if [ -f "debug.keystore.base64" ]; then
+            echo "Restoring permanent debug.keystore from debug.keystore.base64..."
+            base64 -d debug.keystore.base64 > debug.keystore
+          elif [ ! -f "debug.keystore" ]; then
             echo "debug.keystore not found, generating standard debug keystore..."
             keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
           fi
 
       - name: Build Debug APK
-        run: ./gradlew assembleDebug --stacktrace
+        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }} --stacktrace
 
       - name: Verify APK Generation
         run: |
