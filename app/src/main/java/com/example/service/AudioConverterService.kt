@@ -111,16 +111,22 @@ class AudioConverterService(private val context: Context) {
             val rawPcm = pcmStream.toByteArray()
             val baseName = item.name.substringBeforeLast(".")
 
+            val targetChannels = if (settings.forceMono) 1 else channelCount
+            val pcmToProcess = if (settings.forceMono && channelCount == 2) {
+                downmixStereoToMono16Bit(rawPcm)
+            } else {
+                rawPcm
+            }
+
             val (outBytes, mimeType, outExtension) = if (settings.outputFormat == AudioOutputFormat.WAV_PCM_16BIT) {
-                val wavHeader = createWavHeader(rawPcm.size, sampleRate, channelCount)
-                val fullWav = ByteArray(wavHeader.size + rawPcm.size)
+                val wavHeader = createWavHeader(pcmToProcess.size, sampleRate, targetChannels)
+                val fullWav = ByteArray(wavHeader.size + pcmToProcess.size)
                 System.arraycopy(wavHeader, 0, fullWav, 0, wavHeader.size)
-                System.arraycopy(rawPcm, 0, fullWav, wavHeader.size, rawPcm.size)
+                System.arraycopy(pcmToProcess, 0, fullWav, wavHeader.size, pcmToProcess.size)
                 Triple(fullWav, "audio/wav", "wav")
             } else {
                 // Lossy AAC / M4A encoding
-                val targetChannels = if (settings.forceMono) 1 else channelCount
-                val aacBytes = encodePcmToAac(rawPcm, sampleRate, targetChannels, settings.bitrate.kbps * 1000)
+                val aacBytes = encodePcmToAac(pcmToProcess, sampleRate, targetChannels, settings.bitrate.kbps * 1000)
                 Triple(aacBytes, "audio/mp4", "m4a")
             }
 
@@ -146,6 +152,20 @@ class AudioConverterService(private val context: Context) {
         } catch (t: Throwable) {
             Result.failure(t)
         }
+    }
+
+    private fun downmixStereoToMono16Bit(stereoPcm: ByteArray): ByteArray {
+        val numSamples = stereoPcm.size / 4 // 2 channels * 2 bytes per sample
+        val monoPcm = ByteArray(numSamples * 2)
+        val inBuf = ByteBuffer.wrap(stereoPcm).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        val outBuf = ByteBuffer.wrap(monoPcm).order(ByteOrder.LITTLE_ENDIAN).asShortBuffer()
+        for (i in 0 until numSamples) {
+            val left = inBuf.get().toInt()
+            val right = inBuf.get().toInt()
+            val mono = ((left + right) / 2).coerceIn(Short.MIN_VALUE.toInt(), Short.MAX_VALUE.toInt()).toShort()
+            outBuf.put(mono)
+        }
+        return monoPcm
     }
 
     private fun createWavHeader(pcmDataSize: Int, sampleRate: Int, channels: Int): ByteArray {

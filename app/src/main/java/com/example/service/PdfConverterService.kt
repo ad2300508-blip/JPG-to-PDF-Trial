@@ -41,23 +41,53 @@ class PdfConverterService(private val context: Context) {
             var pageIndex = 1
             val totalPages = items.size
 
-            val (pageWidth, pageHeight) = when (config.pageSize) {
-                "Letter" -> Pair(612, 792)
-                "Original" -> Pair(595, 842)
-                else -> Pair(595, 842) // A4 default
-            }
-
             for ((index, item) in items.withIndex()) {
                 onProgress(index + 1, totalPages)
                 val bitmap = loadProcessedBitmap(item, config) ?: continue
+
+                val isLandscape = bitmap.width > bitmap.height
+
+                val (pageWidth, pageHeight) = when (config.pageSize) {
+                    "Original" -> {
+                        // Keep exact aspect ratio and dimensions of image in standard PDF viewport
+                        val maxDimension = 1190f // ~A3 dimension
+                        val factor = if (maxOf(bitmap.width, bitmap.height) > maxDimension) {
+                            maxDimension / maxOf(bitmap.width, bitmap.height).toFloat()
+                        } else 1.0f
+                        Pair(
+                            (bitmap.width * factor).toInt().coerceAtLeast(150),
+                            (bitmap.height * factor).toInt().coerceAtLeast(150)
+                        )
+                    }
+                    "Letter" -> {
+                        val shortSide = 612
+                        val longSide = 792
+                        val useLandscape = when (config.orientation) {
+                            "Landscape" -> true
+                            "Portrait" -> false
+                            else -> isLandscape // "Auto" smart orientation for horizontal images
+                        }
+                        if (useLandscape) Pair(longSide, shortSide) else Pair(shortSide, longSide)
+                    }
+                    else -> { // A4 default
+                        val shortSide = 595
+                        val longSide = 842
+                        val useLandscape = when (config.orientation) {
+                            "Landscape" -> true
+                            "Portrait" -> false
+                            else -> isLandscape // "Auto" smart orientation for horizontal images
+                        }
+                        if (useLandscape) Pair(longSide, shortSide) else Pair(shortSide, longSide)
+                    }
+                }
 
                 val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex++).create()
                 val page = pdfDocument.startPage(pageInfo)
                 val canvas = page.canvas
 
-                val margin = (config.marginMm * 2.83465f).toInt() // mm to points
-                val availableWidth = pageWidth - (margin * 2)
-                val availableHeight = pageHeight - (margin * 2)
+                val margin = if (config.pageSize == "Original") 0 else (config.marginMm * 2.83465f).toInt() // mm to points
+                val availableWidth = (pageWidth - (margin * 2)).coerceAtLeast(1)
+                val availableHeight = (pageHeight - (margin * 2)).coerceAtLeast(1)
 
                 val scale = minOf(
                     availableWidth.toFloat() / bitmap.width.toFloat(),
@@ -141,13 +171,23 @@ class PdfConverterService(private val context: Context) {
         inputStream.close()
         if (original == null) return null
 
+        // Apply page rotation if requested
+        if (item.rotationDegrees != 0) {
+            val matrix = android.graphics.Matrix().apply {
+                postRotate(item.rotationDegrees.toFloat())
+            }
+            val rotated = Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
+            if (rotated != original) original.recycle()
+            original = rotated
+        }
+
         // Spread splitting (Book mode)
         if (item.isSplitSpread) {
-            val halfWidth = original.width / 2
+            val halfWidth = (original.width / 2).coerceAtLeast(1)
             val cropped = if (item.splitPart == 1) {
                 Bitmap.createBitmap(original, 0, 0, halfWidth, original.height)
             } else {
-                Bitmap.createBitmap(original, halfWidth, 0, halfWidth, original.height)
+                Bitmap.createBitmap(original, halfWidth, 0, original.width - halfWidth, original.height)
             }
             if (cropped != original) original.recycle()
             original = cropped

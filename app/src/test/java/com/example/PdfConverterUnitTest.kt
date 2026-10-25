@@ -124,6 +124,18 @@ class PdfConverterUnitTest {
         assertEquals("2026-10-25", customConfig.creationDate)
     }
 
+    @Test
+    fun testPdfExportConfigOrientationAndDefaults() {
+        val defaultConfig = PdfExportConfig()
+        assertEquals("Auto", defaultConfig.orientation)
+        assertEquals("A4", defaultConfig.pageSize)
+        assertEquals(10, defaultConfig.marginMm)
+
+        val landscapeConfig = defaultConfig.copy(orientation = "Landscape", marginMm = 0)
+        assertEquals("Landscape", landscapeConfig.orientation)
+        assertEquals(0, landscapeConfig.marginMm)
+    }
+
     private fun wrapForLlmTest(
         items: List<MarkdownSourceItem>,
         rawMarkdown: String,

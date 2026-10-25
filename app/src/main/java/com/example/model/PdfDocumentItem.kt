@@ -53,6 +53,7 @@ data class CropRect(
 
 data class PdfExportConfig(
     val pageSize: String = "A4",
+    val orientation: String = "Auto",
     val marginMm: Int = 10,
     val compressionQuality: Int = 85,
     val autoContrastClean: Boolean = true,

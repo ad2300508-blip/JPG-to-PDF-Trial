@@ -116,6 +116,13 @@ fun PdfStudioScreen(
     val pageSizes = listOf("A4", "Letter", "Original")
     val selectedPageSizeIndex = pageSizes.indexOf(config.pageSize).coerceAtLeast(0)
 
+    val orientations = listOf("Auto", "Portrait", "Landscape")
+    val selectedOrientationIndex = orientations.indexOf(config.orientation).coerceAtLeast(0)
+
+    val marginLabels = listOf("None (0 mm)", "Normal (10 mm)", "Wide (20 mm)")
+    val marginValues = listOf(0, 10, 20)
+    val selectedMarginIndex = marginValues.indexOf(config.marginMm).let { if (it >= 0) it else 1 }
+
     Column(
         modifier = modifier
             .fillMaxSize()
@@ -268,6 +275,12 @@ fun PdfStudioScreen(
                                 unfocusedTextColor = OmniText
                             )
                         )
+                        Text(
+                            text = "Embedded into the PDF document metadata",
+                            fontSize = 13.sp,
+                            color = OmniTextMuted,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
                     }
 
                     // Page Format
@@ -285,12 +298,74 @@ fun PdfStudioScreen(
                                 viewModel.updateConfig(config.copy(pageSize = pageSizes[idx]))
                             }
                         )
+                        Text(
+                            text = when (config.pageSize) {
+                                "Original" -> "Original image dimensions with zero border margins"
+                                "Letter" -> "Standard US paper size (8.5 × 11 in / 216 × 279 mm)"
+                                else -> "Standard international paper size (210 × 297 mm)"
+                            },
+                            fontSize = 13.sp,
+                            color = OmniTextMuted,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    // Page Orientation
+                    Column {
+                        Text(
+                            text = "Orientation",
+                            fontSize = 14.sp,
+                            color = OmniTextMuted,
+                            modifier = Modifier.padding(bottom = 6.dp)
+                        )
+                        SegmentedControl(
+                            options = orientations,
+                            selectedIndex = selectedOrientationIndex,
+                            onOptionSelected = { idx ->
+                                viewModel.updateConfig(config.copy(orientation = orientations[idx]))
+                            }
+                        )
+                        Text(
+                            text = when (config.orientation) {
+                                "Landscape" -> "All pages forced to horizontal (landscape) format"
+                                "Portrait" -> "All pages forced to vertical (portrait) format"
+                                else -> "Smart auto-fit: horizontal images get landscape pages automatically"
+                            },
+                            fontSize = 13.sp,
+                            color = OmniTextMuted,
+                            modifier = Modifier.padding(top = 4.dp)
+                        )
+                    }
+
+                    // Margins
+                    if (config.pageSize != "Original") {
+                        Column {
+                            Text(
+                                text = "Page Margins",
+                                fontSize = 14.sp,
+                                color = OmniTextMuted,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                            SegmentedControl(
+                                options = marginLabels,
+                                selectedIndex = selectedMarginIndex,
+                                onOptionSelected = { idx ->
+                                    viewModel.updateConfig(config.copy(marginMm = marginValues[idx]))
+                                }
+                            )
+                            Text(
+                                text = "Border spacing around images on standard pages",
+                                fontSize = 13.sp,
+                                color = OmniTextMuted,
+                                modifier = Modifier.padding(top = 4.dp)
+                            )
+                        }
                     }
 
                     // Auto Contrast Switch
                     OptionRow(
                         label = "Auto contrast & clean",
-                        description = "Cleans background yellowing and enhances text clarity",
+                        description = "Binarizes background, removes yellow cast/shadows, and sharpens scan text",
                         checked = config.autoContrastClean,
                         onCheckedChange = { viewModel.updateConfig(config.copy(autoContrastClean = it)) }
                     )
@@ -336,7 +411,7 @@ fun PdfStudioScreen(
             },
             actionBar = {
                 OmniActionBar(
-                    summaryText = "${items.size} pages · ${config.pageSize}",
+                    summaryText = "${items.size} pages · ${config.pageSize} · ${config.orientation}",
                     primaryButtonLabel = if (isGenerating) "Creating PDF..." else "Create PDF",
                     isEnabled = items.isNotEmpty() && !isGenerating,
                     disabledHelperText = if (items.isEmpty()) "Add at least one image" else null,
