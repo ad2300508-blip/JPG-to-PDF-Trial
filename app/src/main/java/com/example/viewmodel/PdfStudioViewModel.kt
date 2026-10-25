@@ -57,6 +57,15 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
         _items.value = _items.value.filterNot { it.id == id }
     }
 
+    fun moveItem(fromIndex: Int, toIndex: Int) {
+        if (fromIndex in _items.value.indices && toIndex in _items.value.indices) {
+            val list = _items.value.toMutableList()
+            val item = list.removeAt(fromIndex)
+            list.add(toIndex, item)
+            _items.value = list
+        }
+    }
+
     fun clearAll() {
         _items.value = emptyList()
         _lastGeneratedUri.value = null

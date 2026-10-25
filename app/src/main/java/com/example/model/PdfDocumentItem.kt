@@ -57,5 +57,13 @@ data class PdfExportConfig(
     val compressionQuality: Int = 85,
     val autoContrastClean: Boolean = true,
     val splitDoublePages: Boolean = false,
-    val title: String = "Document"
-)
+    val title: String = "Document",
+    val author: String = "",
+    val subject: String = "",
+    val keywords: String = "",
+    val creator: String = "OmniConvert Studio",
+    val creationDate: String = ""
+) {
+    val hasCustomMetadata: Boolean
+        get() = author.isNotBlank() || subject.isNotBlank() || keywords.isNotBlank() || creationDate.isNotBlank()
+}

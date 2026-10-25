@@ -1,39 +1,93 @@
 package com.example.ui.theme
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
 
-val Slate950 = Color(0xFF0B0F19)
-val Slate900 = Color(0xFF0F172A)
-val Slate800 = Color(0xFF1E293B)
-val Slate700 = Color(0xFF334155)
+// Light Theme Tokens
+val OmniLightBg = Color(0xFFF6F8FA)
+val OmniLightSurface = Color(0xFFFFFFFF)
+val OmniLightSurface2 = Color(0xFFEDF1F4)
+val OmniLightBorder = Color(0xFFE1E6EB)
+val OmniLightText = Color(0xFF12171C)
+val OmniLightTextMuted = Color(0xFF5B6672)
+val OmniLightAccent = Color(0xFF0A7F62)
+val OmniLightOnAccent = Color(0xFFFFFFFF)
+val OmniLightAccentSoft = Color(0x1F0A7F62) // 12% opacity
+val OmniLightDanger = Color(0xFFC93B31)
+
+// Dark Theme Tokens
+val OmniDarkBg = Color(0xFF0F1317)
+val OmniDarkSurface = Color(0xFF171C21)
+val OmniDarkSurface2 = Color(0xFF202730)
+val OmniDarkBorder = Color(0xFF2B333C)
+val OmniDarkText = Color(0xFFE8EDF1)
+val OmniDarkTextMuted = Color(0xFF9AA5B1)
+val OmniDarkAccent = Color(0xFF3DD6B0)
+val OmniDarkOnAccent = Color(0xFF06231C)
+val OmniDarkAccentSoft = Color(0x243DD6B0) // 14% opacity
+val OmniDarkDanger = Color(0xFFF2766B)
+
+// Default / Active Dark References
+val OmniBg = OmniDarkBg
+val OmniSurface = OmniDarkSurface
+val OmniSurface2 = OmniDarkSurface2
+val OmniBorder = OmniDarkBorder
+val OmniText = OmniDarkText
+val OmniTextMuted = OmniDarkTextMuted
+val OmniAccent = OmniDarkAccent
+val OmniAccentSoft = OmniDarkAccentSoft
+val OmniOnAccent = OmniDarkOnAccent
+val OmniDanger = OmniDarkDanger
+
+// Category Tints (Used for icon tiles and empty state illustrations: 14% opacity background + full color icon)
+val TintPdf = Color(0xFFE5604F)
+val TintMerge = Color(0xFF3F8CFF)
+val TintImage = Color(0xFFF2A93B)
+val TintAudio = Color(0xFFE4609F)
+val TintZip = Color(0xFF8F8A7A)
+val TintAi = OmniDarkAccent
+
+// Shape Tokens
+val RadiusInput = 14.dp
+val RadiusButton = 16.dp
+val RadiusCard = 20.dp
+val RadiusPill = 24.dp
+val RadiusSheet = 28.dp
+
+val RadiusSm = 10.dp
+val RadiusMd = 14.dp
+val RadiusLg = 20.dp
+
+// Backward-compatible semantic aliases
+val SurfaceCanvas = OmniBg
+val SurfaceCard = OmniSurface
+val SurfaceElevated = OmniSurface2
+val BorderSubtle = OmniBorder
+val BorderFocused = OmniAccent
+val BorderCrisp = OmniBorder
+val CardSurface = OmniSurface
+
+val Slate950 = OmniBg
+val Slate900 = OmniSurface
+val Slate800 = OmniSurface2
+val Slate700 = OmniBorder
 val Slate600 = Color(0xFF475569)
-val Slate400 = Color(0xFF94A3B8)
+val Slate400 = OmniTextMuted
 val Slate300 = Color(0xFFCBD5E1)
-val Slate100 = Color(0xFFF1F5F9)
+val Slate100 = OmniText
 
-val CyanAccent = Color(0xFF38BDF8)
-val CyanGlow = Color(0x3338BDF8)
-val IndigoAccent = Color(0xFF818CF8)
-val EmeraldAccent = Color(0xFF10B981)
-val AmberAccent = Color(0xFFF59E0B)
-val RoseAccent = Color(0xFFF43F5E)
-
-// Component Specific Tokens
-val SurfaceCanvas = Color(0xFF080C14)
-val SurfaceCard = Color(0xFF0F172A)
-val SurfaceElevated = Color(0xFF1E293B)
-val BorderSubtle = Color(0xFF263345)
-val BorderFocused = Color(0xFF38BDF8)
-
-// Cross-Component Theme Colors
-val PdfGreen = Color(0xFF10B981)
-val PdfRed = Color(0xFFEF4444)
-val PdfPurple = Color(0xFF8B5CF6)
-val PdfOrange = Color(0xFFF59E0B)
-val SuccessGreen = Color(0xFF10B981)
-val AccentCyan = Color(0xFF38BDF8)
-val WarningAmber = Color(0xFFF59E0B)
-val BadgeMd = Color(0xFFA855F7)
-val BadgeMdBg = Color(0xFF2E1065)
-val BorderCrisp = Color(0xFF334155)
-val CardSurface = Color(0xFF1E293B)
+val CyanAccent = OmniAccent
+val CyanGlow = OmniAccentSoft
+val IndigoAccent = OmniAccent
+val EmeraldAccent = OmniAccent
+val AmberAccent = OmniAccent
+val RoseAccent = OmniDanger
+val PdfGreen = OmniAccent
+val PdfRed = OmniDanger
+val PdfPurple = OmniAccent
+val PdfOrange = OmniAccent
+val SuccessGreen = OmniAccent
+val AccentCyan = OmniAccent
+val WarningAmber = OmniAccent
+val BadgeMd = OmniAccent
+val BadgeMdBg = OmniAccentSoft

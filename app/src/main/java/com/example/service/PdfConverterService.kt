@@ -15,6 +15,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import com.example.model.PdfDocumentItem
 import com.example.model.PdfExportConfig
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.pdmodel.PDDocument
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.File
@@ -22,6 +24,12 @@ import java.io.FileOutputStream
 import java.io.OutputStream
 
 class PdfConverterService(private val context: Context) {
+
+    init {
+        try {
+            PDFBoxResourceLoader.init(context)
+        } catch (_: Throwable) {}
+    }
 
     suspend fun generatePdf(
         items: List<PdfDocumentItem>,
@@ -73,9 +81,52 @@ class PdfConverterService(private val context: Context) {
                 bitmap.recycle()
             }
 
-            val filename = "${config.title.ifBlank { "OmniConvert_Doc" }}_${System.currentTimeMillis()}.pdf"
-            val outputUri = savePdfToDownloads(filename, pdfDocument)
+            val tempFile = File(context.cacheDir, "pdf_render_${System.currentTimeMillis()}.pdf")
+            FileOutputStream(tempFile).use { fos ->
+                pdfDocument.writeTo(fos)
+            }
             pdfDocument.close()
+
+            val sanitizedTitle = config.title.ifBlank { "OmniConvert_Doc" }.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            val filename = "${sanitizedTitle}_${System.currentTimeMillis()}.pdf"
+
+            val outputUri = try {
+                PDFBoxResourceLoader.init(context)
+                val pdDoc = PDDocument.load(tempFile)
+                val info = pdDoc.documentInformation
+
+                // Embed Document Metadata (Title, Author, Subject, Keywords, Creation Date, Creator)
+                info.title = config.title.ifBlank { "OmniConvert Document" }
+                if (config.author.isNotBlank()) info.author = config.author
+                if (config.subject.isNotBlank()) info.subject = config.subject
+                if (config.keywords.isNotBlank()) info.keywords = config.keywords
+                info.creator = config.creator.ifBlank { "OmniConvert Studio" }
+
+                if (config.creationDate.isNotBlank()) {
+                    try {
+                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
+                        val parsed = sdf.parse(config.creationDate)
+                        if (parsed != null) {
+                            val cal = java.util.Calendar.getInstance()
+                            cal.time = parsed
+                            info.creationDate = cal
+                            info.modificationDate = cal
+                        }
+                    } catch (_: Throwable) {
+                        info.creationDate = java.util.Calendar.getInstance()
+                    }
+                } else {
+                    info.creationDate = java.util.Calendar.getInstance()
+                }
+
+                val savedUri = savePdDocumentToDownloads(filename, pdDoc)
+                pdDoc.close()
+                savedUri
+            } catch (_: Throwable) {
+                saveRawFileToDownloads(filename, tempFile)
+            } finally {
+                if (tempFile.exists()) tempFile.delete()
+            }
 
             Result.success(outputUri)
         } catch (t: Throwable) {
@@ -130,7 +181,7 @@ class PdfConverterService(private val context: Context) {
         return original
     }
 
-    private fun savePdfToDownloads(filename: String, document: PdfDocument): Uri {
+    private fun savePdDocumentToDownloads(filename: String, document: PDDocument): Uri {
         val resolver = context.contentResolver
         val contentValues = ContentValues().apply {
             put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
@@ -144,7 +195,27 @@ class PdfConverterService(private val context: Context) {
             ?: throw IllegalStateException("Failed to create MediaStore entry")
 
         resolver.openOutputStream(uri)?.use { out ->
-            document.writeTo(out)
+            document.save(out)
+        }
+
+        return uri
+    }
+
+    private fun saveRawFileToDownloads(filename: String, file: File): Uri {
+        val resolver = context.contentResolver
+        val contentValues = ContentValues().apply {
+            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
+            put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/PDFs")
+            }
+        }
+
+        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
+            ?: throw IllegalStateException("Failed to create MediaStore entry")
+
+        resolver.openOutputStream(uri)?.use { out ->
+            file.inputStream().use { input -> input.copyTo(out) }
         }
 
         return uri

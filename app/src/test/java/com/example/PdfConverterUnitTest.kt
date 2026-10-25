@@ -99,6 +99,31 @@ class PdfConverterUnitTest {
         assertEquals(2, item2.splitPart)
     }
 
+    @Test
+    fun testPdfExportConfigMetadata() {
+        val defaultConfig = PdfExportConfig()
+        assertFalse(defaultConfig.hasCustomMetadata)
+        assertEquals("Document", defaultConfig.title)
+        assertEquals("", defaultConfig.author)
+        assertEquals("", defaultConfig.keywords)
+        assertEquals("", defaultConfig.creationDate)
+        assertEquals("OmniConvert Studio", defaultConfig.creator)
+
+        val customConfig = defaultConfig.copy(
+            title = "Renaissance Architecture",
+            author = "Prof. Mario Rossi",
+            subject = "History of Art Chapter 25",
+            keywords = "architecture, art, renaissance",
+            creationDate = "2026-10-25"
+        )
+        assertTrue(customConfig.hasCustomMetadata)
+        assertEquals("Renaissance Architecture", customConfig.title)
+        assertEquals("Prof. Mario Rossi", customConfig.author)
+        assertEquals("History of Art Chapter 25", customConfig.subject)
+        assertEquals("architecture, art, renaissance", customConfig.keywords)
+        assertEquals("2026-10-25", customConfig.creationDate)
+    }
+
     private fun wrapForLlmTest(
         items: List<MarkdownSourceItem>,
         rawMarkdown: String,

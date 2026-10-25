@@ -84,15 +84,15 @@ import androidx.compose.ui.text.style.TextOverflow
 enum class WorkspaceDestination(
     val title: String,
     val icon: ImageVector,
-    val accentColor: Color
+    val tintColor: Color
 ) {
-    PDF_STUDIO("PDF Studio", Icons.Default.PictureAsPdf, CyanAccent),
-    PDF_MERGE("PDF Merge", Icons.AutoMirrored.Filled.MergeType, PdfPurple),
-    IMAGE_LAB("Image Lab", Icons.Default.Image, EmeraldAccent),
-    AUDIO_LAB("Audio Lab", Icons.Default.Audiotrack, IndigoAccent),
-    ARCHIVE_ZIP("Archive ZIP", Icons.Default.Archive, Color(0xFFF59E0B)),
-    AI_MARKDOWN("AI Markdown", Icons.Default.SmartToy, CyanAccent),
-    GEMINI_HUB("Gemini AI", Icons.Default.AutoAwesome, AmberAccent)
+    PDF_STUDIO("Images to PDF", Icons.Default.PictureAsPdf, com.example.ui.theme.TintPdf),
+    PDF_MERGE("Merge PDF", Icons.AutoMirrored.Filled.MergeType, com.example.ui.theme.TintMerge),
+    IMAGE_LAB("Images", Icons.Default.Image, com.example.ui.theme.TintImage),
+    AUDIO_LAB("Audio", Icons.Default.Audiotrack, com.example.ui.theme.TintAudio),
+    ARCHIVE_ZIP("ZIP", Icons.Default.Archive, com.example.ui.theme.TintZip),
+    AI_MARKDOWN("Markdown for AI", Icons.Default.SmartToy, com.example.ui.theme.TintAi),
+    GEMINI_HUB("Gemini", Icons.Default.AutoAwesome, com.example.ui.theme.TintAi)
 }
 
 @Composable
@@ -115,7 +115,7 @@ fun OmniConvertApp(
         val isCompact = maxWidth < 600.dp
 
         if (isCompact) {
-            // Phone Handheld Layout: Full-Width Workspace with Status Safe Area & Bottom Scrollable Capsule Navigation
+            // Phone Handheld Layout: Full-Width Workspace with Bottom Navigation Bar
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background,
@@ -124,8 +124,8 @@ fun OmniConvertApp(
                         modifier = Modifier
                             .fillMaxWidth()
                             .navigationBarsPadding(),
-                        color = SurfaceCard,
-                        border = BorderStroke(1.dp, BorderSubtle),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
                         tonalElevation = 8.dp
                     ) {
                         Row(
@@ -141,32 +141,40 @@ fun OmniConvertApp(
                                 Surface(
                                     onClick = { currentWorkspace = destination },
                                     shape = RoundedCornerShape(24.dp),
-                                    color = if (isSelected) destination.accentColor.copy(alpha = 0.18f) else Color.Transparent,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
                                     border = BorderStroke(
                                         width = 1.dp,
-                                        color = if (isSelected) destination.accentColor.copy(alpha = 0.6f) else BorderSubtle
+                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
                                     ),
                                     modifier = Modifier
                                         .height(48.dp)
                                         .testTag("phone_nav_${destination.name.lowercase()}")
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.Center
                                     ) {
-                                        Icon(
-                                            imageVector = destination.icon,
-                                            contentDescription = destination.title,
-                                            tint = if (isSelected) destination.accentColor else Slate400,
-                                            modifier = Modifier.size(20.dp)
-                                        )
+                                        Box(
+                                            modifier = Modifier
+                                                .size(28.dp)
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(destination.tintColor.copy(alpha = 0.14f)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = destination.icon,
+                                                contentDescription = destination.title,
+                                                tint = destination.tintColor,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
                                         Spacer(modifier = Modifier.width(8.dp))
                                         Text(
                                             text = destination.title,
-                                            fontSize = 12.sp,
+                                            fontSize = 13.sp,
                                             fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                            color = if (isSelected) destination.accentColor else Slate400,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                                             maxLines = 1,
                                             softWrap = false,
                                             overflow = TextOverflow.Ellipsis
@@ -198,7 +206,7 @@ fun OmniConvertApp(
                 }
             }
         } else {
-            // Tablet Landscape / Expanded Layout: Left Navigation Rail + Right Content
+            // Tablet Landscape Layout: 88dp wide Navigation Rail + Right Content
             Scaffold(
                 modifier = Modifier.fillMaxSize(),
                 containerColor = MaterialTheme.colorScheme.background
@@ -212,14 +220,14 @@ fun OmniConvertApp(
                     NavigationRail(
                         modifier = Modifier
                             .fillMaxHeight()
-                            .width(96.dp)
+                            .width(88.dp)
                             .border(
                                 width = 1.dp,
-                                color = BorderSubtle,
+                                color = MaterialTheme.colorScheme.outlineVariant,
                                 shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
                             )
                             .testTag("tablet_navigation_rail"),
-                        containerColor = SurfaceCard,
+                        containerColor = MaterialTheme.colorScheme.surface,
                         header = {
                             Column(
                                 modifier = Modifier.padding(top = 16.dp, bottom = 12.dp),
@@ -227,29 +235,18 @@ fun OmniConvertApp(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(46.dp)
+                                        .size(44.dp)
                                         .clip(CircleShape)
-                                        .background(Slate800)
-                                        .border(1.5.dp, CyanAccent.copy(alpha = 0.6f), CircleShape),
+                                        .background(MaterialTheme.colorScheme.primaryContainer),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        text = "OC",
-                                        color = CyanAccent,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 17.sp
+                                    Icon(
+                                        imageVector = Icons.Default.AutoAwesome,
+                                        contentDescription = "OmniConvert",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(24.dp)
                                     )
                                 }
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Text(
-                                    text = "STUDIO",
-                                    color = Slate400,
-                                    fontFamily = FontFamily.Monospace,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.5.sp
-                                )
                             }
                         }
                     ) {
@@ -259,11 +256,20 @@ fun OmniConvertApp(
                                 selected = isSelected,
                                 onClick = { currentWorkspace = destination },
                                 icon = {
-                                    Icon(
-                                        imageVector = destination.icon,
-                                        contentDescription = destination.title,
-                                        modifier = Modifier.size(24.dp)
-                                    )
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(destination.tintColor.copy(alpha = 0.14f)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = destination.icon,
+                                            contentDescription = destination.title,
+                                            tint = destination.tintColor,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
                                 },
                                 label = {
                                     Text(
@@ -276,14 +282,14 @@ fun OmniConvertApp(
                                     )
                                 },
                                 colors = NavigationRailItemDefaults.colors(
-                                    selectedIconColor = destination.accentColor,
-                                    selectedTextColor = destination.accentColor,
-                                    indicatorColor = destination.accentColor.copy(alpha = 0.18f),
-                                    unselectedIconColor = Slate400,
-                                    unselectedTextColor = Slate400
+                                    selectedIconColor = MaterialTheme.colorScheme.primary,
+                                    selectedTextColor = MaterialTheme.colorScheme.primary,
+                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 modifier = Modifier
-                                    .padding(vertical = 3.dp)
+                                    .padding(vertical = 4.dp)
                                     .testTag("nav_item_${destination.name.lowercase()}")
                             )
                         }
