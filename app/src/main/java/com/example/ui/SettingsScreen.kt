@@ -64,6 +64,7 @@ import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.TipsAndUpdates
@@ -379,6 +380,14 @@ fun SettingsScreen(
                     tint = OmniAccent,
                     title = "Morph",
                     subtitle = "Versione ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · conversioni 100% sul dispositivo",
+                    onClick = null
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.Person,
+                    tint = OmniAccent,
+                    title = "Autore",
+                    subtitle = "Alessio Delfino",
                     onClick = null
                 )
             }

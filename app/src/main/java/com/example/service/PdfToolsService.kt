@@ -85,7 +85,8 @@ class PdfToolsService(private val context: Context) {
                     PdfRenderer(pfd).use { renderer ->
                         if (pageIndex !in 0 until renderer.pageCount) return@use null
                         renderer.openPage(pageIndex).use { page ->
-                            val scale = widthPx.toFloat() / page.width
+                            // Very tall pages (receipts, long scans) would need hundreds of MB at full width.
+                            val scale = minOf(widthPx.toFloat() / page.width, MAX_PREVIEW_SIDE / maxOf(page.width, page.height))
                             renderToBitmap(page, scale)
                         }
                     }
@@ -436,5 +437,6 @@ class PdfToolsService(private val context: Context) {
 
     private companion object {
         const val MAX_EXPORT_SIDE = 5000f
+        const val MAX_PREVIEW_SIDE = 4096f
     }
 }

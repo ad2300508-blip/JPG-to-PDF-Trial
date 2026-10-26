@@ -10,6 +10,7 @@ import com.example.model.GeminiModelTier
 import com.example.model.GeminiTargetModel
 import com.example.model.ModelQuotaUsage
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -412,12 +413,16 @@ class GeminiApiService(private val context: Context) {
                 return@withContext Result.failure(Exception("HTTP ${response.code}: $errBody"))
             }
 
-            val source = response.body?.byteStream()
-                ?: return@withContext Result.failure(Exception("Risposta vuota da Gemini"))
+            val source = response.body?.byteStream() ?: run {
+                response.close()
+                return@withContext Result.failure(Exception("Risposta vuota da Gemini"))
+            }
 
             source.bufferedReader().use { reader ->
                 var line: String?
                 while (reader.readLine().also { line = it } != null) {
+                    // "Stop" cancels the coroutine: end the stream at the next chunk instead of reading it to the end.
+                    coroutineContext.ensureActive()
                     val raw = line?.trim() ?: continue
                     if (!raw.startsWith("data:")) continue
                     val payload = raw.removePrefix("data:").trim()

@@ -40,7 +40,8 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) crashReport.value = CrashReporter.pending(this)
 
         if (savedInstanceState == null) handleShareIntent(intent)
-        AppShortcuts.publish(this)
+        // An IPC to the launcher: kept off the main thread so the first frame is not delayed.
+        if (savedInstanceState == null) Thread({ AppShortcuts.publish(applicationContext) }, "morph-shortcuts").start()
 
         setContent {
             val themeMode by AppPreferences.themeMode.collectAsState()
