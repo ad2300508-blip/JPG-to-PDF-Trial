@@ -16,7 +16,20 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import androidx.compose.material.icons.filled.ArrowDownward
+import androidx.compose.material.icons.filled.OpenInFull
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerEventPass
+import com.example.ui.theme.OmniAccentOnInk
+import com.example.ui.theme.OmniInk
+import com.example.ui.theme.OmniOnInk
+import kotlin.math.absoluteValue
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -186,6 +199,9 @@ private fun OrderedImagePickerDialog(
     var images by remember { mutableStateOf<List<GalleryImage>?>(null) }
     val selected = remember { mutableStateListOf<Uri>() }
     var album by rememberSaveable { mutableStateOf(ALL_ALBUMS) }
+    var oldestFirst by rememberSaveable { mutableStateOf(false) }
+    var cellSize by rememberSaveable { mutableFloatStateOf(104f) }
+    var previewIndex by remember { mutableStateOf<Int?>(null) }
     val partial = remember(version) { MediaGallery.isPartialAccess(context) }
     val gridState = rememberLazyGridState()
 
@@ -217,8 +233,10 @@ private fun OrderedImagePickerDialog(
                     .navigationBarsPadding()
             ) {
                 val list = images
-                val visible = remember(list, album) {
-                    list.orEmpty().let { all -> if (album == ALL_ALBUMS) all else all.filter { it.album == album } }
+                val visible = remember(list, album, oldestFirst) {
+                    list.orEmpty()
+                        .let { all -> if (album == ALL_ALBUMS) all else all.filter { it.album == album } }
+                        .let { if (oldestFirst) it.asReversed() else it }
                 }
 
                 Row(
@@ -256,13 +274,19 @@ private fun OrderedImagePickerDialog(
                     listOf(ALL_ALBUMS) + list.orEmpty().groupingBy { it.album }.eachCount().entries
                         .sortedByDescending { it.value }.take(12).map { it.key }.filter { it != ALL_ALBUMS }
                 }
-                if (albums.size > 2) {
-                    MorphChipRow(
-                        options = albums,
-                        selected = album,
-                        onSelected = { album = it },
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                    )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 6.dp, bottom = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(modifier = Modifier.weight(1f)) {
+                        if (albums.size > 2) {
+                            MorphChipRow(options = albums, selected = album, onSelected = { album = it })
+                        }
+                    }
+                    SortToggle(oldestFirst = oldestFirst, onToggle = {
+                        oldestFirst = !oldestFirst
+                        haptics(Haptic.TAP)
+                    })
                 }
                 if (partial) {
                     Row(
@@ -295,7 +319,10 @@ private fun OrderedImagePickerDialog(
                             gridState = gridState,
                             onToggle = ::toggle,
                             onSelectionChange = ::replaceSelection,
-                            onDragStep = { haptics(Haptic.TICK) }
+                            onDragStep = { haptics(Haptic.TICK) },
+                            cellSize = cellSize,
+                            onCellSizeChange = { cellSize = it },
+                            onPreview = { previewIndex = it }
                         )
                     }
                 }
@@ -353,6 +380,20 @@ private fun OrderedImagePickerDialog(
                 }
             }
         }
+        val start = previewIndex
+        val list = images
+        if (start != null && list != null) {
+            val shown = list
+                .let { all -> if (album == ALL_ALBUMS) all else all.filter { it.album == album } }
+                .let { if (oldestFirst) it.asReversed() else it }
+            PhotoPreview(
+                images = shown,
+                startIndex = start.coerceIn(0, (shown.size - 1).coerceAtLeast(0)),
+                selected = selected,
+                onToggle = ::toggle,
+                onDismiss = { previewIndex = null }
+            )
+        }
     }
 }
 
@@ -382,9 +423,13 @@ private fun GalleryGrid(
     gridState: LazyGridState,
     onToggle: (Uri) -> Unit,
     onSelectionChange: (List<Uri>) -> Unit,
-    onDragStep: () -> Unit
+    onDragStep: () -> Unit,
+    cellSize: Float,
+    onCellSizeChange: (Float) -> Unit,
+    onPreview: (Int) -> Unit
 ) {
     val reduce = LocalReduceMotion.current
+    val currentCellSize by androidx.compose.runtime.rememberUpdatedState(cellSize)
     val groups = remember(images) { images.groupBy { dayLabel(it.dateTaken) }.toList() }
     val indexOfKey = remember(images) { images.withIndex().associate { (i, img) -> img.uri.toString() to i } }
 
@@ -418,12 +463,29 @@ private fun GalleryGrid(
 
     LazyVerticalGrid(
         state = gridState,
-        columns = GridCells.Adaptive(minSize = 104.dp),
+        columns = GridCells.Adaptive(minSize = cellSize.dp),
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         verticalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .fillMaxSize()
+            // Pinch with two fingers to show bigger or smaller photos. Read in the Initial pass so the
+            // grid does not scroll while pinching; single-finger gestures pass through untouched.
+            .pointerInput(Unit) {
+                awaitEachGesture {
+                    awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    do {
+                        val event = awaitPointerEvent(PointerEventPass.Initial)
+                        if (event.changes.count { it.pressed } >= 2) {
+                            val zoom = event.calculateZoom()
+                            if (zoom != 1f) {
+                                onCellSizeChange((currentCellSize * zoom).coerceIn(MIN_CELL_DP, MAX_CELL_DP))
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    } while (event.changes.any { it.pressed })
+                }
+            }
             .pointerInput(images) {
                 val edge = 64.dp.toPx()
                 val maxSpeed = 22.dp.toPx()
@@ -478,6 +540,8 @@ private fun GalleryGrid(
                     image = image,
                     order = if (order >= 0) order + 1 else null,
                     onClick = { onToggle(image.uri) },
+                    onPreview = { indexOfKey[image.uri.toString()]?.let(onPreview) },
+                    compact = cellSize < 86f,
                     modifier = Modifier.animateItem(placementSpec = spring(dampingRatio = 0.85f, stiffness = 500f))
                 )
             }
@@ -573,7 +637,14 @@ private fun SelectionTray(selected: List<Uri>, onRemove: (Uri) -> Unit) {
 }
 
 @Composable
-private fun GalleryCell(image: GalleryImage, order: Int?, onClick: () -> Unit, modifier: Modifier = Modifier) {
+private fun GalleryCell(
+    image: GalleryImage,
+    order: Int?,
+    onClick: () -> Unit,
+    onPreview: () -> Unit,
+    compact: Boolean,
+    modifier: Modifier = Modifier
+) {
     val context = LocalContext.current
     val isSelected = order != null
     val inset by animateDpAsState(if (isSelected) 6.dp else 0.dp, motionSpec(Motion.snappy()), label = "cell_inset")
@@ -617,6 +688,128 @@ private fun GalleryCell(image: GalleryImage, order: Int?, onClick: () -> Unit, m
                 contentAlignment = Alignment.Center
             ) {
                 AnimatedText("${order ?: ""}", color = OmniOnAccent, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+        // Small cells skip the preview button: it would cover most of the photo.
+        AnimatedVisibility(
+            visible = !compact,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.align(Alignment.BottomStart)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(40.dp)
+                    .clickable(onClickLabel = "Anteprima", onClick = onPreview),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Default.OpenInFull,
+                    contentDescription = "Anteprima",
+                    tint = OmniOnInk,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .clip(CircleShape)
+                        .background(OmniInk.copy(alpha = 0.55f))
+                        .padding(5.dp)
+                )
+            }
+        }
+    }
+}
+
+private const val MIN_CELL_DP = 72f
+private const val MAX_CELL_DP = 200f
+
+@Composable
+private fun SortToggle(oldestFirst: Boolean, onToggle: () -> Unit) {
+    val rotation by animateFloatAsState(if (oldestFirst) 180f else 0f, motionSpec(Motion.bouncy()), label = "sort_rotation")
+    TextButton(onClick = onToggle) {
+        Icon(
+            Icons.Default.ArrowDownward,
+            contentDescription = null,
+            tint = OmniAccent,
+            modifier = Modifier
+                .size(16.dp)
+                .graphicsLayer { rotationZ = rotation }
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        AnimatedText(if (oldestFirst) "Meno recenti" else "Più recenti", fontSize = 13.sp, color = OmniAccent)
+    }
+}
+
+/** Full-screen viewer: swipe between photos and add or remove the current one as a page. */
+@Composable
+private fun PhotoPreview(
+    images: List<GalleryImage>,
+    startIndex: Int,
+    selected: List<Uri>,
+    onToggle: (Uri) -> Unit,
+    onDismiss: () -> Unit
+) {
+    if (images.isEmpty()) return
+    val context = LocalContext.current
+    val pager = rememberPagerState(initialPage = startIndex) { images.size }
+    var shown by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { shown = true }
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        AnimatedVisibility(visible = shown, enter = fadeIn() + scaleIn(initialScale = 0.92f), exit = fadeOut()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(OmniInk)
+            ) {
+                HorizontalPager(state = pager, beyondViewportPageCount = 1, modifier = Modifier.fillMaxSize()) { page ->
+                    val image = images[page]
+                    AsyncImage(
+                        model = remember(image.uri) { ImageRequest.Builder(context).data(image.uri).size(2048).crossfade(true).build() },
+                        contentDescription = image.name,
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer {
+                                // Pages shrink and fade a little while they slide away.
+                                val offset = ((pager.currentPage - page) + pager.currentPageOffsetFraction).absoluteValue.coerceIn(0f, 1f)
+                                val scale = 1f - 0.08f * offset
+                                scaleX = scale
+                                scaleY = scale
+                                alpha = 1f - 0.4f * offset
+                            }
+                    )
+                }
+                val current = images[pager.currentPage.coerceIn(0, images.lastIndex)]
+                val order = selected.indexOf(current.uri)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Chiudi anteprima", tint = OmniOnInk) }
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(current.name, color = OmniOnInk, fontSize = 15.sp, fontWeight = FontWeight.SemiBold, maxLines = 1)
+                        AnimatedText("${pager.currentPage + 1} di ${images.size} · ${dayLabel(current.dateTaken)}", fontSize = 12.sp, color = OmniOnInk.copy(alpha = 0.7f))
+                    }
+                }
+                Button(
+                    onClick = { onToggle(current.uri) },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (order >= 0) OmniOnInk.copy(alpha = 0.16f) else OmniAccentOnInk,
+                        contentColor = if (order >= 0) OmniOnInk else OmniInk
+                    ),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .navigationBarsPadding()
+                        .padding(24.dp)
+                        .height(52.dp)
+                ) {
+                    AnimatedText(
+                        text = if (order >= 0) "Togli pagina ${order + 1}" else "Aggiungi come pagina ${selected.size + 1}",
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (order >= 0) OmniOnInk else OmniInk
+                    )
+                }
             }
         }
     }
