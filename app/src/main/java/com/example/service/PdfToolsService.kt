@@ -144,7 +144,7 @@ class PdfToolsService(private val context: Context) {
                     info.keywords = null
                     info.subject = null
                 }
-                doc.documentInformation.producer = "OmniConvert Studio"
+                doc.documentInformation.producer = "Morph"
 
                 val fileName = "${FileNames.sanitize(FileNames.baseName(name), "Documento")}_compresso.pdf"
                 val temp = File(context.cacheDir, "compress_${System.nanoTime()}.pdf")
@@ -248,7 +248,7 @@ class PdfToolsService(private val context: Context) {
                             imported.rotation = ((imported.rotation + edit.rotation) % 360 + 360) % 360
                         }
                     }
-                    target.documentInformation.producer = "OmniConvert Studio"
+                    target.documentInformation.producer = "Morph"
                     val fileName = FileNames.stamped(outputName, "Documento", "pdf")
                     OutputStorage.save(context, fileName, "application/pdf", OutputFolder.PDFS) { out -> target.save(out) }
                 }
@@ -294,7 +294,7 @@ class PdfToolsService(private val context: Context) {
                             PDDocument(MemoryUsageSetting.setupTempFileOnly()).use { part ->
                                 valid.forEach { part.importPage(src.getPage(it)) }
                                 part.documentInformation.title = "$baseName ($label)"
-                                part.documentInformation.producer = "OmniConvert Studio"
+                                part.documentInformation.producer = "Morph"
                                 temp.outputStream().buffered().use { part.save(it) }
                             }
                             if (zip != null) {

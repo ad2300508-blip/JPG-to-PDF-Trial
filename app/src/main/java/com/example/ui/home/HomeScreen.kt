@@ -114,6 +114,7 @@ import com.example.ui.components.MorphChipRow
 import com.example.ui.components.mimeForKind
 import com.example.ui.components.openFile
 import com.example.ui.components.rememberCameraCapture
+import com.example.ui.components.rememberOrderedImagePicker
 import com.example.ui.components.shareFile
 import com.example.ui.theme.OmniAccent
 import com.example.ui.theme.OmniAccentSoft
@@ -144,6 +145,10 @@ fun HomeScreen(
         if (uris.isNotEmpty()) onImagesForPdf(uris)
     }
     val launchCamera = rememberCameraCapture { uri -> onImagesForPdf(listOf(uri)) }
+    val orderedPicker = rememberOrderedImagePicker(
+        onPicked = onImagesForPdf,
+        fallback = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    )
 
     val favorites by AppPreferences.favoriteTools.collectAsState()
     val haptics = rememberHaptics()
@@ -208,7 +213,7 @@ fun HomeScreen(
                                 FeaturedHero(
                                     tool = OmniTool.IMAGES_TO_PDF,
                                     horizontal = isTablet,
-                                    onChooseFiles = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                                    onChooseFiles = orderedPicker,
                                     onCamera = launchCamera,
                                     modifier = Modifier.enterAnimation(1)
                                 )
@@ -300,7 +305,7 @@ private fun BrandBar(onOpenHistory: () -> Unit) {
         BrandLogo(size = 44)
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = "OmniConvert",
+            text = "Morph",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = OmniText,
@@ -331,7 +336,7 @@ fun BrandLogo(size: Int, modifier: Modifier = Modifier) {
     ) {
         Icon(
             imageVector = Icons.Default.SwapHoriz,
-            contentDescription = "OmniConvert",
+            contentDescription = "Morph",
             tint = OmniOnAccent,
             modifier = Modifier.size((size * 0.58f).dp)
         )

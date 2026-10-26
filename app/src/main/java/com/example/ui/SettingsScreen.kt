@@ -193,7 +193,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Folder,
                     tint = TintZip,
                     title = "Cartella di salvataggio",
-                    subtitle = "Download/OmniConvert · PDFs, Images, Audio, Archives, Markdown",
+                    subtitle = "Download/Morph · PDFs, Images, Audio, Archives, Markdown",
                     onClick = null
                 )
             }
@@ -236,7 +236,7 @@ fun SettingsScreen(
                 SettingsRow(
                     icon = Icons.Default.Info,
                     tint = OmniAccent,
-                    title = "OmniConvert Studio",
+                    title = "Morph",
                     subtitle = "Versione ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · conversioni 100% sul dispositivo",
                     onClick = null
                 )

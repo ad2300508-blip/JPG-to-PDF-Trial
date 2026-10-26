@@ -196,7 +196,7 @@ fun OmniTutorialDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "Guida di OmniConvert Studio",
+                                text = "Guida di Morph",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = OmniText

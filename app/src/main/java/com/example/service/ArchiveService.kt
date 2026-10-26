@@ -79,7 +79,7 @@ class ArchiveService(private val context: Context) {
     }
 
     /**
-     * Extracts every file of a ZIP into Download/OmniConvert/Archives. Folder structure is flattened
+     * Extracts every file of a ZIP into Download/Morph/Archives. Folder structure is flattened
      * into the file name ("cartella_file.txt") and path traversal entries are neutralised.
      */
     suspend fun extractZip(

@@ -19,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import com.example.util.MediaGallery
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -99,6 +100,16 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun reverseOrder() {
         _items.update { it.reversed() }
+    }
+
+    /** Oldest capture first (camera date, then EXIF); photos without a date keep their place at the end. */
+    fun sortByDateTaken() {
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val snapshot = _items.value
+            val dates = withContext(Dispatchers.IO) { snapshot.associate { item -> item.id to item.uri?.let { MediaGallery.dateTaken(app, it) } } }
+            _items.update { list -> list.sortedWith(compareBy(nullsLast<Long>()) { dates[it.id] }) }
+        }
     }
 
     fun sortByName() {

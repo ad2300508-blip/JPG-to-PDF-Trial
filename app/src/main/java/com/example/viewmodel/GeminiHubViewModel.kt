@@ -404,7 +404,7 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
             resultOf {
                 val fileName = "Guida_di_studio_${FileNames.timestamp()}.pdf"
                 OutputStorage.save(app, fileName, "application/pdf", OutputFolder.PDFS) { os ->
-                    TextPdfWriter.write(text, "Guida di studio · OmniConvert", os)
+                    TextPdfWriter.write(text, "Guida di studio · Morph", os)
                 }
             }.onSuccess { uri ->
                 HistoryRepository.record(app, uri, "Gemini", HistoryKind.PDF, "Guida_di_studio.pdf")

@@ -60,7 +60,7 @@ class PdfMergeService(private val context: Context) {
                     }
 
                     target.documentInformation.title = settings.outputFileName.ifBlank { "PDF unito" }
-                    target.documentInformation.producer = "OmniConvert Studio"
+                    target.documentInformation.producer = "Morph"
 
                     if (settings.enableEncryption) {
                         val policy = StandardProtectionPolicy(

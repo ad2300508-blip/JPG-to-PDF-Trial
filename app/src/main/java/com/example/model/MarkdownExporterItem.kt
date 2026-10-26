@@ -1,6 +1,8 @@
 package com.example.model
 
 import android.net.Uri
+import com.example.service.PageMarkerStyle
+import com.example.service.PdfMarkdownOptions
 
 enum class LlmPromptWrapper(val displayName: String, val description: String) {
     CLAUDE_XML(
@@ -53,8 +55,14 @@ data class MarkdownExportSettings(
     val maxPagesPerDoc: Int = 250,
     val parseAllPages: Boolean = false,
     /** Ignore the PDF text layer and always run OCR (for PDFs with broken embedded text). */
-    val forceOcr: Boolean = false
-)
+    val forceOcr: Boolean = false,
+    /** How PDF page boundaries are written (hidden comments by default, so headings stay meaningful). */
+    val pageMarkers: PageMarkerStyle = PageMarkerStyle.COMMENT,
+    /** Remove running headers/footers and page numbers repeated on every page. */
+    val cleanMargins: Boolean = true
+) {
+    val pdfOptions: PdfMarkdownOptions get() = PdfMarkdownOptions(pageMarkers, cleanMargins)
+}
 
 data class CompiledMarkdownResult(
     val rawMarkdown: String,

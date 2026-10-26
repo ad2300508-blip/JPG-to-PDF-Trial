@@ -77,7 +77,7 @@ data class PdfExportConfig(
     val author: String = "",
     val subject: String = "",
     val keywords: String = "",
-    val creator: String = "OmniConvert Studio",
+    val creator: String = "Morph",
     val creationDate: String = ""
 ) {
     val hasCustomMetadata: Boolean

@@ -1,5 +1,7 @@
 package com.example.ui
 
+import com.example.ui.components.SegmentedControl
+import com.example.ui.components.OptionSection
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedContent
@@ -282,6 +284,28 @@ fun MarkdownExporterScreen(
                         checked = settings.forceOcr,
                         onCheckedChange = { viewModel.setForceOcr(it) }
                     )
+
+                    OptionRow(
+                        label = "Togli intestazioni e piè di pagina",
+                        description = "Elimina titoli ripetuti in cima o in fondo a ogni pagina e i numeri di pagina",
+                        checked = settings.cleanMargins,
+                        onCheckedChange = { viewModel.setCleanMargins(it) }
+                    )
+
+                    OptionSection(
+                        title = "Separatori di pagina",
+                        hint = when (settings.pageMarkers) {
+                            com.example.service.PageMarkerStyle.COMMENT -> "Invisibili nel testo, ma l'AI sa da che pagina viene ogni parte"
+                            com.example.service.PageMarkerStyle.HEADING -> "Un titolo «Pagina N» prima di ogni pagina"
+                            com.example.service.PageMarkerStyle.NONE -> "Testo continuo, senza riferimenti alle pagine"
+                        }
+                    ) {
+                        SegmentedControl(
+                            options = com.example.service.PageMarkerStyle.entries.map { it.label },
+                            selectedIndex = settings.pageMarkers.ordinal,
+                            onOptionSelected = { viewModel.setPageMarkers(com.example.service.PageMarkerStyle.entries[it]) }
+                        )
+                    }
 
                     Text("Formato per l'AI", style = MaterialTheme.typography.titleMedium, color = OmniText)
 
