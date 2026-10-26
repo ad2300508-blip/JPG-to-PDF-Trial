@@ -8,6 +8,12 @@ import android.provider.OpenableColumns
 import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
@@ -272,7 +278,9 @@ fun MorphChipRow(
     options: List<String>,
     selected: String,
     onSelected: (String) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** Optional number shown after each label (e.g. how many tools a filter contains). */
+    counts: Map<String, Int> = emptyMap()
 ) {
     val haptics = rememberHaptics()
     Row(
@@ -301,13 +309,34 @@ fun MorphChipRow(
                     modifier = Modifier.padding(horizontal = 18.dp),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = option,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = content,
-                        maxLines = 1
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = option,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = content,
+                            maxLines = 1
+                        )
+                        val count = counts[option]
+                        if (count != null) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            AnimatedContent(
+                                targetState = count,
+                                transitionSpec = {
+                                    (slideInVertically { it } + fadeIn()) togetherWith (slideOutVertically { -it } + fadeOut())
+                                },
+                                label = "chip_count"
+                            ) { value ->
+                                Text(
+                                    text = "$value",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = content.copy(alpha = 0.6f),
+                                    maxLines = 1
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

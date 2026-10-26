@@ -38,6 +38,10 @@ object AppPreferences {
     private val _reduceMotion = MutableStateFlow(false)
     val reduceMotion: StateFlow<Boolean> = _reduceMotion.asStateFlow()
 
+    private val _systemReduceMotion = MutableStateFlow(false)
+    /** True when the phone's own animations are switched off (developer/accessibility settings). */
+    val systemReduceMotion: StateFlow<Boolean> = _systemReduceMotion.asStateFlow()
+
     private val _haptics = MutableStateFlow(true)
     val haptics: StateFlow<Boolean> = _haptics.asStateFlow()
 
@@ -114,6 +118,17 @@ object AppPreferences {
         _reduceMotion.value = enabled
         prefs?.edit()?.putBoolean(KEY_REDUCE_MOTION, enabled)?.apply()
     }
+
+    /** Re-reads the system animator scale (call on resume: the user may change it meanwhile). */
+    fun refreshSystemMotion(context: Context) {
+        val scale = runCatching {
+            android.provider.Settings.Global.getFloat(context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f)
+        }.getOrDefault(1f)
+        _systemReduceMotion.value = scale == 0f
+    }
+
+    /** Reduced motion as the UI should apply it right now: the app setting or the system one. */
+    fun reduceMotionNow(): Boolean = _reduceMotion.value || _systemReduceMotion.value
 
     fun setHaptics(enabled: Boolean) {
         _haptics.value = enabled
