@@ -70,6 +70,15 @@ val MorphDarkColors = MorphColors(
     isDark = true
 )
 
+/** Dark palette on true black (OLED): same accents and text, deeper backgrounds. */
+val MorphPureBlackColors = MorphDarkColors.copy(
+    bg = Color(0xFF000000),
+    surface = Color(0xFF0B0C10),
+    surface2 = Color(0xFF16181F),
+    border = Color(0xFF23262F),
+    ink = Color(0xFF14171F)
+)
+
 val LocalMorphColors = staticCompositionLocalOf { MorphLightColors }
 
 /** Main colour the user can pick in Settings; indigo is the original Morph accent. */
@@ -94,6 +103,15 @@ fun MorphColors.withAccent(choice: AccentChoice): MorphColors = copy(
     onAccent = if (isDark) choice.darkOn else Color(0xFFFFFFFF),
     accentOnInk = choice.dark
 )
+
+/** Rainbow of the "colour from the wallpaper" swatch in Settings (static: it represents any colour). */
+val DynamicSwatchColors = listOf(
+    Color(0xFFEF5350), Color(0xFFFFCA28), Color(0xFF66BB6A), Color(0xFF42A5F5), Color(0xFFAB47BC), Color(0xFFEF5350)
+)
+
+/** The palette with an accent coming from outside the presets (the wallpaper colours on Android 12+). */
+fun MorphColors.withAccentColors(accent: Color, accentSoft: Color, onAccent: Color, accentOnInk: Color): MorphColors =
+    copy(accent = accent, accentSoft = accentSoft, onAccent = onAccent, accentOnInk = accentOnInk)
 
 // Active theme tokens (resolved from the current theme)
 val OmniBg: Color

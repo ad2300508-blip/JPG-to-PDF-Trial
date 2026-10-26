@@ -105,12 +105,26 @@ import com.example.ui.theme.RadiusMd
 import com.example.ui.theme.TintAi
 import com.example.ui.theme.TintPdf
 import com.example.ui.theme.TintZip
+import android.os.Build
+import androidx.compose.material.icons.filled.SettingsBackupRestore
+import androidx.compose.material.icons.filled.Celebration
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.LinearEasing
+import com.example.ui.theme.LocalReduceMotion
+import com.example.ui.theme.DynamicSwatchColors
 
 @Composable
 fun SettingsScreen(
     onOpenGuide: () -> Unit,
     onOpenGemini: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onOpenWhatsNew: () -> Unit = {}
 ) {
     val themeMode by AppPreferences.themeMode.collectAsState()
     val reduceMotion by AppPreferences.reduceMotion.collectAsState()
@@ -121,6 +135,10 @@ fun SettingsScreen(
     val defaultPageSize by AppPreferences.defaultPageSize.collectAsState()
     val autoClean by AppPreferences.autoClean.collectAsState()
     val stripMetadata by AppPreferences.stripMetadata.collectAsState()
+    val pureBlack by AppPreferences.pureBlack.collectAsState()
+    val dynamicAccent by AppPreferences.dynamicAccent.collectAsState()
+    val cacheCleanup by AppPreferences.cacheCleanup.collectAsState()
+    var confirmReset by remember { mutableStateOf(false) }
     val historyEntries by HistoryRepository.entries.collectAsState()
     val historyCount = historyEntries.size
     val context = LocalContext.current
@@ -175,10 +193,24 @@ fun SettingsScreen(
                         AccentChoice.entries.forEach { choice ->
                             AccentSwatch(
                                 choice = choice,
-                                selected = choice == accent,
-                                onClick = { AppPreferences.setAccent(choice) }
+                                selected = choice == accent && !dynamicAccent,
+                                onClick = {
+                                    AppPreferences.setDynamicAccent(false)
+                                    AppPreferences.setAccent(choice)
+                                }
                             )
                         }
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                            DynamicSwatch(selected = dynamicAccent, onClick = { AppPreferences.setDynamicAccent(true) })
+                        }
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        AnimatedText(
+                            if (dynamicAccent) "Il colore segue lo sfondo del telefono" else "Con l'ultimo cerchio il colore segue lo sfondo del telefono",
+                            fontSize = 12.sp,
+                            color = OmniTextMuted
+                        )
                     }
                 }
             }
@@ -191,6 +223,12 @@ fun SettingsScreen(
                         description = if (systemReduceMotion) "Già attive: le animazioni sono disattivate nelle impostazioni del telefono" else "Transizioni istantanee, utile su telefoni lenti o se le animazioni danno fastidio",
                         checked = reduceMotion,
                         onCheckedChange = { AppPreferences.setReduceMotion(it) }
+                    )
+                    OptionRow(
+                        label = "Nero puro",
+                        description = "Con il tema scuro usa sfondi neri: risparmia batteria sugli schermi OLED",
+                        checked = pureBlack,
+                        onCheckedChange = { AppPreferences.setPureBlack(it) }
                     )
                     OptionRow(
                         label = "Vibrazione",
@@ -285,6 +323,15 @@ fun SettingsScreen(
                     onClick = if (historyCount == 0) null else ({ HistoryRepository.clear() })
                 )
                 SettingsDivider()
+                Box(modifier = Modifier.padding(horizontal = 14.dp)) {
+                    OptionRow(
+                        label = "Pulizia automatica",
+                        description = "All'avvio toglie i file temporanei più vecchi di un giorno",
+                        checked = cacheCleanup,
+                        onCheckedChange = { AppPreferences.setCacheCleanup(it) }
+                    )
+                }
+                SettingsDivider()
                 SettingsRow(
                     icon = Icons.Default.CleaningServices,
                     tint = TintZip,
@@ -304,10 +351,29 @@ fun SettingsScreen(
                 )
             }
 
+            Spacer(modifier = Modifier.height(12.dp))
+            SettingsGroup {
+                SettingsRow(
+                    icon = Icons.Default.SettingsBackupRestore,
+                    tint = OmniDanger,
+                    title = "Ripristina impostazioni",
+                    subtitle = "Tema, colori e opzioni tornano come all'inizio; preferiti e cronologia restano",
+                    onClick = { confirmReset = true }
+                )
+            }
+
             Spacer(modifier = Modifier.height(28.dp))
             SectionLabel("Info")
             Spacer(modifier = Modifier.height(10.dp))
             SettingsGroup {
+                SettingsRow(
+                    icon = Icons.Default.Celebration,
+                    tint = OmniAccent,
+                    title = "Novità di questa versione",
+                    subtitle = "Cosa è cambiato in Morph ${BuildConfig.VERSION_NAME}",
+                    onClick = onOpenWhatsNew
+                )
+                SettingsDivider()
                 SettingsRow(
                     icon = Icons.Default.Info,
                     tint = OmniAccent,
@@ -318,6 +384,50 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+
+    if (confirmReset) {
+        AlertDialog(
+            onDismissRequest = { confirmReset = false },
+            containerColor = OmniSurface,
+            title = { Text("Ripristinare le impostazioni?", color = OmniText) },
+            text = { Text("Tema, colore, animazioni e opzioni di conversione tornano ai valori iniziali.", color = OmniTextMuted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    AppPreferences.resetToDefaults()
+                    confirmReset = false
+                    Toast.makeText(context, "Impostazioni ripristinate", Toast.LENGTH_SHORT).show()
+                }) { Text("Ripristina", color = OmniDanger) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmReset = false }) { Text("Annulla", color = OmniTextMuted) }
+            }
+        )
+    }
+}
+
+/** "Follow the wallpaper" swatch: a soft rainbow that turns into a tick when chosen. */
+@Composable
+private fun DynamicSwatch(selected: Boolean, onClick: () -> Unit) {
+    val ring by animateColorAsState(if (selected) OmniText else Color.Transparent, label = "dynamic_ring")
+    val scale by animateFloatAsState(if (selected) 1f else 0.9f, motionSpec(Motion.bouncy()), label = "dynamic_scale")
+    val reduce = LocalReduceMotion.current
+    val turn = rememberInfiniteTransition(label = "dynamic_turn")
+    val angle by turn.animateFloat(0f, if (reduce || !selected) 0f else 360f, infiniteRepeatable(tween(6000, easing = LinearEasing)), label = "dynamic_angle")
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .border(2.dp, ring, CircleShape)
+            .padding(5.dp)
+            .clip(CircleShape)
+            .graphicsLayer { rotationZ = angle }
+            .background(Brush.sweepGradient(DynamicSwatchColors))
+            .clickable(onClickLabel = "Colore dallo sfondo", role = Role.RadioButton, onClick = onClick)
+            .semantics { this.selected = selected; contentDescription = "Colore dallo sfondo" },
+        contentAlignment = Alignment.Center
+    ) {
+        if (selected) Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(20.dp))
     }
 }
 

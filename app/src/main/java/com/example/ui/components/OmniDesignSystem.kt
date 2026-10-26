@@ -918,9 +918,19 @@ fun OmniSlider(
             )
         }
 
+        // A light tick each time the value crosses a step (or a tenth of the range when continuous).
+        val haptics = rememberHaptics()
+        var lastBucket by remember { mutableIntStateOf(Int.MIN_VALUE) }
+        val span = (valueRange.endInclusive - valueRange.start).coerceAtLeast(0.0001f)
         Slider(
             value = value,
-            onValueChange = onValueChange,
+            onValueChange = { v ->
+                val fraction = (v - valueRange.start) / span
+                val bucket = if (steps > 0) (fraction * (steps + 1)).roundToInt() else (fraction * 10f).toInt()
+                if (lastBucket != Int.MIN_VALUE && bucket != lastBucket) haptics(Haptic.TICK)
+                lastBucket = bucket
+                onValueChange(v)
+            },
             valueRange = valueRange,
             steps = steps,
             colors = SliderDefaults.colors(

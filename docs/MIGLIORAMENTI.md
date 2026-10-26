@@ -54,18 +54,18 @@ e implementate (✅ = fatto, ⏳ = in lavorazione); le altre 50 restano idee per
 38. ✅ Registra audio (lezioni) con onda animata
 
 ### Interfaccia
-39. ⏳ Indicatore a pillola animato nella barra di navigazione
-40. ⏳ Coriandoli quando un'operazione finisce
-41. ⏳ Vibrazione di conferma a fine operazione
-42. ⏳ Tema "Nero puro" per schermi AMOLED
-43. ⏳ Colore dinamico dal tuo sfondo (Android 12+)
-44. ⏳ Scorciatoie tenendo premuta l'icona dell'app
-45. ⏳ Cronologia: filtri per tipo di file con contatori
-46. ⏳ Cronologia: miniature delle immagini
-47. ⏳ Pulizia automatica della cache all'avvio
-48. ⏳ Schermata "Novità" dopo un aggiornamento
-49. ⏳ Condividi un file recente con la pressione lunga
-50. ⏳ Ripristina le impostazioni predefinite
+39. ✅ Indicatore a pillola animato nella barra di navigazione
+40. ✅ Coriandoli quando un'operazione finisce
+41. ✅ Leggera vibrazione a scatti quando muovi gli slider
+42. ✅ Tema "Nero puro" per schermi AMOLED
+43. ✅ Colore dinamico dal tuo sfondo (Android 12+)
+44. ✅ Scorciatoie tenendo premuta l'icona dell'app
+45. ✅ Cronologia: filtri per tipo di file con contatori
+46. ✅ Cronologia: miniature delle immagini
+47. ✅ Pulizia automatica della cache all'avvio
+48. ✅ Schermata "Novità" dopo un aggiornamento
+49. ✅ Condividi un file recente con la pressione lunga
+50. ✅ Ripristina le impostazioni predefinite
 
 ## Idee per il futuro (51–100)
 51. Unisci più file audio in uno

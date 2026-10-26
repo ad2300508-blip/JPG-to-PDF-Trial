@@ -25,6 +25,9 @@ class MainActivity : ComponentActivity() {
     /** Files shared to the app from another app; the UI asks which tool should receive them. */
     private val sharedFiles = mutableStateOf<SharedFiles?>(null)
 
+    /** Tool asked for by a launcher shortcut (its [com.example.ui.home.OmniTool] name). */
+    private val toolRequest = mutableStateOf<String?>(null)
+
     /** Report of a crash from the previous run, shown once so the user can send it. */
     private val crashReport = mutableStateOf<String?>(null)
 
@@ -37,6 +40,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) crashReport.value = CrashReporter.pending(this)
 
         if (savedInstanceState == null) handleShareIntent(intent)
+        AppShortcuts.publish(this)
 
         setContent {
             val themeMode by AppPreferences.themeMode.collectAsState()
@@ -44,11 +48,22 @@ class MainActivity : ComponentActivity() {
             val systemReduceMotion by AppPreferences.systemReduceMotion.collectAsState()
             val reduceMotion = appReduceMotion || systemReduceMotion
             val accent by AppPreferences.accent.collectAsState()
-            OmniConvertTheme(themeMode = themeMode, reduceMotion = reduceMotion, accent = accent) {
+            val pureBlack by AppPreferences.pureBlack.collectAsState()
+            val dynamicAccent by AppPreferences.dynamicAccent.collectAsState()
+            OmniConvertTheme(
+                themeMode = themeMode,
+                reduceMotion = reduceMotion,
+                accent = accent,
+                pureBlack = pureBlack,
+                dynamicAccent = dynamicAccent
+            ) {
                 OmniConvertApp(
                     pdfViewModel = pdfViewModel,
                     sharedFiles = sharedFiles.value,
-                    onSharedFilesConsumed = { sharedFiles.value = null }
+                    onSharedFilesConsumed = { sharedFiles.value = null },
+                    toolRequest = toolRequest.value,
+                    onToolRequestConsumed = { toolRequest.value = null },
+                    canShowWhatsNew = crashReport.value == null
                 )
                 crashReport.value?.let { report ->
                     CrashReportDialog(
@@ -75,6 +90,10 @@ class MainActivity : ComponentActivity() {
 
     private fun handleShareIntent(intent: Intent?) {
         if (intent == null) return
+        if (intent.action == AppShortcuts.ACTION_OPEN_TOOL) {
+            toolRequest.value = intent.getStringExtra(AppShortcuts.EXTRA_TOOL)
+            return
+        }
         val uris: List<Uri> = when (intent.action) {
             Intent.ACTION_SEND -> listOfNotNull(
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

@@ -121,6 +121,17 @@ import com.example.ui.theme.TintZip
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.rotate
+import androidx.compose.animation.core.LinearEasing
+import kotlin.math.PI
+import kotlin.math.cos
+import kotlin.math.sin
+import kotlin.random.Random
+import com.example.ui.theme.TintStamp
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -381,7 +392,20 @@ fun HistoryRow(
             modifier = Modifier.padding(horizontal = if (framed) 12.dp else 0.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconTile(icon = entry.kind.icon(), tint = entry.kind.tint(), size = 44.dp)
+            Box(modifier = Modifier.size(44.dp)) {
+                IconTile(icon = entry.kind.icon(), tint = entry.kind.tint(), size = 44.dp)
+                // Images show a thumbnail of the file itself; if it can't be read the icon stays.
+                if (entry.kind == HistoryKind.IMAGE) {
+                    AsyncImage(
+                        model = Uri.parse(entry.uri),
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .clip(RoundedCornerShape(13.dp))
+                    )
+                }
+            }
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
@@ -420,6 +444,51 @@ data class ContinueAction(
     val tint: Color,
     val onClick: () -> Unit
 )
+
+private class ConfettiPiece(val angle: Float, val speed: Float, val size: Float, val spin: Float, val colorIndex: Int, val square: Boolean)
+
+/** A short burst of confetti from the centre, falling as it fades (skipped with reduced motion). */
+@Composable
+fun ConfettiBurst(modifier: Modifier = Modifier, key: Any = Unit) {
+    if (LocalReduceMotion.current) return
+    val colors = listOf(OmniAccent, OmniSuccess, TintImage, TintAudio, TintZip, TintStamp)
+    val pieces = remember(key) {
+        val random = Random(key.hashCode())
+        List(38) {
+            ConfettiPiece(
+                angle = random.nextFloat() * 2f * PI.toFloat(),
+                speed = 0.5f + random.nextFloat() * 0.6f,
+                size = 3f + random.nextFloat() * 4f,
+                spin = random.nextFloat() * 720f - 360f,
+                colorIndex = random.nextInt(colors.size),
+                square = random.nextBoolean()
+            )
+        }
+    }
+    val progress = remember(key) { Animatable(0f) }
+    LaunchedEffect(key) { progress.animateTo(1f, tween(1500, easing = LinearEasing)) }
+    Canvas(modifier = modifier) {
+        val t = progress.value
+        if (t >= 1f) return@Canvas
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val reach = size.minDimension * 0.75f
+        val out = 1f - (1f - t) * (1f - t)
+        pieces.forEach { piece ->
+            val x = cx + cos(piece.angle) * reach * piece.speed * out
+            val y = cy + sin(piece.angle) * reach * piece.speed * out + size.height * 0.3f * t * t
+            val color = colors[piece.colorIndex].copy(alpha = (1f - t).coerceIn(0f, 1f))
+            val s = piece.size.dp.toPx()
+            rotate(piece.spin * t, pivot = Offset(x, y)) {
+                if (piece.square) {
+                    drawRect(color, topLeft = Offset(x - s, y - s / 2f), size = Size(s * 2f, s))
+                } else {
+                    drawCircle(color, radius = s * 0.7f, center = Offset(x, y))
+                }
+            }
+        }
+    }
+}
 
 /**
  * Morph "Il tuo file è pronto" screen: animated success badge, output card with an animated size
@@ -466,7 +535,10 @@ fun ConversionResultView(
                 }
             }
 
-            SuccessBadge()
+            Box(contentAlignment = Alignment.Center) {
+                ConfettiBurst(modifier = Modifier.size(260.dp), key = outputUri)
+                SuccessBadge()
+            }
 
             Spacer(modifier = Modifier.height(20.dp))
             Text(
