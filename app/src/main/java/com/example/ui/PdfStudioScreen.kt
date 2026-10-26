@@ -16,7 +16,6 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.filled.Compress
@@ -255,7 +254,7 @@ internal fun stageTransition(from: Int, to: Int): ContentTransform {
         scaleIn(initialScale = if (forward) 0.94f else 1.04f, animationSpec = tween(Motion.LONG, easing = Motion.EmphasizedDecelerate))
     val exit = fadeOut(tween(Motion.SHORT)) +
         scaleOut(targetScale = if (forward) 1.04f else 0.96f, animationSpec = tween(Motion.MEDIUM))
-    return (enter togetherWith exit).using(SizeTransform(clip = false))
+    return ContentTransform(enter, exit, sizeTransform = SizeTransform(clip = false))
 }
 
 @Composable

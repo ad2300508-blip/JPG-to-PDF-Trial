@@ -22,7 +22,6 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
-import androidx.compose.animation.using
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -334,7 +333,7 @@ fun OmniConvertApp(
 private fun destinationTransition(from: AppDestination, to: AppDestination): ContentTransform {
     val opening = from.tool == null && to.tool != null
     val closing = from.tool != null && to.tool == null
-    return when {
+    val transform = when {
         opening -> (slideInHorizontally(tween(Motion.LONG, easing = Motion.EmphasizedDecelerate)) { it / 4 } + fadeIn(tween(Motion.MEDIUM)))
             .togetherWith(scaleOut(targetScale = 0.94f, animationSpec = tween(Motion.LONG)) + fadeOut(tween(Motion.MEDIUM)))
         closing -> (scaleIn(initialScale = 0.94f, animationSpec = tween(Motion.LONG, easing = Motion.EmphasizedDecelerate)) + fadeIn(tween(Motion.MEDIUM)))
@@ -344,7 +343,8 @@ private fun destinationTransition(from: AppDestination, to: AppDestination): Con
             (slideInHorizontally(tween(Motion.MEDIUM, easing = Motion.EmphasizedDecelerate)) { if (forward) it / 10 else -it / 10 } + fadeIn(tween(Motion.MEDIUM, delayMillis = 40)))
                 .togetherWith(slideOutHorizontally(tween(Motion.SHORT)) { if (forward) -it / 14 else it / 14 } + fadeOut(tween(Motion.SHORT)))
         }
-    }.using(SizeTransform(clip = false))
+    }
+    return ContentTransform(transform.targetContentEnter, transform.initialContentExit, sizeTransform = SizeTransform(clip = false))
 }
 
 @Composable
