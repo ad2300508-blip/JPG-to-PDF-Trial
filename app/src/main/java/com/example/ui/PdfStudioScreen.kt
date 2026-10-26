@@ -1,5 +1,6 @@
 package com.example.ui
 
+import com.example.ui.components.rememberOrderedImagePicker
 import androidx.activity.result.PickVisualMediaRequest
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
@@ -286,7 +287,11 @@ private fun PdfEditor(
     ) { uris ->
         if (uris.isNotEmpty()) viewModel.addImages(uris)
     }
-    val pickFromGallery = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    // In-app gallery: photos are numbered in tap order and come back exactly in that order.
+    val pickFromGallery = rememberOrderedImagePicker(
+        onPicked = { viewModel.addImages(it) },
+        fallback = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
+    )
     val launchCamera = rememberCameraCapture { uri -> viewModel.addImages(listOf(uri)) }
 
     val pageSizes = listOf("A4", "Letter", "Original")
@@ -348,6 +353,11 @@ private fun PdfEditor(
                                 text = { Text("Ordina per nome") },
                                 leadingIcon = { Icon(Icons.Default.SortByAlpha, contentDescription = null) },
                                 onClick = { showMenu = false; viewModel.sortByName() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Ordina per data di scatto") },
+                                leadingIcon = { Icon(Icons.Default.Schedule, contentDescription = null) },
+                                onClick = { showMenu = false; viewModel.sortByDateTaken() }
                             )
                             DropdownMenuItem(
                                 text = { Text("Inverti ordine") },
