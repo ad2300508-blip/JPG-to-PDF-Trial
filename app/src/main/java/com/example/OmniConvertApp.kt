@@ -62,6 +62,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -89,6 +90,9 @@ import com.example.ui.HistoryScreen
 import com.example.ui.CollageScreen
 import com.example.ui.GifMakerScreen
 import com.example.ui.PhotoFiltersScreen
+import com.example.ui.PdfInfoScreen
+import com.example.ui.PdfReaderScreen
+import com.example.ui.TextToPdfScreen
 import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfCompressScreen
@@ -131,6 +135,9 @@ import com.example.viewmodel.GeminiHubViewModel
 import com.example.viewmodel.CollageViewModel
 import com.example.viewmodel.GifViewModel
 import com.example.viewmodel.PhotoFiltersViewModel
+import com.example.viewmodel.PdfInfoViewModel
+import com.example.viewmodel.PdfReaderViewModel
+import com.example.viewmodel.TextToPdfViewModel
 import com.example.viewmodel.ImageLabViewModel
 import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfCompressViewModel
@@ -150,7 +157,12 @@ enum class MainTab(val label: String, val icon: ImageVector) {
 }
 
 /** Files shared to the app from another app, waiting for the user to pick a tool. */
-data class SharedFiles(val uris: List<Uri>, val mimeType: String)
+data class SharedFiles(
+    val uris: List<Uri>,
+    val mimeType: String,
+    /** A PDF opened from a file manager ("Apri con"): show it straight away in the reader. */
+    val openInReader: Boolean = false
+)
 
 /** What is on screen: a main tab, or a tool opened on top of the "Strumenti" tab. */
 private data class AppDestination(val tab: MainTab, val tool: OmniTool?)
@@ -173,7 +185,10 @@ class ToolViewModels(
     val sign: PdfSignViewModel,
     val collage: CollageViewModel,
     val gif: GifViewModel,
-    val filters: PhotoFiltersViewModel
+    val filters: PhotoFiltersViewModel,
+    val reader: PdfReaderViewModel,
+    val info: PdfInfoViewModel,
+    val textPdf: TextToPdfViewModel
 )
 
 @Composable
@@ -200,7 +215,10 @@ fun OmniConvertApp(
         sign = viewModel(),
         collage = viewModel(),
         gif = viewModel(),
-        filters = viewModel()
+        filters = viewModel(),
+        reader = viewModel(),
+        info = viewModel(),
+        textPdf = viewModel()
     )
 
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
@@ -235,6 +253,9 @@ fun OmniConvertApp(
             ToolScreen.COLLAGE -> tools.collage.addImages(uris)
             ToolScreen.GIF_MAKER -> tools.gif.addImages(uris)
             ToolScreen.PHOTO_FILTERS -> tools.filters.addImages(uris)
+            ToolScreen.PDF_READER -> uris.firstOrNull()?.let { tools.reader.loadPdf(it) }
+            ToolScreen.PDF_INFO -> uris.firstOrNull()?.let { tools.info.loadPdf(it) }
+            ToolScreen.TEXT_TO_PDF -> Unit
             ToolScreen.AUDIO_LAB -> tools.audio.addAudioFiles(uris)
             ToolScreen.ARCHIVE -> tools.archive.addFiles(uris)
             ToolScreen.COMPRESS_PDF -> uris.firstOrNull()?.let { tools.compress.loadPdf(it) }
@@ -353,7 +374,12 @@ fun OmniConvertApp(
         }
     }
 
-    if (sharedFiles != null) {
+    if (sharedFiles != null && sharedFiles.openInReader) {
+        LaunchedEffect(sharedFiles) {
+            sendToTool(OmniTool.PDF_READER, sharedFiles.uris)
+            onSharedFilesConsumed()
+        }
+    } else if (sharedFiles != null) {
         SharedFilesSheet(
             files = sharedFiles,
             onPick = { tool ->
@@ -402,6 +428,7 @@ private fun ToolContent(
     val toOrganize: (Uri) -> Unit = { onSendToTool(OmniTool.ORGANIZE_PDF, listOf(it)) }
     val toStamp: (Uri) -> Unit = { onSendToTool(OmniTool.STAMP_PDF, listOf(it)) }
     val toSecure: (Uri) -> Unit = { onSendToTool(OmniTool.SECURE_PDF, listOf(it)) }
+    val toReader: (Uri) -> Unit = { onSendToTool(OmniTool.PDF_READER, listOf(it)) }
 
     when (tool.screen) {
         ToolScreen.IMAGES_TO_PDF -> PdfStudioScreen(
@@ -425,6 +452,9 @@ private fun ToolContent(
         ToolScreen.COLLAGE -> CollageScreen(viewModel = tools.collage)
         ToolScreen.GIF_MAKER -> GifMakerScreen(viewModel = tools.gif)
         ToolScreen.PHOTO_FILTERS -> PhotoFiltersScreen(viewModel = tools.filters)
+        ToolScreen.PDF_READER -> PdfReaderScreen(viewModel = tools.reader)
+        ToolScreen.PDF_INFO -> PdfInfoScreen(viewModel = tools.info, onOpenInReader = toReader)
+        ToolScreen.TEXT_TO_PDF -> TextToPdfScreen(viewModel = tools.textPdf, onOpenInReader = toReader, onCompress = toCompress)
         ToolScreen.AUDIO_LAB -> AudioLabScreen(
             viewModel = tools.audio,
             onTranscribeAudio = { uri, _ -> onTranscribeAudio(uri) }

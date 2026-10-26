@@ -32,13 +32,13 @@ e implementate (✅ = fatto, ⏳ = in lavorazione); le altre 50 restano idee per
 20. ✅ Ricerca vocale
 
 ### Nuove operazioni PDF
-21. ⏳ Leggi PDF: lettore a pagine con zoom
-22. ⏳ Miniature e "vai a pagina" nel lettore
-23. ⏳ Modalità notte nel lettore
-24. ⏳ I PDF aperti da altre app propongono subito il lettore
-25. ⏳ Info PDF: titolo, autore, pagine, dimensioni, versione, protezione
-26. ⏳ Statistiche del testo: parole, caratteri, tempo di lettura
-27. ⏳ Testo in PDF: scrivi o incolla un testo e salvalo in PDF
+21. ✅ Leggi PDF: lettore a pagine con zoom
+22. ✅ Miniature e "vai a pagina" nel lettore
+23. ✅ Modalità notte nel lettore
+24. ✅ I PDF aperti con "Apri con" da altre app si aprono subito nel lettore
+25. ✅ Info PDF: titolo, autore, pagine, dimensioni, versione, protezione
+26. ✅ Statistiche del testo: parole, caratteri, tempo di lettura
+27. ✅ Testo in PDF: scrivi o incolla un testo e salvalo in PDF
 28. ⏳ Rimuovi pagine bianche
 29. ⏳ Più pagine per foglio (2 o 4) per stampare risparmiando carta
 30. ⏳ Spazio per appunti: pagina ridotta con righe a lato

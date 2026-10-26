@@ -99,6 +99,6 @@ class MainActivity : ComponentActivity() {
         val mime = intent.type
             ?: runCatching { contentResolver.getType(uris.first()) }.getOrNull()
             ?: "*/*"
-        sharedFiles.value = SharedFiles(uris, mime)
+        sharedFiles.value = SharedFiles(uris, mime, openInReader = intent.action == Intent.ACTION_VIEW && mime == "application/pdf")
     }
 }
