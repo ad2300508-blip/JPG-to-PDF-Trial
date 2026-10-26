@@ -1,4 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <cache-path name="camera" path="camera/" />
+    <cache-path name="shared" path="shared/" />
+    <external-files-path name="outputs" path="Download/" />
+    <files-path name="outputs_internal" path="Download/" />
 </paths>

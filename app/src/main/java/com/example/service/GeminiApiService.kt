@@ -2,7 +2,6 @@ package com.example.service
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.util.Base64
 import android.util.Log
@@ -52,7 +51,7 @@ class GeminiApiService(private val context: Context) {
 
     fun getMaskedApiKey(): String {
         val key = getApiKey()
-        if (key.isBlank()) return "Not Configured"
+        if (key.isBlank()) return "Non configurata"
         if (key.length <= 10) return "••••••••"
         return "${key.take(7)}...${key.takeLast(4)}"
     }
@@ -186,7 +185,7 @@ class GeminiApiService(private val context: Context) {
     suspend fun testConnection(): Result<Long> = withContext(Dispatchers.IO) {
         val key = getApiKey()
         if (key.isBlank()) {
-            return@withContext Result.failure(Exception("API Key not configured. Enter key in Settings or AI Studio Secrets."))
+            return@withContext Result.failure(Exception("Chiave API non configurata: inseriscila nella scheda Gemini"))
         }
 
         val startTime = System.currentTimeMillis()
@@ -243,7 +242,7 @@ class GeminiApiService(private val context: Context) {
     ): Result<GenerationExecutionResult> = withContext(Dispatchers.IO) {
         val key = getApiKey()
         if (key.isBlank()) {
-            return@withContext Result.failure(Exception("Gemini API key is required. Set it in the top header Key Vault or AI Studio Secrets."))
+            return@withContext Result.failure(Exception("Serve una chiave API di Gemini: inseriscila nella scheda Gemini"))
         }
 
         val modelChain = if (smartRouting) {
@@ -270,7 +269,7 @@ class GeminiApiService(private val context: Context) {
 
             if (i > 0) {
                 val reason = lastError?.message ?: "Rate limit / service fallback"
-                val notice = "Switched to ${candidateModel.displayName} (Auto-fallback from ${modelChain[i - 1].displayName})"
+                val notice = "Passato a ${candidateModel.displayName} (riserva automatica di ${modelChain[i - 1].displayName})"
                 fallbackNotice = notice
                 onFallbackEvent(modelChain[i - 1], candidateModel, reason)
                 Log.i("GeminiApiService", notice)
@@ -297,7 +296,7 @@ class GeminiApiService(private val context: Context) {
                     )
                 )
             } else {
-                val error = callResult.exceptionOrNull() as? Exception ?: Exception("Unknown error")
+                val error = callResult.exceptionOrNull() as? Exception ?: Exception("Errore sconosciuto")
                 lastError = error
                 val errMsg = error.message ?: ""
 
@@ -316,7 +315,7 @@ class GeminiApiService(private val context: Context) {
             }
         }
 
-        Result.failure(lastError ?: Exception("All available Free-Tier models exhausted. Please try again in a few minutes."))
+        Result.failure(lastError ?: Exception("Tutti i modelli gratuiti hanno esaurito la quota: riprova tra qualche minuto"))
     }
 
     private suspend fun executeStream(
@@ -348,6 +347,12 @@ class GeminiApiService(private val context: Context) {
 
             // 1. Inline Audio attachment
             if (inlineAudioUri != null) {
+                val audioBytes = querySize(inlineAudioUri)
+                if (audioBytes > MAX_INLINE_BYTES) {
+                    return@withContext Result.failure(
+                        Exception("Audio troppo grande per Gemini (${audioBytes / (1024 * 1024)} MB, max 18 MB): convertilo in M4A 64 kbps mono con \"Converti audio\"")
+                    )
+                }
                 val base64Audio = readUriToBase64(inlineAudioUri)
                 if (base64Audio != null) {
                     val mime = audioMimeType ?: "audio/mp4"
@@ -408,7 +413,7 @@ class GeminiApiService(private val context: Context) {
             }
 
             val source = response.body?.byteStream()
-                ?: return@withContext Result.failure(Exception("Empty response body from Gemini"))
+                ?: return@withContext Result.failure(Exception("Risposta vuota da Gemini"))
 
             source.bufferedReader().use { reader ->
                 var line: String?
@@ -473,27 +478,27 @@ class GeminiApiService(private val context: Context) {
 
     private fun readImageUriToBase64(uri: Uri): String? {
         return try {
-            val inputStream: InputStream? = context.contentResolver.openInputStream(uri)
-            val bitmap = BitmapFactory.decodeStream(inputStream)
+            // Max 1600 px (saves bandwidth) with EXIF orientation applied, flattened for JPEG.
+            val decoded = com.example.util.BitmapLoader.decode(context, uri, 1600) ?: return null
+            val bitmap = com.example.util.BitmapLoader.flattenOnWhite(decoded)
             val outputStream = ByteArrayOutputStream()
-            // Compress to maximum 1600px width/height to save bandwidth
-            val maxDim = Math.max(bitmap.width, bitmap.height)
-            val scaledBitmap = if (maxDim > 1600) {
-                val scale = 1600f / maxDim
-                Bitmap.createScaledBitmap(bitmap, (bitmap.width * scale).toInt(), (bitmap.height * scale).toInt(), true)
-            } else {
-                bitmap
-            }
-            scaledBitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
-            val base64 = Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
-            if (scaledBitmap != bitmap) {
-                scaledBitmap.recycle()
-            }
+            bitmap.compress(Bitmap.CompressFormat.JPEG, 85, outputStream)
             bitmap.recycle()
-            base64
+            Base64.encodeToString(outputStream.toByteArray(), Base64.NO_WRAP)
         } catch (t: Throwable) {
             Log.e("GeminiApiService", "Failed to encode image Uri: ${t.message}")
             null
         }
+    }
+
+    private fun querySize(uri: Uri): Long = runCatching {
+        context.contentResolver.query(uri, arrayOf(android.provider.OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+            if (cursor.moveToFirst() && !cursor.isNull(0)) cursor.getLong(0) else 0L
+        } ?: 0L
+    }.getOrDefault(0L)
+
+    private companion object {
+        /** Inline requests are limited to ~20 MB including base64 overhead. */
+        const val MAX_INLINE_BYTES = 18L * 1024 * 1024
     }
 }

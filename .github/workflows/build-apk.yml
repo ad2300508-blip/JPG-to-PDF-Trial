@@ -47,8 +47,23 @@ jobs:
             keytool -genkey -v -keystore debug.keystore -alias androiddebugkey -keyalg RSA -keysize 2048 -validity 10000 -storepass android -keypass android -dname "CN=Android Debug,O=Android,C=US"
           fi
 
-      - name: Build Debug APK
-        run: ./gradlew assembleDebug -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }} --stacktrace
+      - name: Build Debug APK and run unit tests
+        run: |
+          set -o pipefail
+          ./gradlew assembleDebug testDebugUnitTest -PversionCode=${{ github.run_number }} -PversionName=1.0.${{ github.run_number }} --stacktrace 2>&1 | tee build.log
+
+      - name: Report build errors on the commit
+        if: failure()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo '### Build failed'
+            echo '```'
+            grep -E '^e: |error:|FAILED|What went wrong|> Task .* FAILED|Exception|expected:<' build.log | head -150
+            echo '```'
+          } > errors.md
+          gh api repos/${{ github.repository }}/commits/${{ github.sha }}/comments -F body=@errors.md
 
       - name: Verify APK Generation
         run: |

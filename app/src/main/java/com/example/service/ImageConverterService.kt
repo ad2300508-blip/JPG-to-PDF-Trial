@@ -1,19 +1,24 @@
 package com.example.service
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
+import androidx.exifinterface.media.ExifInterface
 import com.example.model.ImageConversionSettings
 import com.example.model.ImageConvertItem
 import com.example.model.ImageFormat
+import com.example.util.BitmapLoader
+import com.example.util.FileNames
+import com.example.util.OutputFolder
+import com.example.util.OutputStorage
+import com.example.util.resultOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
+import java.io.File
+import kotlin.math.max
+import kotlin.math.roundToInt
 
 class ImageConverterService(private val context: Context) {
 
@@ -21,79 +26,143 @@ class ImageConverterService(private val context: Context) {
         item: ImageConvertItem,
         settings: ImageConversionSettings
     ): Result<Pair<Uri, Long>> = withContext(Dispatchers.IO) {
-        try {
-            val inputStream = context.contentResolver.openInputStream(item.uri)
-                ?: return@withContext Result.failure(Exception("Cannot open image file"))
+        resultOf {
+            val bounds = BitmapLoader.readBounds(context, item.uri)
+                ?: throw IllegalStateException("Formato immagine non supportato")
+            val longest = max(bounds.width, bounds.height)
+            var target = (longest * settings.resolutionScalePercent / 100f).roundToInt().coerceAtLeast(1)
+            if (settings.maxSidePx > 0) target = minOf(target, settings.maxSidePx)
+            target = target.coerceAtMost(MAX_DECODE_SIDE)
 
-            val options = BitmapFactory.Options().apply {
-                inJustDecodeBounds = false
-            }
-            var bitmap = BitmapFactory.decodeStream(inputStream, null, options)
-            inputStream.close()
-
-            if (bitmap == null) {
-                return@withContext Result.failure(Exception("Failed to decode image"))
-            }
-
-            // Resolution scaling
-            if (settings.resolutionScalePercent < 100) {
-                val scale = settings.resolutionScalePercent / 100f
-                val newW = (bitmap.width * scale).toInt().coerceAtLeast(1)
-                val newH = (bitmap.height * scale).toInt().coerceAtLeast(1)
-                val scaled = Bitmap.createScaledBitmap(bitmap, newW, newH, true)
-                if (scaled != bitmap) bitmap.recycle()
-                bitmap = scaled
-            }
-
-            val compressFormat = when (settings.targetFormat) {
-                ImageFormat.JPEG -> Bitmap.CompressFormat.JPEG
-                ImageFormat.PNG -> Bitmap.CompressFormat.PNG
-                ImageFormat.WEBP_LOSSY -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Bitmap.CompressFormat.WEBP_LOSSY
-                    } else {
-                        @Suppress("DEPRECATION")
-                        Bitmap.CompressFormat.WEBP
-                    }
-                }
-                ImageFormat.WEBP_LOSSLESS -> {
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                        Bitmap.CompressFormat.WEBP_LOSSLESS
-                    } else {
-                        @Suppress("DEPRECATION")
-                        Bitmap.CompressFormat.WEBP
-                    }
-                }
+            var bitmap = BitmapLoader.decode(context, item.uri, target)
+                ?: throw IllegalStateException("Impossibile leggere l'immagine")
+            if (!settings.targetFormat.isLosslessAlphaCapable()) {
+                bitmap = BitmapLoader.flattenOnWhite(bitmap)
             }
 
             val quality = if (settings.targetFormat.isLossless) 100 else settings.qualityPercent.coerceIn(1, 100)
-            val byteStream = ByteArrayOutputStream()
-            bitmap.compress(compressFormat, quality, byteStream)
-            val bytes = byteStream.toByteArray()
-            bitmap.recycle()
+            val outName = "${FileNames.sanitize(FileNames.baseName(item.name), "Immagine")}_convertita.${settings.targetFormat.extension}"
 
-            val baseName = item.name.substringBeforeLast(".")
-            val outFilename = "${baseName}_converted.${settings.targetFormat.extension}"
+            // Encode into a temp file first: EXIF can only be written to seekable files.
+            val temp = File(context.cacheDir, "img_${System.nanoTime()}.${settings.targetFormat.extension}")
+            try {
+                if (settings.targetSizeKb > 0 && !settings.targetFormat.isLossless) {
+                    val (bytes, scaled) = encodeUnder(bitmap, settings.targetFormat.compressFormat(), quality, settings.targetSizeKb * 1024L)
+                    if (scaled !== bitmap) bitmap.recycle()
+                    temp.writeBytes(bytes)
+                    scaled.recycle()
+                } else {
+                    temp.outputStream().buffered().use { out ->
+                        if (!bitmap.compress(settings.targetFormat.compressFormat(), quality, out)) {
+                            throw IllegalStateException("Codifica ${settings.targetFormat.extension.uppercase()} non riuscita")
+                        }
+                    }
+                    bitmap.recycle()
+                }
 
-            val resolver = context.contentResolver
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, outFilename)
-                put(MediaStore.MediaColumns.MIME_TYPE, settings.targetFormat.mimeType)
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/Images")
+                if (!settings.stripExif && settings.targetFormat == ImageFormat.JPEG) {
+                    copyExif(item.uri, temp)
+                }
+
+                val size = temp.length()
+                val uri = OutputStorage.save(context, outName, settings.targetFormat.mimeType, OutputFolder.IMAGES) { out ->
+                    temp.inputStream().use { it.copyTo(out) }
+                }
+                uri to size
+            } finally {
+                temp.delete()
+            }
+        }
+    }
+
+    /**
+     * Finds the highest quality that fits in [maxBytes] (binary search between 15 and [maxQuality]);
+     * if even the lowest quality is too big, shrinks the image by 20% and tries again.
+     * Returns the encoded bytes and the bitmap that produced them.
+     */
+    private suspend fun encodeUnder(source: Bitmap, format: Bitmap.CompressFormat, maxQuality: Int, maxBytes: Long): Pair<ByteArray, Bitmap> {
+        var bitmap = source
+        repeat(8) {
+            kotlin.coroutines.coroutineContext.ensureActive()
+            fun encode(q: Int): ByteArray = java.io.ByteArrayOutputStream().also { bitmap.compress(format, q, it) }.toByteArray()
+            var best: ByteArray? = null
+            var low = 15
+            var high = maxQuality.coerceAtLeast(15)
+            while (low <= high) {
+                val mid = (low + high) / 2
+                val bytes = encode(mid)
+                if (bytes.size <= maxBytes) {
+                    best = bytes
+                    low = mid + 1
+                } else {
+                    high = mid - 1
                 }
             }
-
-            val outputUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                ?: return@withContext Result.failure(Exception("Could not create MediaStore record"))
-
-            resolver.openOutputStream(outputUri)?.use { out ->
-                out.write(bytes)
-            }
-
-            Result.success(Pair(outputUri, bytes.size.toLong()))
-        } catch (t: Throwable) {
-            Result.failure(t)
+            if (best != null) return best!! to bitmap
+            val next = Bitmap.createScaledBitmap(bitmap, (bitmap.width * 0.8f).roundToInt().coerceAtLeast(1), (bitmap.height * 0.8f).roundToInt().coerceAtLeast(1), true)
+            if (bitmap !== source) bitmap.recycle()
+            bitmap = next
         }
+        // Give up shrinking: return the smallest version we can make.
+        return java.io.ByteArrayOutputStream().also { bitmap.compress(format, 15, it) }.toByteArray() to bitmap
+    }
+
+    /** Keeps date, camera and GPS info when the user turns off "Rimuovi metadati EXIF". */
+    private fun copyExif(source: Uri, target: File) {
+        runCatching {
+            val src = context.contentResolver.openInputStream(source)?.use { ExifInterface(it) } ?: return
+            val dst = ExifInterface(target.absolutePath)
+            EXIF_TAGS.forEach { tag -> src.getAttribute(tag)?.let { dst.setAttribute(tag, it) } }
+            // Pixels are already rotated upright.
+            dst.setAttribute(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL.toString())
+            dst.saveAttributes()
+        }
+    }
+
+    private fun ImageFormat.isLosslessAlphaCapable() = this != ImageFormat.JPEG
+
+    private fun ImageFormat.compressFormat(): Bitmap.CompressFormat = when (this) {
+        ImageFormat.JPEG -> Bitmap.CompressFormat.JPEG
+        ImageFormat.PNG -> Bitmap.CompressFormat.PNG
+        ImageFormat.WEBP_LOSSY -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Bitmap.CompressFormat.WEBP_LOSSY
+        } else {
+            @Suppress("DEPRECATION")
+            Bitmap.CompressFormat.WEBP
+        }
+        ImageFormat.WEBP_LOSSLESS -> if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            Bitmap.CompressFormat.WEBP_LOSSLESS
+        } else {
+            @Suppress("DEPRECATION")
+            Bitmap.CompressFormat.WEBP
+        }
+    }
+
+    private companion object {
+        const val MAX_DECODE_SIDE = 8000
+        val EXIF_TAGS = listOf(
+            ExifInterface.TAG_DATETIME,
+            ExifInterface.TAG_DATETIME_ORIGINAL,
+            ExifInterface.TAG_DATETIME_DIGITIZED,
+            ExifInterface.TAG_MAKE,
+            ExifInterface.TAG_MODEL,
+            ExifInterface.TAG_F_NUMBER,
+            ExifInterface.TAG_EXPOSURE_TIME,
+            ExifInterface.TAG_PHOTOGRAPHIC_SENSITIVITY,
+            ExifInterface.TAG_FOCAL_LENGTH,
+            ExifInterface.TAG_FLASH,
+            ExifInterface.TAG_WHITE_BALANCE,
+            ExifInterface.TAG_GPS_LATITUDE,
+            ExifInterface.TAG_GPS_LATITUDE_REF,
+            ExifInterface.TAG_GPS_LONGITUDE,
+            ExifInterface.TAG_GPS_LONGITUDE_REF,
+            ExifInterface.TAG_GPS_ALTITUDE,
+            ExifInterface.TAG_GPS_ALTITUDE_REF,
+            ExifInterface.TAG_GPS_TIMESTAMP,
+            ExifInterface.TAG_GPS_DATESTAMP,
+            ExifInterface.TAG_ARTIST,
+            ExifInterface.TAG_COPYRIGHT,
+            ExifInterface.TAG_IMAGE_DESCRIPTION
+        )
     }
 }

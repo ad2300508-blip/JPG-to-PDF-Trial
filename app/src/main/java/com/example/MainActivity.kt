@@ -10,7 +10,7 @@ import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import com.example.data.AppPreferences
 import com.example.data.HistoryRepository
 import com.example.ui.theme.OmniConvertTheme
@@ -20,8 +20,8 @@ class MainActivity : ComponentActivity() {
 
     private val pdfViewModel: PdfStudioViewModel by viewModels()
 
-    /** Incremented whenever images are shared to the app, so the UI opens "Immagini in PDF". */
-    private val openPdfToolSignal = mutableIntStateOf(0)
+    /** Files shared to the app from another app; the UI asks which tool should receive them. */
+    private val sharedFiles = mutableStateOf<SharedFiles?>(null)
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -33,10 +33,12 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val themeMode by AppPreferences.themeMode.collectAsState()
-            OmniConvertTheme(themeMode = themeMode) {
+            val reduceMotion by AppPreferences.reduceMotion.collectAsState()
+            OmniConvertTheme(themeMode = themeMode, reduceMotion = reduceMotion) {
                 OmniConvertApp(
                     pdfViewModel = pdfViewModel,
-                    openPdfToolSignal = openPdfToolSignal.intValue
+                    sharedFiles = sharedFiles.value,
+                    onSharedFilesConsumed = { sharedFiles.value = null }
                 )
             }
         }
@@ -49,31 +51,30 @@ class MainActivity : ComponentActivity() {
 
     private fun handleShareIntent(intent: Intent?) {
         if (intent == null) return
-        when (intent.action) {
-            Intent.ACTION_SEND -> {
-                val uri = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        val uris: List<Uri> = when (intent.action) {
+            Intent.ACTION_SEND -> listOfNotNull(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
                 } else {
                     @Suppress("DEPRECATION")
                     intent.getParcelableExtra(Intent.EXTRA_STREAM)
                 }
-                if (uri != null) {
-                    pdfViewModel.addImages(listOf(uri))
-                    openPdfToolSignal.intValue++
-                }
-            }
-            Intent.ACTION_SEND_MULTIPLE -> {
-                val uris = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            )
+            Intent.ACTION_SEND_MULTIPLE -> (
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                     intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
                 } else {
                     @Suppress("DEPRECATION")
                     intent.getParcelableArrayListExtra(Intent.EXTRA_STREAM)
                 }
-                if (!uris.isNullOrEmpty()) {
-                    pdfViewModel.addImages(uris)
-                    openPdfToolSignal.intValue++
-                }
-            }
+                ).orEmpty()
+            Intent.ACTION_VIEW -> listOfNotNull(intent.data)
+            else -> emptyList()
         }
+        if (uris.isEmpty()) return
+        val mime = intent.type
+            ?: runCatching { contentResolver.getType(uris.first()) }.getOrNull()
+            ?: "*/*"
+        sharedFiles.value = SharedFiles(uris, mime)
     }
 }

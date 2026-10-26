@@ -5,7 +5,6 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.HistoryKind
@@ -14,6 +13,13 @@ import com.example.model.CompiledMarkdownResult
 import com.example.model.MarkdownExportSettings
 import com.example.model.MarkdownSourceItem
 import com.example.service.MarkdownExporterService
+import com.example.util.FileNames
+import com.example.util.OutputFolder
+import com.example.util.OutputStorage
+import com.example.util.TextPdfWriter
+import com.example.util.queryUriInfo
+import com.example.util.resultOf
+import com.example.util.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -56,37 +62,31 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
     private var extractionJob: Job? = null
 
     fun addFiles(uris: List<Uri>) {
-        val resolver = getApplication<Application>().contentResolver
-        extractionJob?.cancel()
-
+        if (uris.isEmpty()) return
+        // Files added while another extraction runs are queued after it instead of cancelling it.
+        val previous = extractionJob
         extractionJob = viewModelScope.launch(Dispatchers.IO) {
+            previous?.join()
             _isIngesting.value = true
             _errorNotice.value = null
             _extractionProgress.value = 0f
 
             val totalUris = uris.size
             for ((index, uri) in uris.withIndex()) {
-                var name = "Document"
-                var size = 0L
-                var mime = resolver.getType(uri) ?: "application/octet-stream"
+                val info = getApplication<Application>().queryUriInfo(uri, "Documento")
+                val name = info.name
+                val size = info.sizeBytes
+                val mime = info.mimeType
 
-                resolver.query(uri, null, null, null, null)?.use { cursor ->
-                    val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                    val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
-                    if (cursor.moveToFirst()) {
-                        if (nameIdx >= 0) name = cursor.getString(nameIdx) ?: "Document"
-                        if (sizeIdx >= 0) size = cursor.getLong(sizeIdx)
-                    }
-                }
-
-                _extractionStatusText.value = "Processing ${index + 1}/$totalUris: $name"
+                _extractionStatusText.value = "File ${index + 1} di $totalUris: $name"
 
                 val item = markdownService.extractTextFromSource(
                     uri = uri,
                     name = name,
                     mimeType = mime,
                     sizeBytes = size,
-                    parseAllPages = _settings.value.parseAllPages
+                    parseAllPages = _settings.value.parseAllPages,
+                    forceOcr = _settings.value.forceOcr
                 ) { fileProgress, status ->
                     val overall = (index.toFloat() + fileProgress) / totalUris.toFloat()
                     _extractionProgress.value = overall
@@ -103,7 +103,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
 
             _isIngesting.value = false
             _extractionProgress.value = 1f
-            _extractionStatusText.value = "All documents parsed"
+            _extractionStatusText.value = "Documenti pronti"
         }
     }
 
@@ -124,8 +124,8 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
             _extractionProgress.value = 0f
 
             for ((idx, doc) in itemsToParse.withIndex()) {
-                _extractionStatusText.value = "Parsing remaining pages for ${doc.name} (${idx + 1}/${itemsToParse.size})..."
-                val updated = markdownService.extractRemainingPages(doc) { progress, status ->
+                _extractionStatusText.value = "Pagine rimanenti di ${doc.name} (${idx + 1}/${itemsToParse.size})…"
+                val updated = markdownService.extractRemainingPages(doc, _settings.value.forceOcr) { progress, status ->
                     val overall = (idx.toFloat() + progress) / itemsToParse.size.toFloat()
                     _extractionProgress.value = overall
                     _extractionStatusText.value = "$status (${idx + 1}/${itemsToParse.size})"
@@ -137,7 +137,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
             }
             _isIngesting.value = false
             _extractionProgress.value = 1f
-            _extractionStatusText.value = "All remaining pages parsed"
+            _extractionStatusText.value = "Tutte le pagine estratte"
         }
     }
 
@@ -163,7 +163,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
     fun cancelExtraction() {
         extractionJob?.cancel()
         _isIngesting.value = false
-        _extractionStatusText.value = "Extraction cancelled"
+        _extractionStatusText.value = "Estrazione annullata"
     }
 
     fun dismissErrorNotice() {
@@ -179,9 +179,9 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
         viewModelScope.launch(Dispatchers.IO) {
             _isIngesting.value = true
             _extractionProgress.value = 0f
-            _extractionStatusText.value = "Parsing remaining pages for ${currentItem.name}..."
+            _extractionStatusText.value = "Pagine rimanenti di ${currentItem.name}…"
 
-            val updated = markdownService.extractRemainingPages(currentItem) { progress, status ->
+            val updated = markdownService.extractRemainingPages(currentItem, _settings.value.forceOcr) { progress, status ->
                 _extractionProgress.value = progress
                 _extractionStatusText.value = status
             }
@@ -191,7 +191,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
             }
             recompileInternal()
             _isIngesting.value = false
-            _extractionStatusText.value = "Remaining pages parsed"
+            _extractionStatusText.value = "Pagine rimanenti estratte"
         }
     }
 
@@ -211,7 +211,42 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
         val clipboard = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("OmniConvert LLM Markdown", prompt)
         clipboard.setPrimaryClip(clip)
-        _copySuccessMessage.value = "Prompt copied to clipboard (~${_compiledResult.value?.totalTokens} tokens)"
+        _copySuccessMessage.value = "Copiato negli appunti (~${_compiledResult.value?.totalTokens} token)"
+    }
+
+    private val _savedPdfUri = MutableStateFlow<Uri?>(null)
+    val savedPdfUri: StateFlow<Uri?> = _savedPdfUri.asStateFlow()
+
+    /** Saves the extracted text (without AI wrapper) as a nicely formatted PDF. */
+    fun saveAsPdf(title: String) {
+        val content = _compiledResult.value?.rawMarkdown?.takeIf { it.isNotBlank() } ?: return
+        viewModelScope.launch {
+            val app = getApplication<Application>()
+            resultOf {
+                withContext(Dispatchers.IO) {
+                    OutputStorage.save(app, FileNames.stamped(title, "Testo", "pdf"), "application/pdf", OutputFolder.PDFS) { out ->
+                        TextPdfWriter.write(content, title, out)
+                    }
+                }
+            }.onSuccess { uri ->
+                _savedPdfUri.value = uri
+                HistoryRepository.record(app, uri, "Testo in PDF", HistoryKind.PDF, "$title.pdf")
+            }.onFailure { err ->
+                _errorNotice.value = "PDF non creato: ${err.userMessage("errore sconosciuto")}"
+            }
+        }
+    }
+
+    fun dismissSaved() {
+        _savedUri.value = null
+        _savedPdfUri.value = null
+    }
+
+    /** Default name for exports: the first document's name. */
+    fun suggestedTitle(): String = _items.value.firstOrNull()?.name?.let { FileNames.baseName(it) } ?: "Testo_estratto"
+
+    fun setForceOcr(enabled: Boolean) {
+        _settings.value = _settings.value.copy(forceOcr = enabled)
     }
 
     fun saveAsMarkdown(title: String) {
@@ -222,7 +257,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
                 _savedUri.value = uri
                 HistoryRepository.record(getApplication<Application>(), uri, "PDF in Markdown", HistoryKind.MARKDOWN, "$title.md")
             }.onFailure { err ->
-                _errorNotice.value = "Failed to save: ${err.localizedMessage}"
+                _errorNotice.value = "Salvataggio non riuscito: ${err.userMessage("errore sconosciuto")}"
             }
         }
     }

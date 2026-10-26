@@ -1,12 +1,16 @@
 package com.example.ui
 
+import android.media.MediaPlayer
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,55 +21,74 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ContentCut
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Surface
+import androidx.compose.material3.RangeSlider
+import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.AudioBitrate
 import com.example.model.AudioConvertItem
 import com.example.model.AudioOutputFormat
 import com.example.ui.components.Dropzone
+import com.example.ui.components.FileCard
+import com.example.ui.components.FileListHeader
 import com.example.ui.components.OmniActionBar
 import com.example.ui.components.OmniProgressBanner
 import com.example.ui.components.OmniToast
 import com.example.ui.components.OptionRow
+import com.example.ui.components.OptionSection
 import com.example.ui.components.RadioCard
+import com.example.ui.components.RevealVertically
 import com.example.ui.components.SegmentedControl
+import com.example.ui.components.ShimmerProgressBar
 import com.example.ui.components.ToolLayout
+import com.example.ui.components.formatBytes
+import com.example.ui.components.openFile
+import com.example.ui.theme.Haptic
 import com.example.ui.theme.OmniAccent
-import com.example.ui.theme.OmniBorder
-import com.example.ui.theme.OmniSurface
+import com.example.ui.theme.OmniDanger
+import com.example.ui.theme.OmniSuccess
 import com.example.ui.theme.OmniSurface2
 import com.example.ui.theme.OmniText
 import com.example.ui.theme.OmniTextMuted
-import com.example.ui.theme.RadiusMd
-import com.example.ui.theme.RadiusSm
 import com.example.ui.theme.TintAudio
+import com.example.ui.theme.enterAnimation
+import com.example.ui.theme.rememberHaptics
+import com.example.util.OutputFolder
+import com.example.util.OutputStorage
 import com.example.viewmodel.AudioLabViewModel
+import kotlinx.coroutines.delay
 
 @Composable
 fun AudioLabScreen(
@@ -77,37 +100,39 @@ fun AudioLabScreen(
     val settings by viewModel.settings.collectAsState()
     val isTranscoding by viewModel.isTranscoding.collectAsState()
     val progress by viewModel.progress.collectAsState()
+    val currentName by viewModel.currentName.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+    val context = LocalContext.current
+    val haptics = rememberHaptics()
 
+    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
+    val player = rememberPreviewPlayer()
+
+    // Audio files and videos (the audio track is extracted).
     val pickerLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetMultipleContents()
+        contract = ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
-        if (uris.isNotEmpty()) {
-            viewModel.addAudioFiles(uris)
-        }
+        if (uris.isNotEmpty()) viewModel.addAudioFiles(uris)
     }
+    val pickAudio = { pickerLauncher.launch(arrayOf("audio/*", "video/*")) }
 
-    val bitrates = listOf(
-        AudioBitrate.KBPS_64,
-        AudioBitrate.KBPS_128,
-        AudioBitrate.KBPS_192,
-        AudioBitrate.KBPS_256,
-        AudioBitrate.KBPS_320
-    )
-    val bitrateLabels = listOf("64k", "128k*", "192k", "256k", "320k")
+    val bitrates = AudioBitrate.entries
+    val bitrateLabels = listOf("64k", "128k", "192k", "256k", "320k")
     val selectedBitrateIndex = bitrates.indexOf(settings.bitrate).coerceAtLeast(0)
 
+    val valid = items.filter { it.durationMs > 0 }
     val convertedCount = items.count { it.convertedSizeBytes != null }
-    val isAllConverted = items.isNotEmpty() && convertedCount == items.size
+    val pending = valid.count { it.convertedSizeBytes == null }
+    val isAllConverted = valid.isNotEmpty() && pending == 0
 
     Column(
         modifier = modifier
             .fillMaxSize()
             .testTag("audio_lab_screen")
     ) {
-        if (errorMessage != null) {
+        RevealVertically(visible = errorMessage != null) {
             OmniToast(
-                message = errorMessage!!,
+                message = errorMessage.orEmpty(),
                 isError = true,
                 actionLabel = "Chiudi",
                 onAction = { viewModel.dismissError() },
@@ -115,78 +140,52 @@ fun AudioLabScreen(
             )
         }
 
-        if (isAllConverted) {
+        RevealVertically(visible = isAllConverted && !isTranscoding) {
             OmniToast(
-                message = "${items.size} file audio convertiti e salvati in Download/OmniConvert/Audio",
-                isError = false,
+                message = "${if (convertedCount == 1) "1 file audio salvato" else "$convertedCount file audio salvati"} in ${OutputStorage.displayPath(OutputFolder.AUDIO)}",
                 actionLabel = "Svuota",
                 onAction = { viewModel.clearAll() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
 
-        if (isTranscoding) {
+        RevealVertically(visible = isTranscoding) {
             OmniProgressBanner(
                 progress = progress,
-                statusText = "Converto i file audio…",
+                statusText = if (currentName.isNotBlank()) "Converto $currentName…" else "Converto i file audio…",
+                onCancel = { viewModel.cancel() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
 
         ToolLayout(
             title = "Converti audio",
-            description = "Converti registrazioni e lezioni in M4A o WAV",
+            description = "Converti, taglia e alza il volume di lezioni e note vocali",
             isEmpty = items.isEmpty(),
             phoneTabTitles = listOf("Audio · ${items.size}", "Opzioni"),
             emptyDropzone = {
                 Dropzone(
                     icon = Icons.Default.Audiotrack,
                     headline = "Aggiungi i tuoi file audio",
-                    helpText = "Scegli registrazioni, note vocali o lezioni da convertire o trascrivere con Gemini",
-                    supportedFormats = "MP3 · WAV · M4A · AAC · OGG · FLAC",
+                    helpText = "Registrazioni, note vocali o lezioni, anche video: ne estraggo l'audio, lo taglio e lo converto",
+                    supportedFormats = "MP3 · WAV · M4A · AAC · OGG · FLAC · MP4",
                     actionLabel = "Scegli file",
                     tintColor = TintAudio,
-                    onAction = { pickerLauncher.launch("audio/*") },
+                    onAction = pickAudio,
                     testTag = "audio_add_button"
                 )
             },
             fileList = {
                 Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(bottom = 12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "${items.size} tracks loaded",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = OmniText
-                        )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(
-                                onClick = { pickerLauncher.launch("audio/*") },
-                                modifier = Modifier
-                                    .height(36.dp)
-                                    .testTag("audio_add_more_button"),
-                                border = BorderStroke(1.dp, OmniBorder),
-                                shape = RoundedCornerShape(RadiusSm),
-                                colors = ButtonDefaults.outlinedButtonColors(contentColor = OmniAccent)
-                            ) {
-                                Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text("Aggiungi", fontSize = 13.sp, fontWeight = FontWeight.Medium)
-                            }
-                            TextButton(
-                                onClick = { viewModel.clearAll() },
-                                modifier = Modifier.height(36.dp)
-                            ) {
-                                Text("Svuota", color = OmniTextMuted, fontSize = 13.sp)
-                            }
-                        }
-                    }
+                    FileListHeader(
+                        title = if (items.size == 1) "1 traccia" else "${items.size} tracce",
+                        onAdd = pickAudio,
+                        onClear = {
+                            player.stop()
+                            viewModel.clearAll()
+                        },
+                        addIcon = Icons.Default.Audiotrack
+                    )
 
                     LazyColumn(
                         modifier = Modifier
@@ -194,11 +193,27 @@ fun AudioLabScreen(
                             .weight(1f),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(items, key = { it.id }) { item ->
+                        itemsIndexed(items, key = { _, item -> item.id }) { index, item ->
                             AudioFileRow(
                                 item = item,
-                                onTranscribe = { onTranscribeAudio(item.uri, item.name) },
-                                onRemove = { viewModel.removeItem(item.id) }
+                                expanded = expandedId == item.id,
+                                isPlaying = player.playingId == item.id,
+                                playPosition = if (player.playingId == item.id) player.position else 0f,
+                                onToggleExpand = { expandedId = if (expandedId == item.id) null else item.id },
+                                onTogglePlay = {
+                                    haptics(Haptic.TAP)
+                                    player.toggle(item.id, item.outputUri ?: item.uri, item.trimStartMs ?: 0L)
+                                },
+                                onTrim = { start, end -> viewModel.setTrim(item.id, start, end) },
+                                onTranscribe = { onTranscribeAudio(item.outputUri ?: item.uri, item.name) },
+                                onOpenResult = { item.outputUri?.let { openFile(context, it, "audio/*") } },
+                                onRemove = {
+                                    if (player.playingId == item.id) player.stop()
+                                    viewModel.removeItem(item.id)
+                                },
+                                modifier = Modifier
+                                    .animateItem()
+                                    .enterAnimation(index, key = item.id)
                             )
                         }
                     }
@@ -217,79 +232,75 @@ fun AudioLabScreen(
                         color = OmniText
                     )
 
-                    // 2 Radio Cards for format
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         RadioCard(
                             title = "M4A / AAC-LC",
-                            description = "Formato compresso ideale per lezioni e note vocali",
+                            description = "Compresso: ideale per lezioni, note vocali e Gemini",
                             isSelected = settings.outputFormat == AudioOutputFormat.M4A_AAC,
                             onClick = { viewModel.updateSettings(settings.copy(outputFormat = AudioOutputFormat.M4A_AAC)) },
                             badgeText = "Consigliato"
                         )
                         RadioCard(
                             title = "WAV (PCM 16 bit)",
-                            description = "Qualità senza perdita, ideale per il montaggio audio",
+                            description = "Senza perdita, ideale per il montaggio audio",
                             isSelected = settings.outputFormat == AudioOutputFormat.WAV_PCM_16BIT,
                             onClick = { viewModel.updateSettings(settings.copy(outputFormat = AudioOutputFormat.WAV_PCM_16BIT)) },
                             badgeText = "Senza perdita"
                         )
                     }
 
-                    // Bitrate row (only for lossy M4A)
-                    if (settings.outputFormat == AudioOutputFormat.M4A_AAC) {
-                        Column {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = "Bitrate",
-                                    fontSize = 14.sp,
-                                    color = OmniTextMuted
-                                )
-                                Text(
-                                    text = settings.bitrate.label,
-                                    fontSize = 14.sp,
-                                    color = OmniAccent,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                            Spacer(modifier = Modifier.height(6.dp))
+                    AnimatedVisibility(
+                        visible = settings.outputFormat == AudioOutputFormat.M4A_AAC,
+                        enter = expandVertically() + fadeIn(),
+                        exit = shrinkVertically() + fadeOut()
+                    ) {
+                        OptionSection(title = "Bitrate · ${settings.bitrate.label}", hint = settings.bitrate.description + if (settings.bitrate == AudioBitrate.KBPS_64) " · perfetto per Gemini" else "") {
                             SegmentedControl(
                                 options = bitrateLabels,
                                 selectedIndex = selectedBitrateIndex,
-                                onOptionSelected = { idx ->
-                                    viewModel.updateSettings(settings.copy(bitrate = bitrates[idx]))
-                                }
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = "* 128 kbps is recommended for podcasts, speech, and clean audio",
-                                fontSize = 13.sp,
-                                color = OmniTextMuted
+                                onOptionSelected = { idx -> viewModel.updateSettings(settings.copy(bitrate = bitrates[idx])) }
                             )
                         }
                     }
 
-                    // Mono switch
                     OptionRow(
                         label = "Converti in mono",
-                        description = "Unisce i canali stereo per ridurre il peso delle registrazioni vocali",
+                        description = "Unisce i canali stereo: metà peso per le registrazioni vocali",
                         checked = settings.forceMono,
                         onCheckedChange = { viewModel.updateSettings(settings.copy(forceMono = it)) }
+                    )
+
+                    OptionRow(
+                        label = "Normalizza il volume",
+                        description = "Alza il volume delle registrazioni troppo basse senza distorcere",
+                        checked = settings.normalizeVolume,
+                        onCheckedChange = { viewModel.updateSettings(settings.copy(normalizeVolume = it)) }
+                    )
+
+                    Text(
+                        text = "Suggerimento: tocca una traccia per tagliarne l'inizio o la fine.",
+                        fontSize = 13.sp,
+                        color = OmniTextMuted
                     )
                 }
             },
             actionBar = {
                 val formatLabel = if (settings.outputFormat == AudioOutputFormat.M4A_AAC) "M4A ${settings.bitrate.label}" else "WAV PCM"
-                val monoLabel = if (settings.forceMono) " · Mono" else ""
+                val extras = listOfNotNull("Mono".takeIf { settings.forceMono }, "Volume normalizzato".takeIf { settings.normalizeVolume })
                 OmniActionBar(
-                    summaryText = "${items.size} tracks · $formatLabel$monoLabel",
-                    primaryButtonLabel = if (isTranscoding) "Conversione…" else "Converti audio",
-                    isEnabled = items.isNotEmpty() && !isTranscoding,
-                    disabledHelperText = if (items.isEmpty()) "Aggiungi almeno un file audio" else null,
-                    onPrimaryAction = { viewModel.transcodeAll() },
+                    summaryText = if (items.size == 1) "1 traccia · $formatLabel" else "${items.size} tracce · $formatLabel",
+                    detailText = extras.joinToString(" · ").ifBlank { null },
+                    primaryButtonLabel = if (isTranscoding) "Conversione…" else if (isAllConverted) "Fatto" else "Converti",
+                    isEnabled = pending > 0 && !isTranscoding,
+                    disabledHelperText = when {
+                        items.isEmpty() -> "Aggiungi almeno un file audio"
+                        isAllConverted -> "Cambia le opzioni per convertire di nuovo"
+                        else -> null
+                    },
+                    onPrimaryAction = {
+                        player.stop()
+                        viewModel.transcodeAll()
+                    },
                     testTag = "transcode_all_button"
                 )
             }
@@ -300,111 +311,211 @@ fun AudioLabScreen(
 @Composable
 private fun AudioFileRow(
     item: AudioConvertItem,
+    expanded: Boolean,
+    isPlaying: Boolean,
+    playPosition: Float,
+    onToggleExpand: () -> Unit,
+    onTogglePlay: () -> Unit,
+    onTrim: (Long?, Long?) -> Unit,
     onTranscribe: () -> Unit,
-    onRemove: () -> Unit
+    onOpenResult: () -> Unit,
+    onRemove: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    Surface(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(RadiusMd)),
-        color = OmniSurface,
-        border = BorderStroke(1.dp, OmniBorder),
-        shape = RoundedCornerShape(RadiusMd)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(RadiusSm))
-                    .background(TintAudio.copy(alpha = 0.14f)),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Audiotrack,
-                    contentDescription = null,
-                    tint = TintAudio,
-                    modifier = Modifier.size(24.dp)
-                )
-            }
+    val details = when {
+        item.error != null && item.durationMs <= 0 -> item.error
+        item.error != null -> item.error
+        item.convertedSizeBytes != null -> "${formatDuration(item.effectiveDurationMs)} · ${formatBytes(item.originalSizeBytes)} → ${formatBytes(item.convertedSizeBytes)}"
+        else -> listOfNotNull(
+            formatDuration(item.effectiveDurationMs) + if (item.isTrimmed) " (tagliato)" else "",
+            formatBytes(item.originalSizeBytes),
+            "${item.sampleRate / 1000.0} kHz".takeIf { item.sampleRate > 0 },
+            "${item.bitrateKbps} kbps".takeIf { item.bitrateKbps > 0 }
+        ).joinToString(" · ")
+    }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.name,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = OmniText,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    val durationSec = item.durationMs / 1000
-                    val min = durationSec / 60
-                    val sec = durationSec % 60
-                    val durStr = "%d:%02d".format(min, sec)
-
-                    val sizeKb = item.originalSizeBytes / 1024
-                    val sizeLabel = if (sizeKb > 1024) "${"%.1f".format(sizeKb / 1024f)} MB" else "$sizeKb KB"
-
-                    Text(
-                        text = "$durStr · $sizeLabel · ${item.sampleRate} Hz",
-                        fontSize = 13.sp,
-                        color = OmniTextMuted
+    FileCard(
+        name = item.name,
+        details = details,
+        detailsColor = when {
+            item.error != null -> OmniDanger
+            item.convertedSizeBytes != null -> OmniSuccess
+            else -> OmniTextMuted
+        },
+        icon = Icons.Default.Audiotrack,
+        iconTint = TintAudio,
+        highlighted = expanded,
+        onClick = if (item.durationMs > 0) onToggleExpand else null,
+        trailingContent = {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                when {
+                    item.isProcessing -> CircularProgressIndicator(
+                        progress = { item.progress },
+                        modifier = Modifier.size(22.dp),
+                        color = OmniAccent,
+                        strokeWidth = 2.5.dp,
+                        trackColor = OmniSurface2
                     )
-
-                    if (item.convertedSizeBytes != null) {
-                        Spacer(modifier = Modifier.width(8.dp))
-                        val convKb = item.convertedSizeBytes / 1024
-                        val convLabel = if (convKb > 1024) "${"%.1f".format(convKb / 1024f)} MB" else "$convKb KB"
-                        Text(
-                            text = "→ $convLabel",
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = OmniAccent
+                    item.convertedSizeBytes != null -> Icon(Icons.Default.CheckCircle, contentDescription = "Convertito", tint = OmniSuccess, modifier = Modifier.size(22.dp))
+                    item.error != null -> Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = OmniDanger, modifier = Modifier.size(22.dp))
+                }
+                if (item.durationMs > 0) {
+                    IconButton(onClick = onTogglePlay, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (isPlaying) "Pausa" else "Ascolta",
+                            tint = OmniText,
+                            modifier = Modifier.size(22.dp)
                         )
+                    }
+                    IconButton(
+                        onClick = onTranscribe,
+                        modifier = Modifier
+                            .size(36.dp)
+                            .testTag("transcribe_item_${item.id}")
+                    ) {
+                        Icon(Icons.Default.AutoAwesome, contentDescription = "Trascrivi con Gemini", tint = OmniAccent, modifier = Modifier.size(18.dp))
                     }
                 }
             }
-
-            if (item.isProcessing) {
-                CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
-                    color = OmniAccent,
-                    strokeWidth = 2.dp
-                )
-                Spacer(modifier = Modifier.width(8.dp))
+        },
+        onRemove = onRemove,
+        modifier = modifier,
+        bottomContent = {
+            Column {
+                AnimatedVisibility(visible = isPlaying) {
+                    ShimmerProgressBar(
+                        progress = playPosition,
+                        height = 4.dp,
+                        color = TintAudio,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 2.dp)
+                    )
+                }
+                AnimatedVisibility(
+                    visible = expanded,
+                    enter = expandVertically(tween(260)) + fadeIn(),
+                    exit = shrinkVertically(tween(200)) + fadeOut()
+                ) {
+                    TrimEditor(item = item, onTrim = onTrim, onOpenResult = onOpenResult)
+                }
             }
+        }
+    )
+}
 
-            // Quick Gemini transcribe shortcut
-            IconButton(
-                onClick = onTranscribe,
-                modifier = Modifier
-                    .size(36.dp)
-                    .testTag("transcribe_item_${item.id}")
-            ) {
-                Icon(
-                    imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "Trascrivi con Gemini",
-                    tint = OmniAccent,
-                    modifier = Modifier.size(18.dp)
-                )
+@Composable
+private fun TrimEditor(item: AudioConvertItem, onTrim: (Long?, Long?) -> Unit, onOpenResult: () -> Unit) {
+    val duration = item.durationMs.coerceAtLeast(1L).toFloat()
+    var range by remember(item.id) {
+        mutableStateOf((item.trimStartMs ?: 0L).toFloat()..(item.trimEndMs ?: item.durationMs).toFloat())
+    }
+    Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.ContentCut, contentDescription = null, tint = OmniAccent, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text("Taglia", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = OmniText, modifier = Modifier.weight(1f))
+            Text(
+                "${formatDuration(range.start.toLong())} – ${formatDuration(range.endInclusive.toLong())}",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = OmniAccent
+            )
+        }
+        RangeSlider(
+            value = range,
+            onValueChange = { range = it },
+            onValueChangeFinished = {
+                onTrim(range.start.toLong(), range.endInclusive.toLong())
+            },
+            valueRange = 0f..duration,
+            colors = SliderDefaults.colors(
+                thumbColor = OmniAccent,
+                activeTrackColor = OmniAccent,
+                inactiveTrackColor = OmniSurface2
+            )
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(
+                "Durata finale ${formatDuration((range.endInclusive - range.start).toLong())}",
+                fontSize = 12.sp,
+                color = OmniTextMuted,
+                modifier = Modifier.weight(1f)
+            )
+            if (item.isTrimmed) {
+                TextButton(onClick = {
+                    range = 0f..duration
+                    onTrim(null, null)
+                }) { Text("Ripristina", fontSize = 13.sp, color = OmniTextMuted) }
             }
-
-            IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
-                Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Rimuovi traccia",
-                    tint = OmniTextMuted,
-                    modifier = Modifier.size(18.dp)
-                )
+            if (item.outputUri != null) {
+                TextButton(onClick = onOpenResult) { Text("Apri risultato", fontSize = 13.sp, color = OmniAccent) }
             }
         }
     }
+}
+
+private fun formatDuration(ms: Long): String {
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
+    val hours = totalSeconds / 3600
+    val minutes = (totalSeconds % 3600) / 60
+    val seconds = totalSeconds % 60
+    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds) else "%d:%02d".format(minutes, seconds)
+}
+
+/** Tiny single-track player for previewing files in the list. */
+private class PreviewPlayer(private val context: android.content.Context) {
+    var playingId by mutableStateOf<String?>(null)
+        private set
+    var position by mutableFloatStateOf(0f)
+        private set
+    private var player: MediaPlayer? = null
+
+    fun toggle(id: String, uri: Uri, startMs: Long) {
+        if (playingId == id) {
+            stop()
+            return
+        }
+        stop()
+        runCatching {
+            player = MediaPlayer().apply {
+                setDataSource(context, uri)
+                setOnCompletionListener { stop() }
+                prepare()
+                if (startMs > 0) seekTo(startMs.toInt())
+                start()
+            }
+            playingId = id
+        }.onFailure { stop() }
+    }
+
+    fun tick() {
+        val p = player ?: return
+        runCatching {
+            if (p.duration > 0) position = p.currentPosition.toFloat() / p.duration
+        }
+    }
+
+    fun stop() {
+        runCatching { player?.stop() }
+        runCatching { player?.release() }
+        player = null
+        playingId = null
+        position = 0f
+    }
+}
+
+@Composable
+private fun rememberPreviewPlayer(): PreviewPlayer {
+    val context = LocalContext.current
+    val player = remember { PreviewPlayer(context.applicationContext) }
+    DisposableEffect(Unit) {
+        onDispose { player.stop() }
+    }
+    LaunchedEffect(player.playingId) {
+        while (player.playingId != null) {
+            player.tick()
+            delay(200)
+        }
+    }
+    return player
 }

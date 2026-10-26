@@ -106,6 +106,8 @@ val TintAudio = Color(0xFFD9548F)
 val TintZip = Color(0xFFE07A2E)
 val TintAi = Color(0xFF6E7BF2)
 val TintOcr = Color(0xFF14A38B)
+val TintStamp = Color(0xFFC75A1E)
+val TintSecure = Color(0xFF7356E8)
 
 // Shape Tokens
 val RadiusInput = 14.dp
