@@ -299,7 +299,8 @@ private fun GalleryCell(image: GalleryImage, order: Int?, onClick: () -> Unit) {
             contentScale = ContentScale.Crop,
             modifier = Modifier
                 .fillMaxSize()
-                .padding(inset)
+                // The spring overshoots below 0 when a photo is deselected; negative padding crashes.
+                .padding(inset.coerceAtLeast(0.dp))
                 .clip(RoundedCornerShape(8.dp))
                 .scale(dim)
         )
