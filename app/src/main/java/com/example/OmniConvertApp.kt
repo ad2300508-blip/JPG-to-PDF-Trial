@@ -98,6 +98,11 @@ import com.example.ui.PdfCropScreen
 import com.example.ui.PdfDuplexScreen
 import com.example.ui.PdfNotesScreen
 import com.example.ui.PdfNupScreen
+import com.example.ui.PaletteScreen
+import com.example.ui.PhotoWatermarkScreen
+import com.example.ui.RecorderScreen
+import com.example.ui.RotatePhotosScreen
+import com.example.ui.SocialFormatScreen
 import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfCompressScreen
@@ -148,6 +153,11 @@ import com.example.viewmodel.PdfCropViewModel
 import com.example.viewmodel.PdfDuplexViewModel
 import com.example.viewmodel.PdfNotesViewModel
 import com.example.viewmodel.PdfNupViewModel
+import com.example.viewmodel.PaletteViewModel
+import com.example.viewmodel.PhotoWatermarkViewModel
+import com.example.viewmodel.RecorderViewModel
+import com.example.viewmodel.RotatePhotosViewModel
+import com.example.viewmodel.SocialFormatViewModel
 import com.example.viewmodel.ImageLabViewModel
 import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfCompressViewModel
@@ -203,7 +213,12 @@ class ToolViewModels(
     val nup: PdfNupViewModel,
     val notes: PdfNotesViewModel,
     val duplex: PdfDuplexViewModel,
-    val crop: PdfCropViewModel
+    val crop: PdfCropViewModel,
+    val social: SocialFormatViewModel,
+    val photoMark: PhotoWatermarkViewModel,
+    val rotate: RotatePhotosViewModel,
+    val palette: PaletteViewModel,
+    val recorder: RecorderViewModel
 )
 
 @Composable
@@ -238,7 +253,12 @@ fun OmniConvertApp(
         nup = viewModel(),
         notes = viewModel(),
         duplex = viewModel(),
-        crop = viewModel()
+        crop = viewModel(),
+        social = viewModel(),
+        photoMark = viewModel(),
+        rotate = viewModel(),
+        palette = viewModel(),
+        recorder = viewModel()
     )
 
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
@@ -284,6 +304,11 @@ fun OmniConvertApp(
                 uris.getOrNull(1)?.let { tools.duplex.loadBacks(it) }
             }
             ToolScreen.CROP_PDF -> uris.firstOrNull()?.let { tools.crop.loadPdf(it) }
+            ToolScreen.SOCIAL_FORMAT -> tools.social.addImages(uris)
+            ToolScreen.PHOTO_WATERMARK -> tools.photoMark.addImages(uris)
+            ToolScreen.ROTATE_PHOTOS -> tools.rotate.addImages(uris)
+            ToolScreen.PALETTE -> uris.firstOrNull()?.let { tools.palette.load(it) }
+            ToolScreen.RECORDER -> Unit
             ToolScreen.AUDIO_LAB -> tools.audio.addAudioFiles(uris)
             ToolScreen.ARCHIVE -> tools.archive.addFiles(uris)
             ToolScreen.COMPRESS_PDF -> uris.firstOrNull()?.let { tools.compress.loadPdf(it) }
@@ -488,6 +513,15 @@ private fun ToolContent(
         ToolScreen.NOTES_PDF -> PdfNotesScreen(viewModel = tools.notes, onOpenInReader = toReader)
         ToolScreen.DUPLEX_PDF -> PdfDuplexScreen(viewModel = tools.duplex, onOpenInReader = toReader)
         ToolScreen.CROP_PDF -> PdfCropScreen(viewModel = tools.crop, onOpenInReader = toReader)
+        ToolScreen.SOCIAL_FORMAT -> SocialFormatScreen(viewModel = tools.social)
+        ToolScreen.PHOTO_WATERMARK -> PhotoWatermarkScreen(viewModel = tools.photoMark)
+        ToolScreen.ROTATE_PHOTOS -> RotatePhotosScreen(viewModel = tools.rotate)
+        ToolScreen.PALETTE -> PaletteScreen(viewModel = tools.palette)
+        ToolScreen.RECORDER -> RecorderScreen(
+            viewModel = tools.recorder,
+            onConvert = { onSendToTool(OmniTool.AUDIO_CONVERT, listOf(it)) },
+            onTranscribe = onTranscribeAudio
+        )
         ToolScreen.AUDIO_LAB -> AudioLabScreen(
             viewModel = tools.audio,
             onTranscribeAudio = { uri, _ -> onTranscribeAudio(uri) }

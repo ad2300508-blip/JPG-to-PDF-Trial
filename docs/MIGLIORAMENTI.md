@@ -46,12 +46,12 @@ e implementate (✅ = fatto, ⏳ = in lavorazione); le altre 50 restano idee per
 32. ✅ Ritaglia margini
 
 ### Nuove operazioni foto e audio
-33. ⏳ Formato social (1:1, 4:5, 9:16, 16:9) con sfondo sfocato o tinta unita
-34. ⏳ Cornice foto
-35. ⏳ Filigrana sulle foto
-36. ⏳ Ruota e specchia più foto insieme
-37. ⏳ Palette colori estratta da una foto
-38. ⏳ Registra audio (lezioni) con onda animata
+33. ✅ Formato social (1:1, 4:5, 9:16, 16:9) con sfondo sfocato o tinta unita
+34. ✅ Cornice foto
+35. ✅ Filigrana sulle foto
+36. ✅ Ruota e specchia più foto insieme
+37. ✅ Palette colori estratta da una foto
+38. ✅ Registra audio (lezioni) con onda animata
 
 ### Interfaccia
 39. ⏳ Indicatore a pillola animato nella barra di navigazione

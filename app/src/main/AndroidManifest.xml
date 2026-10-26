@@ -4,6 +4,8 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- "Registra audio": asked only when the user taps the microphone. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- In-app ordered photo picker ("Scegli foto"): pages follow the tap order. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
     <uses-permission android:name="android.permission.READ_MEDIA_VISUAL_USER_SELECTED" />
