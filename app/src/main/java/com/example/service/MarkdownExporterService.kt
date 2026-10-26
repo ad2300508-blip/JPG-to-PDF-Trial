@@ -22,7 +22,6 @@ import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.io.MemoryUsageSetting
 import com.tom_roush.pdfbox.pdmodel.PDDocument
-import com.tom_roush.pdfbox.text.PDFTextStripper
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
@@ -47,6 +46,7 @@ class MarkdownExporterService(private val context: Context) {
         sizeBytes: Long,
         parseAllPages: Boolean = false,
         forceOcr: Boolean = false,
+        options: PdfMarkdownOptions = PdfMarkdownOptions(),
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem = withContext(Dispatchers.IO) {
         val lowerName = name.lowercase()
@@ -63,6 +63,7 @@ class MarkdownExporterService(private val context: Context) {
                     sizeBytes = sizeBytes,
                     maxPagesToExtract = if (parseAllPages) Int.MAX_VALUE else PREVIEW_PAGES,
                     forceOcr = forceOcr,
+                    options = options,
                     onProgress = onProgress
                 )
                 isDocx -> extractFromDocx(uri, name, mimeType, sizeBytes, onProgress)
@@ -90,6 +91,7 @@ class MarkdownExporterService(private val context: Context) {
     suspend fun extractRemainingPages(
         item: MarkdownSourceItem,
         forceOcr: Boolean = false,
+        options: PdfMarkdownOptions = PdfMarkdownOptions(),
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem = withContext(Dispatchers.IO) {
         val uri = item.uri ?: return@withContext item
@@ -103,6 +105,7 @@ class MarkdownExporterService(private val context: Context) {
                 maxPagesToExtract = item.pageCount,
                 existingText = item.extractedText.substringBefore(PREVIEW_NOTICE_MARKER).trimEnd() + "\n\n",
                 forceOcr = forceOcr,
+                options = options,
                 onProgress = onProgress
             ).copy(id = item.id)
         } catch (c: CancellationException) {
@@ -128,6 +131,7 @@ class MarkdownExporterService(private val context: Context) {
         maxPagesToExtract: Int = PREVIEW_PAGES,
         existingText: String = "",
         forceOcr: Boolean,
+        options: PdfMarkdownOptions = PdfMarkdownOptions(),
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem {
         onProgress(0.02f, "Apro il PDF…")
@@ -139,7 +143,10 @@ class MarkdownExporterService(private val context: Context) {
             PDFBoxResourceLoader.init(context)
             resolver.openInputStream(uri)?.use { PDDocument.load(it, MemoryUsageSetting.setupTempFileOnly()) }
         }.getOrNull()
-        val stripper = textDocument?.let { PDFTextStripper().apply { sortByPosition = true } }
+        val stripper = textDocument?.let { LineCollectingStripper() }
+        // Text pages keep their styled lines until the end, so running headers/footers and the body
+        // font size can be computed over the whole range before writing Markdown.
+        val pageContents = mutableListOf<Pair<Int, Any>>()
 
         var recognizer: TextRecognizer? = null
         val sb = StringBuilder(existingText)
@@ -162,16 +169,10 @@ class MarkdownExporterService(private val context: Context) {
                         val fraction = (pageNumber - startPage + 1).toFloat() / pagesToProcess
                         onProgress(fraction, "Pagina $pageNumber di $totalPages")
 
-                        val embedded = stripper?.let { s ->
-                            runCatching {
-                                s.startPage = pageNumber
-                                s.endPage = pageNumber
-                                s.getText(textDocument)
-                            }.getOrNull()
-                        }?.let { cleanEmbeddedText(it) }.orEmpty()
+                        val lines = stripper?.let { s -> textDocument?.let { d -> runCatching { s.collect(d, pageNumber) }.getOrNull() } }.orEmpty()
 
-                        val pageMarkdown = if (embedded.length >= MIN_TEXT_LAYER_CHARS) {
-                            embedded
+                        val pageContent: Any = if (lines.sumOf { it.charCount } >= MIN_TEXT_LAYER_CHARS) {
+                            lines
                         } else {
                             ocrPages++
                             val ocr = recognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).also { recognizer = it }
@@ -191,11 +192,28 @@ class MarkdownExporterService(private val context: Context) {
                             }
                         }
 
-                        if (pageMarkdown.isNotBlank()) {
-                            sb.append("## Pagina ").append(pageNumber).append("\n\n")
-                            sb.append(pageMarkdown.trim()).append("\n\n")
-                        }
+                        pageContents += pageNumber to pageContent
                         pagesParsed = pageNumber
+                    }
+
+                    onProgress(1f, "Ricostruisco titoli, elenchi e tabelle…")
+                    @Suppress("UNCHECKED_CAST")
+                    val textPages = pageContents.mapNotNull { it.second as? List<PdfLine> }
+                    val body = PdfMarkdownBuilder.bodySize(textPages)
+                    val repeated = if (options.cleanMargins) PdfMarkdownBuilder.repeatedMargins(textPages) else emptySet()
+                    for ((pageNumber, content) in pageContents) {
+                        @Suppress("UNCHECKED_CAST")
+                        val pageMarkdown = when (content) {
+                            is String -> content
+                            else -> PdfMarkdownBuilder.render(content as List<PdfLine>, body, repeated, options)
+                        }
+                        if (pageMarkdown.isBlank()) continue
+                        when (options.pageMarkers) {
+                            PageMarkerStyle.COMMENT -> sb.append("<!-- Pagina ").append(pageNumber).append(" -->\n\n")
+                            PageMarkerStyle.HEADING -> sb.append("## Pagina ").append(pageNumber).append("\n\n")
+                            PageMarkerStyle.NONE -> Unit
+                        }
+                        sb.append(pageMarkdown.trim()).append("\n\n")
                     }
 
                     if (totalPages > endPage) {
@@ -220,31 +238,6 @@ class MarkdownExporterService(private val context: Context) {
             parsedPages = pagesParsed,
             hasMorePages = totalPages > pagesParsed
         )
-    }
-
-    /** Joins hyphenated line breaks and wrapped lines of a PDF text layer into Markdown paragraphs. */
-    private fun cleanEmbeddedText(raw: String): String {
-        val lines = raw.replace("\r", "").lines().map { it.trimEnd() }
-        val out = StringBuilder()
-        for (line in lines) {
-            val trimmed = line.trim()
-            if (trimmed.isEmpty()) {
-                if (!out.endsWith("\n\n")) out.append("\n\n")
-                continue
-            }
-            val isBullet = BULLET_REGEX.matches(trimmed)
-            when {
-                out.isEmpty() || out.endsWith("\n") -> out.append(if (isBullet) "- " + trimmed.drop(1).trim() else trimmed)
-                isBullet -> out.append("\n- ").append(trimmed.drop(1).trim())
-                out.endsWith("-") && trimmed.firstOrNull()?.isLowerCase() == true -> {
-                    out.setLength(out.length - 1)
-                    out.append(trimmed)
-                }
-                out.endsWith(".") || out.endsWith(":") || out.endsWith("?") || out.endsWith("!") -> out.append("\n").append(trimmed)
-                else -> out.append(' ').append(trimmed)
-            }
-        }
-        return out.toString().replace(Regex("\n{3,}"), "\n\n").trim()
     }
 
     private suspend fun extractFromImage(

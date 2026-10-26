@@ -107,7 +107,7 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
         val app = getApplication<Application>()
         viewModelScope.launch {
             val snapshot = _items.value
-            val dates = withContext(Dispatchers.IO) { snapshot.associate { it.id to MediaGallery.dateTaken(app, it.uri) } }
+            val dates = withContext(Dispatchers.IO) { snapshot.associate { item -> item.id to item.uri?.let { MediaGallery.dateTaken(app, it) } } }
             _items.update { list -> list.sortedWith(compareBy(nullsLast<Long>()) { dates[it.id] }) }
         }
     }

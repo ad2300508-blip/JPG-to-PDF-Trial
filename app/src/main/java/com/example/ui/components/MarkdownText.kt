@@ -74,6 +74,11 @@ internal object MarkdownParser {
                     blocks += MdBlock.Code(code.toString().trimEnd())
                 }
                 line.isEmpty() -> flushParagraph()
+                line.startsWith("<!--") -> {
+                    // HTML comments (page markers, export metadata) are not shown.
+                    flushParagraph()
+                    while (i < lines.size && !lines[i].contains("-->")) i++
+                }
                 line.startsWith("#") -> {
                     flushParagraph()
                     val level = line.takeWhile { it == '#' }.length.coerceIn(1, 6)

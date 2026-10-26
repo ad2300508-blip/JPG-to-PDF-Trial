@@ -86,7 +86,8 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
                     mimeType = mime,
                     sizeBytes = size,
                     parseAllPages = _settings.value.parseAllPages,
-                    forceOcr = _settings.value.forceOcr
+                    forceOcr = _settings.value.forceOcr,
+                    options = _settings.value.pdfOptions
                 ) { fileProgress, status ->
                     val overall = (index.toFloat() + fileProgress) / totalUris.toFloat()
                     _extractionProgress.value = overall
@@ -125,7 +126,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
 
             for ((idx, doc) in itemsToParse.withIndex()) {
                 _extractionStatusText.value = "Pagine rimanenti di ${doc.name} (${idx + 1}/${itemsToParse.size})…"
-                val updated = markdownService.extractRemainingPages(doc, _settings.value.forceOcr) { progress, status ->
+                val updated = markdownService.extractRemainingPages(doc, _settings.value.forceOcr, _settings.value.pdfOptions) { progress, status ->
                     val overall = (idx.toFloat() + progress) / itemsToParse.size.toFloat()
                     _extractionProgress.value = overall
                     _extractionStatusText.value = "$status (${idx + 1}/${itemsToParse.size})"
@@ -181,7 +182,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
             _extractionProgress.value = 0f
             _extractionStatusText.value = "Pagine rimanenti di ${currentItem.name}…"
 
-            val updated = markdownService.extractRemainingPages(currentItem, _settings.value.forceOcr) { progress, status ->
+            val updated = markdownService.extractRemainingPages(currentItem, _settings.value.forceOcr, _settings.value.pdfOptions) { progress, status ->
                 _extractionProgress.value = progress
                 _extractionStatusText.value = status
             }
@@ -244,6 +245,14 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
 
     /** Default name for exports: the first document's name. */
     fun suggestedTitle(): String = _items.value.firstOrNull()?.name?.let { FileNames.baseName(it) } ?: "Testo_estratto"
+
+    fun setPageMarkers(style: com.example.service.PageMarkerStyle) {
+        _settings.value = _settings.value.copy(pageMarkers = style)
+    }
+
+    fun setCleanMargins(enabled: Boolean) {
+        _settings.value = _settings.value.copy(cleanMargins = enabled)
+    }
 
     fun setForceOcr(enabled: Boolean) {
         _settings.value = _settings.value.copy(forceOcr = enabled)
