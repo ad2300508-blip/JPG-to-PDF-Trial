@@ -148,7 +148,7 @@ fun GeminiHubScreen(
         // Page Header: title (28px) + one muted line of description
         ToolHeader(
             title = "Gemini",
-            description = "Free-tier AI multi-model engine with auto-fallback and study pipelines."
+            description = "Motore AI con fallback automatico e pipeline di studio."
         )
 
         // Control strip: Model picker dropdown + Usage popover + Smart routing pill + Key vault button
@@ -238,7 +238,7 @@ fun GeminiHubScreen(
                 ) {
                     Icon(Icons.Default.DataUsage, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("Usage", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                    Text("Utilizzo", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                 }
 
                 // Smart Router Toggle
@@ -263,7 +263,7 @@ fun GeminiHubScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (smartRouting) "Auto-Fallback" else "Manual",
+                            text = if (smartRouting) "Fallback automatico" else "Manuale",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = if (smartRouting) OmniAccent else OmniTextMuted
@@ -293,7 +293,7 @@ fun GeminiHubScreen(
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
-                            text = if (apiKeyStatus == "CONNECTED") "Key Connected" else "API Key",
+                            text = if (apiKeyStatus == "CONNECTED") "Chiave collegata" else "API Key",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Medium,
                             color = if (apiKeyStatus == "CONNECTED") OmniAccent else OmniText
@@ -308,7 +308,7 @@ fun GeminiHubScreen(
             OmniToast(
                 message = genState.error!!,
                 isError = true,
-                actionLabel = "Dismiss",
+                actionLabel = "Chiudi",
                 onAction = { viewModel.clearOutput() },
                 modifier = Modifier.padding(bottom = 8.dp)
             )
@@ -318,7 +318,7 @@ fun GeminiHubScreen(
             OmniToast(
                 message = genState.fallbackNotice!!,
                 isError = false,
-                actionLabel = "Dismiss",
+                actionLabel = "Chiudi",
                 onAction = { viewModel.clearOutput() },
                 modifier = Modifier.padding(bottom = 8.dp)
             )
@@ -395,7 +395,7 @@ fun GeminiHubScreen(
 
                 Column(modifier = Modifier.fillMaxSize()) {
                     SegmentedControl(
-                        options = listOf("Pipelines & Prompt", "AI Output"),
+                        options = listOf("Pipeline e prompt", "Risposta AI"),
                         selectedIndex = phoneTab,
                         onOptionSelected = { phoneTab = it },
                         modifier = Modifier.padding(bottom = 10.dp)
@@ -455,7 +455,7 @@ fun GeminiHubScreen(
             shape = RoundedCornerShape(RadiusCard),
             title = {
                 Text(
-                    text = "Free-Tier Quota & Telemetry",
+                    text = "Quota gratuita e utilizzo",
                     style = MaterialTheme.typography.titleLarge,
                     color = OmniText
                 )
@@ -468,7 +468,7 @@ fun GeminiHubScreen(
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     Text(
-                        text = "Real-time usage across the 10 free-tier models (resets daily at 00:00 UTC).",
+                        text = "Utilizzo in tempo reale dei 10 modelli gratuiti (si azzera ogni giorno alle 00:00 UTC).",
                         fontSize = 13.sp,
                         color = OmniTextMuted
                     )
@@ -517,7 +517,7 @@ fun GeminiHubScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = OmniAccent, contentColor = OmniOnAccent),
                     shape = RoundedCornerShape(RadiusSm)
                 ) {
-                    Text("Close", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Chiudi", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             }
         )
@@ -531,7 +531,7 @@ fun GeminiHubScreen(
             shape = RoundedCornerShape(RadiusCard),
             title = {
                 Text(
-                    text = "Gemini API Key Vault",
+                    text = "Chiave API Gemini",
                     style = MaterialTheme.typography.titleLarge,
                     color = OmniText
                 )
@@ -544,14 +544,14 @@ fun GeminiHubScreen(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = "Enter your Google AI Studio API key. Keys are encrypted and stored locally on device.",
+                        text = "Inserisci la tua chiave API di Google AI Studio. Viene salvata solo su questo dispositivo.",
                         fontSize = 13.sp,
                         color = OmniTextMuted
                     )
 
                     if (maskedApiKey.isNotEmpty()) {
                         Text(
-                            text = "Current Key: $maskedApiKey",
+                            text = "Chiave attuale: $maskedApiKey",
                             fontSize = 13.sp,
                             color = OmniAccent,
                             fontFamily = FontFamily.Monospace
@@ -561,7 +561,7 @@ fun GeminiHubScreen(
                     OutlinedTextField(
                         value = keyInputValue,
                         onValueChange = { keyInputValue = it },
-                        label = { Text("Paste API Key (AIzaSy...)", fontSize = 14.sp) },
+                        label = { Text("Incolla la chiave API (AIzaSy...)", fontSize = 14.sp) },
                         placeholder = { Text("AIzaSy...", fontSize = 14.sp) },
                         singleLine = true,
                         modifier = Modifier
@@ -580,12 +580,12 @@ fun GeminiHubScreen(
                     colors = ButtonDefaults.buttonColors(containerColor = OmniAccent, contentColor = OmniOnAccent),
                     shape = RoundedCornerShape(RadiusSm)
                 ) {
-                    Text("Test & Save", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+                    Text("Verifica e salva", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { viewModel.closeApiKeyDialog() }) {
-                    Text("Cancel", color = OmniTextMuted, fontSize = 14.sp)
+                    Text("Annulla", color = OmniTextMuted, fontSize = 14.sp)
                 }
             }
         )
@@ -616,7 +616,7 @@ private fun GeminiInputAndPipelinesPane(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Text(
-            text = "Study & Document Pipelines",
+            text = "Pipeline di studio",
             style = MaterialTheme.typography.titleMedium,
             color = OmniText
         )
@@ -715,15 +715,15 @@ private fun GeminiInputAndPipelinesPane(
                                 AsyncImage(model = imageUri, contentDescription = null, modifier = Modifier.fillMaxSize())
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Image Attached", fontSize = 13.sp, color = OmniAccent)
+                            Text("Immagine allegata", fontSize = 13.sp, color = OmniAccent)
                         } else if (audioUri != null) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = OmniAccent, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Audio Ready for Transcribe", fontSize = 13.sp, color = OmniAccent)
+                            Text("Audio pronto per la trascrizione", fontSize = 13.sp, color = OmniAccent)
                         } else {
                             Icon(Icons.Default.Description, contentDescription = null, tint = OmniAccent, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Context Document Loaded", fontSize = 13.sp, color = OmniAccent)
+                            Text("Documento di contesto caricato", fontSize = 13.sp, color = OmniAccent)
                         }
                     }
 
@@ -735,7 +735,7 @@ private fun GeminiInputAndPipelinesPane(
                         },
                         modifier = Modifier.size(28.dp)
                     ) {
-                        Icon(Icons.Default.Close, contentDescription = "Remove", tint = OmniTextMuted, modifier = Modifier.size(16.dp))
+                        Icon(Icons.Default.Close, contentDescription = "Rimuovi", tint = OmniTextMuted, modifier = Modifier.size(16.dp))
                     }
                 }
             }
@@ -749,7 +749,7 @@ private fun GeminiInputAndPipelinesPane(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Prompt / Query",
+                    text = "Prompt / domanda",
                     fontSize = 14.sp,
                     color = OmniTextMuted,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -760,14 +760,14 @@ private fun GeminiInputAndPipelinesPane(
                 ) {
                     Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(14.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Attach Image", fontSize = 13.sp, color = OmniAccent)
+                    Text("Allega", fontSize = 13.sp, color = OmniAccent)
                 }
             }
 
             OutlinedTextField(
                 value = inputText,
                 onValueChange = onUpdateInputText,
-                placeholder = { Text("Ask study questions or give specific instructions...", color = OmniTextMuted, fontSize = 14.sp) },
+                placeholder = { Text("Fai domande di studio o dai istruzioni precise…", color = OmniTextMuted, fontSize = 14.sp) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(96.dp)
@@ -801,7 +801,7 @@ private fun GeminiInputAndPipelinesPane(
         ) {
             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(modifier = Modifier.width(8.dp))
-            Text("Run ${selectedModel.displayName}", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            Text("Esegui", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
         }
     }
 }
@@ -868,7 +868,7 @@ private fun GeminiOutputCanvas(
                     ) {
                         Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Copy", fontSize = 13.sp)
+                        Text("Copia", fontSize = 13.sp)
                     }
 
                     OutlinedButton(
@@ -881,7 +881,7 @@ private fun GeminiOutputCanvas(
                     ) {
                         Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(16.dp))
                         Spacer(modifier = Modifier.width(6.dp))
-                        Text("Export", fontSize = 13.sp)
+                        Text("Esporta", fontSize = 13.sp)
                     }
 
                     OutlinedButton(
@@ -906,7 +906,7 @@ private fun GeminiOutputCanvas(
                         ) {
                             Icon(Icons.Default.Stop, contentDescription = null, modifier = Modifier.size(16.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Cancel", fontSize = 13.sp)
+                            Text("Annulla", fontSize = 13.sp)
                         }
                     }
                 }
@@ -946,7 +946,7 @@ private fun GeminiOutputCanvas(
                                 Icon(Icons.Default.Psychology, contentDescription = null, tint = OmniAccent, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = "Cognitive thinking trace",
+                                    text = "Traccia del ragionamento",
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = OmniAccent
@@ -1000,14 +1000,14 @@ private fun GeminiOutputCanvas(
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "AI output canvas ready",
+                            text = "Area risposta AI pronta",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = OmniText
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = "Select a study pipeline or send a prompt to generate formatted answers, tables, and study guides.",
+                            text = "Scegli una pipeline di studio o scrivi un prompt per ottenere risposte, tabelle e schede.",
                             fontSize = 14.sp,
                             color = OmniTextMuted,
                             textAlign = androidx.compose.ui.text.style.TextAlign.Center,

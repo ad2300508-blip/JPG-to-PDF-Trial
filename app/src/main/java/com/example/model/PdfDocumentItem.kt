@@ -58,7 +58,7 @@ data class PdfExportConfig(
     val compressionQuality: Int = 85,
     val autoContrastClean: Boolean = true,
     val splitDoublePages: Boolean = false,
-    val title: String = "Document",
+    val title: String = "Documento",
     val author: String = "",
     val subject: String = "",
     val keywords: String = "",

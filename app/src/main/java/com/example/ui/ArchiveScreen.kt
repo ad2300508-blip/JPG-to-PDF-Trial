@@ -54,6 +54,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.ArchiveItem
+import com.example.ui.components.ContinueAction
+import com.example.ui.components.ConversionResultView
 import com.example.ui.components.Dropzone
 import com.example.ui.components.OmniActionBar
 import com.example.ui.components.OmniProgressBanner
@@ -84,6 +86,24 @@ fun ArchiveScreen(
     val lastGeneratedUri by viewModel.lastGeneratedUri.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
+    val zipUri = lastGeneratedUri
+    if (zipUri != null) {
+        ConversionResultView(
+            title = "Il tuo ZIP è pronto",
+            subtitle = "${items.size} file compressi in un archivio.",
+            outputUri = zipUri,
+            mimeType = "application/zip",
+            previewIcon = Icons.Default.Archive,
+            previewTint = com.example.ui.theme.TintZip,
+            originalBytes = items.sumOf { it.sizeBytes },
+            detailPrefix = "${items.size} file",
+            onClose = { viewModel.dismissSuccess() },
+            onNewConversion = { viewModel.clearAll() },
+            modifier = modifier
+        )
+        return
+    }
+
     var showAdvanced by rememberSaveable { mutableStateOf(false) }
 
     val pickerLauncher = rememberLauncherForActivityResult(
@@ -94,7 +114,7 @@ fun ArchiveScreen(
         }
     }
 
-    val compressionLevels = listOf("Fast", "Balanced", "Best")
+    val compressionLevels = listOf("Veloce", "Bilanciato", "Massima")
     val compressionValues = listOf(1, 6, 9)
     val selectedCompressionIndex = when {
         config.compressionLevel <= 3 -> 0
@@ -115,18 +135,8 @@ fun ArchiveScreen(
             OmniToast(
                 message = errorMessage!!,
                 isError = true,
-                actionLabel = "Dismiss",
+                actionLabel = "Chiudi",
                 onAction = { viewModel.dismissError() },
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-            )
-        }
-
-        if (lastGeneratedUri != null) {
-            OmniToast(
-                message = "ZIP Archive created and saved to Downloads/OmniConvert/Archives",
-                isError = false,
-                actionLabel = "Clear",
-                onAction = { viewModel.clearAll() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
@@ -135,23 +145,23 @@ fun ArchiveScreen(
             val p = if (progress.second > 0) progress.first.toFloat() / progress.second.toFloat() else 0f
             OmniProgressBanner(
                 progress = p,
-                statusText = "Archiving file ${progress.first} of ${progress.second}...",
+                statusText = "Comprimo il file ${progress.first} di ${progress.second}…",
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
 
         ToolLayout(
-            title = "ZIP",
-            description = "Compress any documents, images, and folders into a clean Deflate ZIP archive.",
+            title = "Crea archivio ZIP",
+            description = "Comprimi documenti e immagini in un archivio ZIP",
             isEmpty = items.isEmpty(),
-            phoneTabTitles = listOf("Files (${items.size})", "Options"),
+            phoneTabTitles = listOf("File · ${items.size}", "Opzioni"),
             emptyDropzone = {
                 Dropzone(
                     icon = Icons.Default.Archive,
-                    headline = "No files loaded yet",
-                    helpText = "Select any files or folders to compress into a portable ZIP archive",
-                    supportedFormats = "All file types supported",
-                    actionLabel = "Add Files",
+                    headline = "Aggiungi i tuoi file",
+                    helpText = "Scegli i file da comprimere in un archivio ZIP",
+                    supportedFormats = "Tutti i tipi di file",
+                    actionLabel = "Scegli file",
                     tintColor = TintZip,
                     onAction = { pickerLauncher.launch("*/*") },
                     testTag = "archive_add_button"
@@ -184,13 +194,13 @@ fun ArchiveScreen(
                             ) {
                                 Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add More", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Aggiungi", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                             TextButton(
                                 onClick = { viewModel.clearAll() },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Clear", color = OmniTextMuted, fontSize = 13.sp)
+                                Text("Svuota", color = OmniTextMuted, fontSize = 13.sp)
                             }
                         }
                     }
@@ -218,7 +228,7 @@ fun ArchiveScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Archive Options",
+                        text = "Opzioni archivio",
                         style = MaterialTheme.typography.titleMedium,
                         color = OmniText
                     )
@@ -226,7 +236,7 @@ fun ArchiveScreen(
                     // Archive file name
                     Column {
                         Text(
-                            text = "Archive name",
+                            text = "Nome archivio",
                             fontSize = 14.sp,
                             color = OmniTextMuted,
                             modifier = Modifier.padding(bottom = 6.dp)
@@ -255,7 +265,7 @@ fun ArchiveScreen(
                     // 3-step compression segmented control
                     Column {
                         Text(
-                            text = "Compression Profile",
+                            text = "Livello di compressione",
                             fontSize = 14.sp,
                             color = OmniTextMuted,
                             modifier = Modifier.padding(bottom = 6.dp)
@@ -285,7 +295,7 @@ fun ArchiveScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = "Advanced Deflate Settings",
+                                text = "Impostazioni avanzate di compressione",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Medium,
                                 color = OmniText
@@ -309,7 +319,7 @@ fun ArchiveScreen(
                                 .padding(14.dp)
                         ) {
                             OmniSlider(
-                                label = "Numeric Deflate Level",
+                                label = "Livello numerico",
                                 value = config.compressionLevel.toFloat(),
                                 onValueChange = { viewModel.updateConfig(config.copy(compressionLevel = it.toInt())) },
                                 valueRange = 0f..9f,
@@ -320,7 +330,7 @@ fun ArchiveScreen(
                                         1 -> "1 (Fastest)"
                                         6 -> "6 (Balanced standard)"
                                         9 -> "9 (Maximum compression)"
-                                        else -> "Level $lvl"
+                                        else -> "Livello $lvl"
                                     }
                                 }
                             )
@@ -332,9 +342,9 @@ fun ArchiveScreen(
                 val compLabel = compressionLevels[selectedCompressionIndex]
                 OmniActionBar(
                     summaryText = "${items.size} files · $sizeText · $compLabel",
-                    primaryButtonLabel = if (isArchiving) "Creating ZIP..." else "Create ZIP",
+                    primaryButtonLabel = if (isArchiving) "Creo lo ZIP…" else "Crea ZIP",
                     isEnabled = items.isNotEmpty() && !isArchiving,
-                    disabledHelperText = if (items.isEmpty()) "Add at least one file" else null,
+                    disabledHelperText = if (items.isEmpty()) "Aggiungi almeno un file" else null,
                     onPrimaryAction = { viewModel.createArchive() },
                     testTag = "create_archive_button"
                 )
@@ -401,7 +411,7 @@ private fun ArchiveFileRow(
             IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Default.Close,
-                    contentDescription = "Remove file",
+                    contentDescription = "Rimuovi file",
                     tint = OmniTextMuted,
                     modifier = Modifier.size(18.dp)
                 )

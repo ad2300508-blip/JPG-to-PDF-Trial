@@ -109,7 +109,7 @@ fun AudioLabScreen(
             OmniToast(
                 message = errorMessage!!,
                 isError = true,
-                actionLabel = "Dismiss",
+                actionLabel = "Chiudi",
                 onAction = { viewModel.dismissError() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -117,9 +117,9 @@ fun AudioLabScreen(
 
         if (isAllConverted) {
             OmniToast(
-                message = "All ${items.size} audio files transcoded and saved to Music/OmniConvert",
+                message = "${items.size} file audio convertiti e salvati in Download/OmniConvert/Audio",
                 isError = false,
-                actionLabel = "Clear",
+                actionLabel = "Svuota",
                 onAction = { viewModel.clearAll() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -128,23 +128,23 @@ fun AudioLabScreen(
         if (isTranscoding) {
             OmniProgressBanner(
                 progress = progress,
-                statusText = "Transcoding audio files...",
+                statusText = "Converto i file audio…",
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
 
         ToolLayout(
-            title = "Audio",
-            description = "Transcode voice recordings and music tracks to M4A/AAC or lossless WAV.",
+            title = "Converti audio",
+            description = "Converti registrazioni e lezioni in M4A o WAV",
             isEmpty = items.isEmpty(),
-            phoneTabTitles = listOf("Audio (${items.size})", "Options"),
+            phoneTabTitles = listOf("Audio · ${items.size}", "Opzioni"),
             emptyDropzone = {
                 Dropzone(
                     icon = Icons.Default.Audiotrack,
-                    headline = "No audio loaded yet",
-                    helpText = "Select audio files, voice notes, or lectures to transcode or send to Gemini AI for transcription",
+                    headline = "Aggiungi i tuoi file audio",
+                    helpText = "Scegli registrazioni, note vocali o lezioni da convertire o trascrivere con Gemini",
                     supportedFormats = "MP3 · WAV · M4A · AAC · OGG · FLAC",
-                    actionLabel = "Add Audio",
+                    actionLabel = "Scegli file",
                     tintColor = TintAudio,
                     onAction = { pickerLauncher.launch("audio/*") },
                     testTag = "audio_add_button"
@@ -177,13 +177,13 @@ fun AudioLabScreen(
                             ) {
                                 Icon(Icons.Default.Audiotrack, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add More", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Aggiungi", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                             TextButton(
                                 onClick = { viewModel.clearAll() },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Clear", color = OmniTextMuted, fontSize = 13.sp)
+                                Text("Svuota", color = OmniTextMuted, fontSize = 13.sp)
                             }
                         }
                     }
@@ -212,7 +212,7 @@ fun AudioLabScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Output Format",
+                        text = "Formato di uscita",
                         style = MaterialTheme.typography.titleMedium,
                         color = OmniText
                     )
@@ -221,17 +221,17 @@ fun AudioLabScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         RadioCard(
                             title = "M4A / AAC-LC",
-                            description = "High efficiency lossy format ideal for streaming and voice notes",
+                            description = "Formato compresso ideale per lezioni e note vocali",
                             isSelected = settings.outputFormat == AudioOutputFormat.M4A_AAC,
                             onClick = { viewModel.updateSettings(settings.copy(outputFormat = AudioOutputFormat.M4A_AAC)) },
-                            badgeText = "Recommended"
+                            badgeText = "Consigliato"
                         )
                         RadioCard(
-                            title = "WAV (PCM 16-bit)",
-                            description = "Uncompressed broadcast lossless quality for audio editing",
+                            title = "WAV (PCM 16 bit)",
+                            description = "Qualità senza perdita, ideale per il montaggio audio",
                             isSelected = settings.outputFormat == AudioOutputFormat.WAV_PCM_16BIT,
                             onClick = { viewModel.updateSettings(settings.copy(outputFormat = AudioOutputFormat.WAV_PCM_16BIT)) },
-                            badgeText = "Lossless"
+                            badgeText = "Senza perdita"
                         )
                     }
 
@@ -244,7 +244,7 @@ fun AudioLabScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Encoding Bitrate",
+                                    text = "Bitrate",
                                     fontSize = 14.sp,
                                     color = OmniTextMuted
                                 )
@@ -274,8 +274,8 @@ fun AudioLabScreen(
 
                     // Mono switch
                     OptionRow(
-                        label = "Downmix to mono",
-                        description = "Combines stereo channels to reduce file size for speech",
+                        label = "Converti in mono",
+                        description = "Unisce i canali stereo per ridurre il peso delle registrazioni vocali",
                         checked = settings.forceMono,
                         onCheckedChange = { viewModel.updateSettings(settings.copy(forceMono = it)) }
                     )
@@ -286,9 +286,9 @@ fun AudioLabScreen(
                 val monoLabel = if (settings.forceMono) " · Mono" else ""
                 OmniActionBar(
                     summaryText = "${items.size} tracks · $formatLabel$monoLabel",
-                    primaryButtonLabel = if (isTranscoding) "Transcoding..." else "Transcode Audio",
+                    primaryButtonLabel = if (isTranscoding) "Conversione…" else "Converti audio",
                     isEnabled = items.isNotEmpty() && !isTranscoding,
-                    disabledHelperText = if (items.isEmpty()) "Add at least one audio file" else null,
+                    disabledHelperText = if (items.isEmpty()) "Aggiungi almeno un file audio" else null,
                     onPrimaryAction = { viewModel.transcodeAll() },
                     testTag = "transcode_all_button"
                 )
@@ -391,7 +391,7 @@ private fun AudioFileRow(
             ) {
                 Icon(
                     imageVector = Icons.Default.AutoAwesome,
-                    contentDescription = "Transcribe with Gemini",
+                    contentDescription = "Trascrivi con Gemini",
                     tint = OmniAccent,
                     modifier = Modifier.size(18.dp)
                 )
@@ -400,7 +400,7 @@ private fun AudioFileRow(
             IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Default.Close,
-                    contentDescription = "Remove track",
+                    contentDescription = "Rimuovi traccia",
                     tint = OmniTextMuted,
                     modifier = Modifier.size(18.dp)
                 )

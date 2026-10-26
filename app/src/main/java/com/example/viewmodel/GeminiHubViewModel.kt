@@ -90,8 +90,8 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
     val studyPipelines: List<GeminiPromptPreset> = listOf(
         GeminiPromptPreset(
             id = "ai_ocr_post_correction",
-            title = "AI OCR Post-Correction & Perfect Markdown",
-            subtitle = "Cleans garbled words, publisher watermarks, reconstructs tables",
+            title = "Correzione OCR e Markdown perfetto",
+            subtitle = "Ripulisce parole sporche e filigrane degli editori, ricostruisce le tabelle.",
             targetModel = GeminiTargetModel.GEMINI_3_8_FLASH_LITE,
             systemInstruction = """
                 You are an expert document OCR post-processing and text restoration engine.
@@ -107,8 +107,8 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         ),
         GeminiPromptPreset(
             id = "executive_summary_concepts",
-            title = "Executive Summary & Key Concepts",
-            subtitle = "Structured chapter breakdown with dates, authors, works & definitions",
+            title = "Riassunto e concetti chiave",
+            subtitle = "Capitoli strutturati con date, autori, opere e formule.",
             targetModel = GeminiTargetModel.GEMINI_3_8_FLASH_LITE,
             systemInstruction = """
                 You are a high-level academic research consultant.
@@ -124,8 +124,8 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         ),
         GeminiPromptPreset(
             id = "oral_exam_simulator",
-            title = "Oral Exam Simulator & Q&A (Interrogazione)",
-            subtitle = "10 targeted oral exam questions with expandable model answers",
+            title = "Simulatore di interrogazione",
+            subtitle = "10 domande mirate con spunti di approfondimento.",
             targetModel = GeminiTargetModel.GEMINI_3_8_FLASH,
             systemInstruction = """
                 You are a university professor preparing a student for a demanding oral examination ('interrogazione').
@@ -141,8 +141,8 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         ),
         GeminiPromptPreset(
             id = "flashcards_concept_map",
-            title = "Flashcards & Concept Map (Mermaid / Table)",
-            subtitle = "Key entities, dates, artworks into study flashcards & tables",
+            title = "Flashcard e mappa concettuale",
+            subtitle = "Entità, date e opere in schede di studio.",
             targetModel = GeminiTargetModel.GEMINI_3_8_FLASH_LITE,
             systemInstruction = """
                 You are a cognitive study architect.
@@ -156,8 +156,8 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         ),
         GeminiPromptPreset(
             id = "vision_inspector",
-            title = "Multimodal Vision Inspector",
-            subtitle = "Analyze diagrams, schemas, artworks, formulas with Gemini Vision",
+            title = "Analisi di immagini e schemi",
+            subtitle = "Spiega diagrammi, schemi, opere e formule con Gemini Vision.",
             targetModel = GeminiTargetModel.GEMINI_3_8_FLASH_LITE,
             systemInstruction = """
                 You are an advanced multimodal visual intelligence specialist.

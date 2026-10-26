@@ -107,7 +107,7 @@ fun PdfDocumentCard(
                         OmniBadge(text = item.displayPageCount, color = PdfGreen)
                         OmniBadge(text = item.formattedSize, color = Slate400)
                         if (item.isEncrypted) {
-                            OmniBadge(text = "ENCRYPTED", color = PdfOrange)
+                            OmniBadge(text = "PROTETTO", color = PdfOrange)
                         }
                     }
                 }
@@ -119,20 +119,20 @@ fun PdfDocumentCard(
                         enabled = index > 0,
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Move Up", tint = if (index > 0) Slate400 else Slate800)
+                        Icon(Icons.Default.KeyboardArrowUp, contentDescription = "Sposta su", tint = if (index > 0) Slate400 else Slate800)
                     }
                     IconButton(
                         onClick = onMoveDown,
                         enabled = index < totalCount - 1,
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Move Down", tint = if (index < totalCount - 1) Slate400 else Slate800)
+                        Icon(Icons.Default.KeyboardArrowDown, contentDescription = "Sposta giù", tint = if (index < totalCount - 1) Slate400 else Slate800)
                     }
                     IconButton(
                         onClick = onRemove,
                         modifier = Modifier.size(32.dp)
                     ) {
-                        Icon(Icons.Default.Delete, contentDescription = "Remove", tint = PdfRed)
+                        Icon(Icons.Default.Delete, contentDescription = "Rimuovi", tint = PdfRed)
                     }
                 }
             }
@@ -145,8 +145,8 @@ fun PdfDocumentCard(
                 onValueChange = { newValue: String ->
                     onPageRangeChange(newValue)
                 },
-                label = { Text("Page Range (e.g. 1-5, 8, 11-15)") },
-                placeholder = { Text("All pages") },
+                label = { Text("Intervallo pagine (es. 1-5, 8, 11-15)") },
+                placeholder = { Text("Tutte le pagine") },
                 singleLine = true,
                 modifier = Modifier
                     .fillMaxWidth()

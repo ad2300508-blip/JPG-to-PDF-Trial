@@ -103,7 +103,7 @@ fun ImageLabScreen(
             OmniToast(
                 message = errorMessage!!,
                 isError = true,
-                actionLabel = "Dismiss",
+                actionLabel = "Chiudi",
                 onAction = { viewModel.dismissError() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -111,9 +111,9 @@ fun ImageLabScreen(
 
         if (isAllConverted) {
             OmniToast(
-                message = "All ${items.size} images converted and saved to Pictures/OmniConvert",
+                message = "${items.size} immagini convertite e salvate in Download/OmniConvert/Images",
                 isError = false,
-                actionLabel = "Clear",
+                actionLabel = "Svuota",
                 onAction = { viewModel.clearAll() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -123,23 +123,23 @@ fun ImageLabScreen(
             val progressVal = if (items.isNotEmpty()) convertedCount.toFloat() / items.size.toFloat() else 0f
             OmniProgressBanner(
                 progress = progressVal,
-                statusText = "Converting $convertedCount of ${items.size} images...",
+                statusText = "Converto $convertedCount di ${items.size} immagini…",
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
 
         ToolLayout(
-            title = "Images",
-            description = "Transcode, compress, and scale images to modern web formats.",
+            title = "Converti immagini",
+            description = "Cambia formato, comprimi e ridimensiona",
             isEmpty = items.isEmpty(),
-            phoneTabTitles = listOf("Images (${items.size})", "Options"),
+            phoneTabTitles = listOf("Immagini · ${items.size}", "Opzioni"),
             emptyDropzone = {
                 Dropzone(
                     icon = Icons.Default.Image,
-                    headline = "No images loaded yet",
-                    helpText = "Select images to transcode into JPEG, WebP, or PNG with custom quality and scale",
+                    headline = "Aggiungi le tue immagini",
+                    helpText = "Scegli le immagini da convertire in JPEG, WebP o PNG con qualità e dimensioni personalizzate",
                     supportedFormats = "JPG · PNG · WEBP · HEIC · BMP",
-                    actionLabel = "Add Images",
+                    actionLabel = "Scegli file",
                     tintColor = TintImage,
                     onAction = { pickerLauncher.launch("image/*") },
                     testTag = "image_add_button"
@@ -172,13 +172,13 @@ fun ImageLabScreen(
                             ) {
                                 Icon(Icons.Default.AddPhotoAlternate, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add More", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Aggiungi", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                             TextButton(
                                 onClick = { viewModel.clearAll() },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Clear", color = OmniTextMuted, fontSize = 13.sp)
+                                Text("Svuota", color = OmniTextMuted, fontSize = 13.sp)
                             }
                         }
                     }
@@ -206,7 +206,7 @@ fun ImageLabScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Format & Quality",
+                        text = "Formato e qualità",
                         style = MaterialTheme.typography.titleMedium,
                         color = OmniText
                     )
@@ -215,38 +215,38 @@ fun ImageLabScreen(
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         RadioCard(
                             title = "JPEG",
-                            description = "Standard lossy format for universal compatibility",
+                            description = "Formato universale, compatibile ovunque",
                             isSelected = settings.targetFormat == ImageFormat.JPEG,
                             onClick = { viewModel.updateSettings(settings.copy(targetFormat = ImageFormat.JPEG)) },
-                            badgeText = "Lossy"
+                            badgeText = "Con perdita"
                         )
                         RadioCard(
-                            title = "WebP (Lossy)",
-                            description = "25-35% smaller than JPEG with comparable quality",
+                            title = "WebP (con perdita)",
+                            description = "25-35% più leggero del JPEG a parità di qualità",
                             isSelected = settings.targetFormat == ImageFormat.WEBP_LOSSY,
                             onClick = { viewModel.updateSettings(settings.copy(targetFormat = ImageFormat.WEBP_LOSSY)) },
-                            badgeText = "Recommended"
+                            badgeText = "Consigliato"
                         )
                         RadioCard(
                             title = "PNG",
-                            description = "Lossless compression with transparency support",
+                            description = "Senza perdita, con trasparenza",
                             isSelected = settings.targetFormat == ImageFormat.PNG,
                             onClick = { viewModel.updateSettings(settings.copy(targetFormat = ImageFormat.PNG)) },
-                            badgeText = "Lossless"
+                            badgeText = "Senza perdita"
                         )
                         RadioCard(
-                            title = "WebP (Lossless)",
-                            description = "Lossless quality with superior compression to PNG",
+                            title = "WebP (senza perdita)",
+                            description = "Senza perdita, più leggero del PNG",
                             isSelected = settings.targetFormat == ImageFormat.WEBP_LOSSLESS,
                             onClick = { viewModel.updateSettings(settings.copy(targetFormat = ImageFormat.WEBP_LOSSLESS)) },
-                            badgeText = "Lossless"
+                            badgeText = "Senza perdita"
                         )
                     }
 
                     // Quality slider (only visible if format is lossy)
                     if (!settings.targetFormat.isLossless) {
                         OmniSlider(
-                            label = "Quality",
+                            label = "Qualità",
                             value = settings.qualityPercent.toFloat(),
                             onValueChange = { viewModel.updateSettings(settings.copy(qualityPercent = it.toInt())) },
                             valueRange = 10f..100f,
@@ -257,7 +257,7 @@ fun ImageLabScreen(
                     // Resolution Scale Segmented Control
                     Column {
                         Text(
-                            text = "Resolution Scale",
+                            text = "Risoluzione",
                             fontSize = 14.sp,
                             color = OmniTextMuted,
                             modifier = Modifier.padding(bottom = 6.dp)
@@ -273,8 +273,8 @@ fun ImageLabScreen(
 
                     // Strip EXIF
                     OptionRow(
-                        label = "Strip EXIF metadata",
-                        description = "Removes GPS location and camera data for privacy",
+                        label = "Rimuovi metadati EXIF",
+                        description = "Rimuove posizione GPS e dati della fotocamera",
                         checked = settings.stripExif,
                         onCheckedChange = { viewModel.updateSettings(settings.copy(stripExif = it)) }
                     )
@@ -289,9 +289,9 @@ fun ImageLabScreen(
                 }
                 OmniActionBar(
                     summaryText = "${items.size} images · $formatName ${if (!settings.targetFormat.isLossless) "${settings.qualityPercent}%" else ""} · ${settings.resolutionScalePercent}%",
-                    primaryButtonLabel = if (isProcessing) "Converting..." else "Convert Images",
+                    primaryButtonLabel = if (isProcessing) "Conversione…" else "Converti immagini",
                     isEnabled = items.isNotEmpty() && !isProcessing,
-                    disabledHelperText = if (items.isEmpty()) "Add at least one image" else null,
+                    disabledHelperText = if (items.isEmpty()) "Aggiungi almeno un'immagine" else null,
                     onPrimaryAction = { viewModel.convertAll() },
                     testTag = "convert_all_images_button"
                 )
@@ -381,7 +381,7 @@ private fun ImageFileRow(
             IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
                 Icon(
                     Icons.Default.Close,
-                    contentDescription = "Remove image",
+                    contentDescription = "Rimuovi immagine",
                     tint = OmniTextMuted,
                     modifier = Modifier.size(18.dp)
                 )

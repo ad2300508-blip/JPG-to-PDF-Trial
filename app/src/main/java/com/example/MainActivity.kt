@@ -8,6 +8,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import com.example.data.AppPreferences
+import com.example.data.HistoryRepository
 import com.example.ui.theme.OmniConvertTheme
 import com.example.viewmodel.PdfStudioViewModel
 
@@ -15,15 +20,24 @@ class MainActivity : ComponentActivity() {
 
     private val pdfViewModel: PdfStudioViewModel by viewModels()
 
+    /** Incremented whenever images are shared to the app, so the UI opens "Immagini in PDF". */
+    private val openPdfToolSignal = mutableIntStateOf(0)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        AppPreferences.init(this)
+        HistoryRepository.init(this)
         enableEdgeToEdge()
 
-        handleShareIntent(intent)
+        if (savedInstanceState == null) handleShareIntent(intent)
 
         setContent {
-            OmniConvertTheme {
-                OmniConvertApp(pdfViewModel = pdfViewModel)
+            val themeMode by AppPreferences.themeMode.collectAsState()
+            OmniConvertTheme(themeMode = themeMode) {
+                OmniConvertApp(
+                    pdfViewModel = pdfViewModel,
+                    openPdfToolSignal = openPdfToolSignal.intValue
+                )
             }
         }
     }
@@ -45,6 +59,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if (uri != null) {
                     pdfViewModel.addImages(listOf(uri))
+                    openPdfToolSignal.intValue++
                 }
             }
             Intent.ACTION_SEND_MULTIPLE -> {
@@ -56,6 +71,7 @@ class MainActivity : ComponentActivity() {
                 }
                 if (!uris.isNullOrEmpty()) {
                     pdfViewModel.addImages(uris)
+                    openPdfToolSignal.intValue++
                 }
             }
         }

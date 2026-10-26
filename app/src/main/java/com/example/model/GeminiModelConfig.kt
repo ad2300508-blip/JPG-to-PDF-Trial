@@ -28,7 +28,7 @@ enum class GeminiTargetModel(
         maxRpd = 500,
         maxRpm = 15,
         maxTpm = 250_000,
-        description = "Primary daily workhorse. Ultra-fast layout processing, table cleanup & OCR post-correction.",
+        description = "Modello principale di tutti i giorni: velocissimo per impaginazione, tabelle e correzione OCR.",
         categoryBadge = "FAST 500 RPD",
         supportsVision = true
     ),
@@ -39,7 +39,7 @@ enum class GeminiTargetModel(
         maxRpd = 500,
         maxRpm = 15,
         maxTpm = 250_000,
-        description = "High-quota failover model. 500 requests per day with rapid JSON and Markdown synthesis.",
+        description = "Riserva con quota alta: 500 richieste al giorno, rapido su JSON e Markdown.",
         categoryBadge = "BACKUP 500 RPD",
         supportsVision = true
     ),
@@ -50,7 +50,7 @@ enum class GeminiTargetModel(
         maxRpd = 500,
         maxRpm = 15,
         maxTpm = 250_000,
-        description = "Stable high-speed workhorse for text reformatting, summaries, and Markdown translation.",
+        description = "Stabile e veloce per riformattare testi, riassunti e conversioni in Markdown.",
         categoryBadge = "BACKUP 500 RPD",
         supportsVision = true
     ),
@@ -63,7 +63,7 @@ enum class GeminiTargetModel(
         maxRpd = 20,
         maxRpm = 5,
         maxTpm = 250_000,
-        description = "Deep cognitive reasoning with multi-step thinking traces. Best for oral exam simulation & complex analysis.",
+        description = "Ragionamento approfondito passo passo. Ideale per simulare interrogazioni e analisi complesse.",
         categoryBadge = "REASONING 20 RPD",
         hasExtendedThinking = true,
         supportsVision = true,
@@ -76,7 +76,7 @@ enum class GeminiTargetModel(
         maxRpd = 20,
         maxRpm = 5,
         maxTpm = 250_000,
-        description = "Advanced analytical synthesis and complex multi-column document comprehension.",
+        description = "Sintesi analitica avanzata e comprensione di documenti complessi a più colonne.",
         categoryBadge = "REASONING 20 RPD",
         supportsVision = true,
         defaultTemperature = 0.5f
@@ -88,7 +88,7 @@ enum class GeminiTargetModel(
         maxRpd = 20,
         maxRpm = 5,
         maxTpm = 250_000,
-        description = "Full-book context window. Proven model for complex textbook digestion and multi-page research.",
+        description = "Contesto grande quanto un libro: perfetto per manuali interi e ricerche lunghe.",
         categoryBadge = "DEEP CONTEXT 20 RPD",
         supportsVision = true,
         defaultTemperature = 0.5f
@@ -102,7 +102,7 @@ enum class GeminiTargetModel(
         maxRpd = 14_400,
         maxRpm = 30,
         maxTpm = 16_000,
-        description = "Immense 14,400 daily requests. Perfect safety net when all other quotas are exhausted.",
+        description = "14.400 richieste al giorno: la rete di sicurezza quando le altre quote sono finite.",
         categoryBadge = "ULTRA 14.4K RPD",
         supportsVision = false
     ),
@@ -113,7 +113,7 @@ enum class GeminiTargetModel(
         maxRpd = 14_400,
         maxRpm = 30,
         maxTpm = 16_000,
-        description = "Ultra high-volume instruction-tuned open weights model for continuous batch extraction.",
+        description = "Modello open ad altissimo volume per estrazioni continue.",
         categoryBadge = "ULTRA 14.4K RPD",
         supportsVision = false
     ),
@@ -126,7 +126,7 @@ enum class GeminiTargetModel(
         maxRpd = 15,
         maxRpm = 5,
         maxTpm = 250_000,
-        description = "Specialized audio speech-to-text model. Transcribes lectures and voice notes directly into Markdown.",
+        description = "Specializzato nel parlato: trascrive lezioni e note vocali direttamente in Markdown.",
         categoryBadge = "TRANSCRIBE 15 RPD",
         supportsVision = false
     ),
@@ -137,7 +137,7 @@ enum class GeminiTargetModel(
         maxRpd = 10,
         maxRpm = 5,
         maxTpm = 250_000,
-        description = "Generates concise speech audio summaries and spoken exam flashcards.",
+        description = "Genera brevi riassunti audio e flashcard parlate.",
         categoryBadge = "TTS AUDIO 10 RPD",
         supportsVision = false
     );

@@ -105,7 +105,7 @@ fun OmniHeader(
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = if (isProcessing) "PROCESSING" else "$itemCount ITEMS",
+                                text = if (isProcessing) "IN CORSO" else "$itemCount ITEMS",
                                 color = if (isProcessing) CyanAccent else Slate400,
                                 fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace,
@@ -204,7 +204,7 @@ fun OmniHeader(
                                 )
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Text(
-                                    text = if (isProcessing) "PROCESSING" else "$itemCount ITEMS LOADED",
+                                    text = if (isProcessing) "IN CORSO" else "$itemCount ITEMS LOADED",
                                     color = if (isProcessing) CyanAccent else Slate400,
                                     fontSize = 12.sp,
                                     fontFamily = FontFamily.Monospace,

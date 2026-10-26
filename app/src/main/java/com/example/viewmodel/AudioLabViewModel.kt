@@ -6,6 +6,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.HistoryKind
+import com.example.data.HistoryRepository
 import com.example.model.AudioConversionSettings
 import com.example.model.AudioConvertItem
 import com.example.service.AudioConverterService
@@ -106,6 +108,7 @@ class AudioLabViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 res.onSuccess { pair ->
+                    HistoryRepository.record(getApplication<Application>(), pair.first, "Converti audio", HistoryKind.AUDIO, item.name, pair.second)
                     _items.value = _items.value.map {
                         if (it.id == item.id) it.copy(isProcessing = false, convertedSizeBytes = pair.second, error = null) else it
                     }

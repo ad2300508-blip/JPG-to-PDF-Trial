@@ -1,7 +1,10 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package com.example.ui.components
 
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
@@ -17,6 +20,11 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -34,6 +42,9 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
+import androidx.compose.material.icons.filled.FileUpload
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ErrorOutline
@@ -53,12 +64,19 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
@@ -71,6 +89,8 @@ import com.example.ui.theme.OmniAccentSoft
 import com.example.ui.theme.OmniBg
 import com.example.ui.theme.OmniBorder
 import com.example.ui.theme.OmniDanger
+import com.example.ui.theme.OmniInk
+import com.example.ui.theme.OmniOnInk
 import com.example.ui.theme.OmniOnAccent
 import com.example.ui.theme.OmniSurface
 import com.example.ui.theme.OmniSurface2
@@ -85,42 +105,68 @@ import com.example.ui.theme.RadiusInput
 import com.example.ui.theme.RadiusPill
 
 /**
- * 1. ToolHeader: Minimal page header with title (28sp) + one muted line of description.
- * No breadcrumbs, category tags, or loaded count pills.
+ * Back action for the tool currently on screen. Provided by the app shell so that every
+ * tool header can show the Morph "←" button without threading callbacks through each screen.
+ */
+val LocalToolBack = staticCompositionLocalOf<(() -> Unit)?> { null }
+
+/**
+ * 1. ToolHeader: Morph page header — optional back arrow, bold title and one muted subtitle line.
  */
 @Composable
 fun ToolHeader(
     title: String,
     description: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onBack: (() -> Unit)? = LocalToolBack.current
 ) {
-    Column(
+    Row(
         modifier = modifier
             .fillMaxWidth()
-            .padding(bottom = 16.dp)
+            .padding(bottom = 16.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = title,
-            style = MaterialTheme.typography.displayLarge,
-            color = OmniText,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Ellipsis
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            text = description,
-            style = MaterialTheme.typography.bodyMedium,
-            color = OmniTextMuted,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
+        if (onBack != null) {
+            IconButton(
+                onClick = onBack,
+                modifier = Modifier
+                    .padding(end = 4.dp)
+                    .size(44.dp)
+                    .testTag("tool_back_button")
+            ) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Indietro",
+                    tint = OmniText
+                )
+            }
+        }
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.headlineMedium,
+                color = OmniText,
+                maxLines = 1,
+                softWrap = false,
+                overflow = TextOverflow.Ellipsis
+            )
+            if (description.isNotBlank()) {
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = OmniTextMuted,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
     }
 }
 
 /**
- * 2. Dropzone: Large empty state filling the entire content area with dashed border,
- * clear headline, helper text, format guide, and a prominent filled accent button.
+ * 2. Dropzone: Morph hero card — soft accent background with dashed outline, icon tile,
+ * headline, format chips and a full-width primary button (plus an optional secondary action).
  */
 @Composable
 fun Dropzone(
@@ -132,57 +178,59 @@ fun Dropzone(
     onAction: () -> Unit,
     modifier: Modifier = Modifier,
     tintColor: Color = OmniAccent,
-    testTag: String = "dropzone_action_button"
+    testTag: String = "dropzone_action_button",
+    secondaryIcon: ImageVector? = null,
+    secondaryLabel: String? = null,
+    onSecondaryAction: (() -> Unit)? = null
 ) {
-    val infiniteTransition = rememberInfiniteTransition(label = "dropzone_pulse")
-    val heroScale by infiniteTransition.animateFloat(
-        initialValue = 1.0f,
-        targetValue = 1.06f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1800, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "hero_scale"
-    )
-
-    Surface(
+    val accent = OmniAccent
+    val dashColor = accent.copy(alpha = 0.35f)
+    Box(
         modifier = modifier
             .fillMaxSize()
-            .clip(RoundedCornerShape(RadiusCard)),
-        color = OmniSurface,
-        border = BorderStroke(1.5.dp, OmniBorder),
-        shape = RoundedCornerShape(RadiusCard)
+            .clip(RoundedCornerShape(RadiusCard + 4.dp))
+            .background(OmniAccentSoft.copy(alpha = 0.7f))
+            .drawBehind {
+                drawRoundRect(
+                    color = dashColor,
+                    cornerRadius = CornerRadius(24.dp.toPx()),
+                    style = Stroke(
+                        width = 1.5.dp.toPx(),
+                        pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f))
+                    )
+                )
+            },
+        contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
-                .fillMaxSize()
+                .widthIn(max = 520.dp)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
                     .size(72.dp)
-                    .scale(heroScale)
                     .clip(RoundedCornerShape(RadiusCard))
-                    .background(tintColor.copy(alpha = 0.14f)),
+                    .background(tintColor),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = tintColor,
-                    modifier = Modifier.size(36.dp)
+                    tint = Color.White,
+                    modifier = Modifier.size(34.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(18.dp))
 
             Text(
                 text = headline,
                 style = MaterialTheme.typography.titleLarge,
                 color = OmniText,
-                fontWeight = FontWeight.SemiBold
+                textAlign = TextAlign.Center
             )
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -191,37 +239,70 @@ fun Dropzone(
                 text = helpText,
                 style = MaterialTheme.typography.bodyMedium,
                 color = OmniTextMuted,
-                modifier = Modifier.widthIn(max = 480.dp),
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(14.dp))
 
-            Text(
-                text = supportedFormats,
-                style = MaterialTheme.typography.labelSmall,
-                color = OmniAccent,
-                fontWeight = FontWeight.Medium
-            )
-
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Button(
-                onClick = onAction,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = OmniAccent,
-                    contentColor = OmniOnAccent
-                ),
-                shape = RoundedCornerShape(RadiusMd),
-                modifier = Modifier
-                    .height(52.dp)
-                    .testTag(testTag)
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(6.dp, Alignment.CenterHorizontally),
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-                Text(
-                    text = actionLabel,
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = 16.sp
-                )
+                supportedFormats.split("·", ",").map { it.trim() }.filter { it.isNotEmpty() }.forEach { format ->
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(RadiusPill))
+                            .background(OmniSurface)
+                            .padding(horizontal = 12.dp, vertical = 6.dp)
+                    ) {
+                        Text(format, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = OmniText)
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(22.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(
+                    onClick = onAction,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = OmniAccent,
+                        contentColor = OmniOnAccent
+                    ),
+                    shape = RoundedCornerShape(RadiusMd),
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(54.dp)
+                        .testTag(testTag)
+                ) {
+                    Icon(Icons.Default.FileUpload, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(text = actionLabel, fontWeight = FontWeight.SemiBold, fontSize = 16.sp)
+                }
+                if (onSecondaryAction != null && secondaryIcon != null) {
+                    Surface(
+                        onClick = onSecondaryAction,
+                        shape = RoundedCornerShape(RadiusMd),
+                        color = OmniSurface,
+                        modifier = Modifier.height(54.dp).widthIn(min = 54.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(horizontal = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Icon(secondaryIcon, contentDescription = secondaryLabel, tint = OmniAccent, modifier = Modifier.size(22.dp))
+                            if (secondaryLabel != null) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(secondaryLabel, color = OmniAccent, fontWeight = FontWeight.SemiBold, fontSize = 15.sp)
+                            }
+                        }
+                    }
+                }
             }
         }
     }
@@ -243,7 +324,7 @@ fun ToolLayout(
     optionsPanel: @Composable () -> Unit,
     actionBar: @Composable () -> Unit,
     modifier: Modifier = Modifier,
-    phoneTabTitles: List<String> = listOf("Files", "Settings")
+    phoneTabTitles: List<String> = listOf("File", "Opzioni")
 ) {
     BoxWithConstraints(
         modifier = modifier
@@ -284,9 +365,9 @@ fun ToolLayout(
                             modifier = Modifier
                                 .width(340.dp)
                                 .fillMaxHeight()
-                                .clip(RoundedCornerShape(RadiusMd))
+                                .clip(RoundedCornerShape(RadiusCard))
                                 .background(OmniSurface)
-                                .border(1.dp, OmniBorder, RoundedCornerShape(RadiusMd))
+                                .border(1.dp, OmniBorder, RoundedCornerShape(RadiusCard))
                                 .padding(16.dp)
                         ) {
                             optionsPanel()
@@ -294,7 +375,7 @@ fun ToolLayout(
                     }
                 } else {
                     // Phone: 2-Tab Switcher
-                    var phoneTab by rememberSaveable { mutableIntStateOf(0) }
+                    var phoneTab by rememberSaveable(title) { mutableIntStateOf(0) }
 
                     Column(
                         modifier = Modifier
@@ -339,8 +420,7 @@ fun ToolLayout(
 }
 
 /**
- * 4. SegmentedControl: 48dp tall option group.
- * Selected: accent-soft background + accent border + check.
+ * 4. SegmentedControl: Morph pill tabs — muted track, raised white thumb on the selected option.
  */
 @Composable
 fun SegmentedControl(
@@ -352,10 +432,9 @@ fun SegmentedControl(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .height(48.dp)
-            .clip(RoundedCornerShape(RadiusSm))
+            .height(52.dp)
+            .clip(RoundedCornerShape(RadiusMd))
             .background(OmniSurface2)
-            .border(1.dp, OmniBorder, RoundedCornerShape(RadiusSm))
             .padding(4.dp),
         horizontalArrangement = Arrangement.spacedBy(4.dp)
     ) {
@@ -365,40 +444,24 @@ fun SegmentedControl(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxHeight()
-                    .clip(RoundedCornerShape(RadiusSm - 2.dp))
-                    .background(if (isSelected) OmniAccentSoft else Color.Transparent)
-                    .border(
-                        width = 1.dp,
-                        color = if (isSelected) OmniAccent else Color.Transparent,
-                        shape = RoundedCornerShape(RadiusSm - 2.dp)
+                    .then(
+                        if (isSelected) Modifier.shadow(2.dp, RoundedCornerShape(RadiusSm)) else Modifier
                     )
+                    .clip(RoundedCornerShape(RadiusSm))
+                    .background(if (isSelected) OmniSurface else Color.Transparent)
                     .clickable { onOptionSelected(index) }
                     .padding(horizontal = 6.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.Center
-                ) {
-                    if (isSelected) {
-                        Icon(
-                            imageVector = Icons.Default.Check,
-                            contentDescription = null,
-                            tint = OmniAccent,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
-                    }
-                    Text(
-                        text = label,
-                        fontSize = 14.sp,
-                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                        color = if (isSelected) OmniAccent else OmniTextMuted,
-                        maxLines = 1,
-                        softWrap = false,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                }
+                Text(
+                    text = label,
+                    fontSize = 14.sp,
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    color = if (isSelected) OmniText else OmniTextMuted,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
         }
     }
@@ -537,7 +600,8 @@ fun OptionRow(
 }
 
 /**
- * 7. OmniActionBar: Sticky bottom action bar with summary text on left and 52dp primary button on right.
+ * 7. OmniActionBar: Morph sticky bottom bar — bold summary (+ optional muted detail) on the left
+ * and a 54dp primary button with a trailing arrow on the right.
  */
 @Composable
 fun OmniActionBar(
@@ -547,36 +611,36 @@ fun OmniActionBar(
     modifier: Modifier = Modifier,
     isEnabled: Boolean = true,
     disabledHelperText: String? = null,
-    testTag: String = "primary_action_button"
+    testTag: String = "primary_action_button",
+    detailText: String? = null
 ) {
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(RadiusMd)),
+        modifier = modifier.fillMaxWidth(),
         color = OmniSurface,
         border = BorderStroke(1.dp, OmniBorder),
-        shape = RoundedCornerShape(RadiusMd)
+        shape = RoundedCornerShape(RadiusCard)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 10.dp),
+                .padding(horizontal = 16.dp, vertical = 12.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
                 Text(
                     text = summaryText,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
                     color = OmniText,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (!isEnabled && disabledHelperText != null) {
+                val secondLine = if (!isEnabled && disabledHelperText != null) disabledHelperText else detailText
+                if (secondLine != null) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = disabledHelperText,
+                        text = secondLine,
                         fontSize = 13.sp,
                         color = OmniTextMuted,
                         maxLines = 1,
@@ -594,9 +658,10 @@ fun OmniActionBar(
                     disabledContainerColor = OmniSurface2,
                     disabledContentColor = OmniTextMuted
                 ),
-                shape = RoundedCornerShape(RadiusSm),
+                shape = RoundedCornerShape(RadiusMd),
+                contentPadding = PaddingValues(horizontal = 22.dp),
                 modifier = Modifier
-                    .height(52.dp)
+                    .height(54.dp)
                     .testTag(testTag)
             ) {
                 AnimatedContent(
@@ -608,9 +673,13 @@ fun OmniActionBar(
                 ) { label ->
                     Text(
                         text = label,
-                        fontWeight = FontWeight.SemiBold,
-                        fontSize = 15.sp
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp
                     )
+                }
+                if (isEnabled) {
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(20.dp))
                 }
             }
         }
@@ -664,8 +733,7 @@ fun OmniSlider(
 }
 
 /**
- * 9. OmniToast / FeedbackBanner:
- * Progress with percentage & Cancel, or Success / Error with actions.
+ * 9. OmniProgressBanner: Morph dark progress card — big percentage, status line and slim bar.
  */
 @Composable
 fun OmniProgressBanner(
@@ -674,51 +742,59 @@ fun OmniProgressBanner(
     onCancel: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
+    val animated by animateFloatAsState(targetValue = progress.coerceIn(0f, 1f), label = "progress_banner")
     Surface(
-        modifier = modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(RadiusMd)),
-        color = OmniSurface,
-        border = BorderStroke(1.dp, OmniAccentSoft),
-        shape = RoundedCornerShape(RadiusMd)
+        modifier = modifier.fillMaxWidth(),
+        color = OmniInk,
+        shape = RoundedCornerShape(RadiusCard)
     ) {
-        Column(modifier = Modifier.padding(14.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.Bottom) {
+                Text(
+                    text = "${(animated * 100).toInt()}",
+                    fontSize = 34.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = OmniOnInk
+                )
+                Text(
+                    text = "%",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = OmniOnInk.copy(alpha = 0.8f),
+                    modifier = Modifier.padding(bottom = 5.dp, start = 1.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(18.dp))
+            Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = statusText,
                     fontSize = 14.sp,
-                    color = OmniText,
-                    fontWeight = FontWeight.Medium
+                    color = OmniOnInk,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "${(progress * 100).toInt()}%",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = OmniAccent
-                    )
-                    if (onCancel != null) {
-                        Spacer(modifier = Modifier.width(10.dp))
-                        TextButton(onClick = onCancel, modifier = Modifier.height(32.dp)) {
-                            Text("Cancel", color = OmniDanger, fontSize = 13.sp)
-                        }
-                    }
+                Spacer(modifier = Modifier.height(10.dp))
+                LinearProgressIndicator(
+                    progress = { animated },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp)
+                        .clip(CircleShape),
+                    color = Color(0xFF8EA2FF),
+                    trackColor = OmniOnInk.copy(alpha = 0.15f),
+                    drawStopIndicator = {}
+                )
+            }
+            if (onCancel != null) {
+                Spacer(modifier = Modifier.width(8.dp))
+                TextButton(onClick = onCancel) {
+                    Text("Annulla", color = OmniOnInk, fontSize = 13.sp)
                 }
             }
-            Spacer(modifier = Modifier.height(8.dp))
-            LinearProgressIndicator(
-                progress = { progress },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(6.dp)
-                    .clip(CircleShape),
-                color = OmniAccent,
-                trackColor = OmniSurface2
-            )
         }
     }
 }
@@ -831,7 +907,7 @@ fun FileCard(
                 ) {
                     Icon(
                         imageVector = Icons.Default.Close,
-                        contentDescription = "Remove file",
+                        contentDescription = "Rimuovi file",
                         tint = OmniTextMuted,
                         modifier = Modifier.size(20.dp)
                     )
@@ -910,7 +986,7 @@ fun OmniToast(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Dismiss",
+                            contentDescription = "Chiudi",
                             tint = OmniTextMuted,
                             modifier = Modifier.size(18.dp)
                         )
