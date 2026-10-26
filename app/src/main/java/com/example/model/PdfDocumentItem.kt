@@ -79,7 +79,9 @@ data class PdfExportConfig(
     val keywords: String = "",
     val creator: String = "Morph",
     val creationDate: String = "",
-    val stripMetadata: Boolean = false
+    val stripMetadata: Boolean = false,
+    /** 1, 2 or 4 photos on each page (ignored with the "Original" page size). */
+    val imagesPerPage: Int = 1
 ) {
     val hasCustomMetadata: Boolean
         get() = author.isNotBlank() || subject.isNotBlank() || keywords.isNotBlank() || creationDate.isNotBlank()
