@@ -173,13 +173,22 @@ internal object PdfMarkdownBuilder {
     private fun marginKey(line: PdfLine): String =
         line.text.lowercase().replace(Regex("\\d+"), "#").replace(Regex("\\s+"), " ").trim()
 
+    /** First/last two lines of a page, but only when they sit near the top or bottom edge (not short pages' body). */
+    private fun edgeLines(lines: List<PdfLine>): Set<PdfLine> {
+        if (lines.size < 2) return emptySet()
+        val sorted = lines.sortedBy { it.y }
+        val top = sorted.first().y
+        val bottom = sorted.last().y
+        val band = maxOf((bottom - top) * 0.12f, 1f)
+        return (sorted.take(2).filter { it.y <= top + band } + sorted.takeLast(2).filter { it.y >= bottom - band }).toSet()
+    }
+
     /** Lines repeated at the top or bottom of at least half the pages (running headers and footers). */
     fun repeatedMargins(pages: List<List<PdfLine>>): Set<String> {
         if (pages.size < 3) return emptySet()
         val counts = HashMap<String, Int>()
         pages.forEach { lines ->
-            val sorted = lines.sortedBy { it.y }
-            (sorted.take(2) + sorted.takeLast(2)).map { marginKey(it) }.filter { it.length in 1..120 }.toSet()
+            edgeLines(lines).map { marginKey(it) }.filter { it.length in 1..120 }.toSet()
                 .forEach { counts[it] = (counts[it] ?: 0) + 1 }
         }
         val threshold = maxOf(2, (pages.size * 0.5f).roundToInt())
@@ -189,7 +198,7 @@ internal object PdfMarkdownBuilder {
     fun render(lines: List<PdfLine>, body: Float, repeated: Set<String>, options: PdfMarkdownOptions): String {
         if (lines.isEmpty()) return ""
         val sorted = lines.sortedWith(compareBy({ it.y }, { it.x }))
-        val edge = sorted.take(2).toSet() + sorted.takeLast(2).toSet()
+        val edge = edgeLines(sorted)
         val content = if (!options.cleanMargins) sorted else sorted.filterNot { line ->
             line in edge && (marginKey(line) in repeated || pageNumberRegex.matches(line.text.trim()))
         }
