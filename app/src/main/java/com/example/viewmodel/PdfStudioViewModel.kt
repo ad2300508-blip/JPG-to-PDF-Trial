@@ -4,6 +4,7 @@ import android.app.Application
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.AppPreferences
 import com.example.data.HistoryKind
 import com.example.data.HistoryRepository
 import com.example.model.CropRect
@@ -15,6 +16,7 @@ import com.example.util.userMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -31,8 +33,30 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
     private val _items = MutableStateFlow<List<PdfDocumentItem>>(emptyList())
     val items: StateFlow<List<PdfDocumentItem>> = _items.asStateFlow()
 
-    private val _config = MutableStateFlow(PdfExportConfig())
+    private val _config = MutableStateFlow(
+        PdfExportConfig(
+            pageSize = AppPreferences.defaultPageSize.value,
+            quality = AppPreferences.defaultQuality.value,
+            autoContrastClean = AppPreferences.autoClean.value,
+            stripMetadata = AppPreferences.stripMetadata.value
+        )
+    )
     val config: StateFlow<PdfExportConfig> = _config.asStateFlow()
+
+    init {
+        // Changing the defaults in Settings applies right away to the PDF being prepared.
+        viewModelScope.launch {
+            combine(
+                AppPreferences.defaultPageSize,
+                AppPreferences.defaultQuality,
+                AppPreferences.autoClean,
+                AppPreferences.stripMetadata
+            ) { size, quality, clean, strip -> PdfExportConfig(pageSize = size, quality = quality, autoContrastClean = clean, stripMetadata = strip) }
+                .collect { d ->
+                    _config.update { it.copy(pageSize = d.pageSize, quality = d.quality, autoContrastClean = d.autoContrastClean, stripMetadata = d.stripMetadata) }
+                }
+        }
+    }
 
     private val _isGenerating = MutableStateFlow(false)
     val isGenerating: StateFlow<Boolean> = _isGenerating.asStateFlow()

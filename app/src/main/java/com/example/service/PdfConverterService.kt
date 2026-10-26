@@ -139,12 +139,14 @@ class PdfConverterService(private val context: Context) {
     private fun applyMetadata(document: PDDocument, config: PdfExportConfig) {
         val info = document.documentInformation
         info.title = config.title.ifBlank { "Documento" }
-        if (config.author.isNotBlank()) info.author = config.author
-        if (config.subject.isNotBlank()) info.subject = config.subject
-        if (config.keywords.isNotBlank()) info.keywords = config.keywords
+        if (!config.stripMetadata) {
+            if (config.author.isNotBlank()) info.author = config.author
+            if (config.subject.isNotBlank()) info.subject = config.subject
+            if (config.keywords.isNotBlank()) info.keywords = config.keywords
+        }
         info.creator = config.creator.ifBlank { "Morph" }
         info.producer = "Morph"
-        val created = parseDate(config.creationDate) ?: Calendar.getInstance()
+        val created = (if (config.stripMetadata) null else parseDate(config.creationDate)) ?: Calendar.getInstance()
         info.creationDate = created
         info.modificationDate = created
     }

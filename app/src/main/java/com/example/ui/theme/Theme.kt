@@ -75,6 +75,7 @@ private fun MorphColors.toMaterialScheme() = if (isDark) {
 fun OmniConvertTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     reduceMotion: Boolean = false,
+    accent: AccentChoice = AccentChoice.INDIGO,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -82,7 +83,7 @@ fun OmniConvertTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val target = if (darkTheme) MorphDarkColors else MorphLightColors
+    val target = (if (darkTheme) MorphDarkColors else MorphLightColors).withAccent(accent)
     // Switching theme cross-fades every colour instead of flashing.
     val morphColors = animateMorphColors(target, animate = !reduceMotion)
 

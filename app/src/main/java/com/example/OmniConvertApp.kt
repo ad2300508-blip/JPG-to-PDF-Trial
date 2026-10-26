@@ -43,6 +43,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material3.IconButton
+import com.example.data.AppPreferences
+import com.example.data.ThemeMode
+import com.example.ui.theme.LocalMorphColors
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.GridView
@@ -521,6 +527,18 @@ private fun MorphRail(selected: MainTab, onSelect: (MainTab) -> Unit) {
                 Spacer(modifier = Modifier.height(18.dp))
                 MainTab.entries.forEach { item ->
                     NavItem(tab = item, selected = item == selected, onClick = { onSelect(item) })
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                val darkNow = LocalMorphColors.current.isDark
+                IconButton(
+                    onClick = { AppPreferences.setThemeMode(if (darkNow) ThemeMode.LIGHT else ThemeMode.DARK) },
+                    modifier = Modifier.testTag("rail_theme_toggle")
+                ) {
+                    Icon(
+                        imageVector = if (darkNow) Icons.Default.LightMode else Icons.Default.DarkMode,
+                        contentDescription = if (darkNow) "Passa al tema chiaro" else "Passa al tema scuro",
+                        tint = OmniTextMuted
+                    )
                 }
             }
             Box(
