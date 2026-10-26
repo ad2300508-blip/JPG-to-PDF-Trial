@@ -1,5 +1,8 @@
 package com.example
 
+import com.example.service.PageNumberStyle
+import com.example.service.StampConfig
+import com.example.ui.PasswordStrength
 import com.example.util.FileNames
 import com.example.util.PageRange
 import com.example.viewmodel.NaturalOrder
@@ -54,5 +57,21 @@ class UtilsUnitTest {
     fun naturalOrderSortsNumbersAsHumansDo() {
         val sorted = listOf("foto10.jpg", "foto2.jpg", "foto1.jpg").sortedWith(NaturalOrder)
         assertEquals(listOf("foto1.jpg", "foto2.jpg", "foto10.jpg"), sorted)
+    }
+
+    @Test
+    fun pageNumberStylesFormat() {
+        assertEquals("3", PageNumberStyle.SIMPLE.format(3, 10))
+        assertEquals("3 / 10", PageNumberStyle.OF_TOTAL.format(3, 10))
+        assertEquals("Pagina 3 di 10", PageNumberStyle.VERBOSE.format(3, 10))
+        assertTrue(StampConfig(text = " ").isEmpty)
+        assertFalse(StampConfig(text = "", numberStyle = PageNumberStyle.SIMPLE).isEmpty)
+    }
+
+    @Test
+    fun passwordStrengthGrows() {
+        assertEquals(PasswordStrength.WEAK, PasswordStrength.of("1234"))
+        assertEquals(PasswordStrength.STRONG, PasswordStrength.of("Fisica-2026!x"))
+        assertTrue(PasswordStrength.of("studiare2026").level > PasswordStrength.of("abc").level)
     }
 }

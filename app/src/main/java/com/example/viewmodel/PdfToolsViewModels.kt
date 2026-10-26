@@ -11,6 +11,10 @@ import com.example.data.HistoryRepository
 import com.example.service.PdfCompressionLevel
 import com.example.service.PdfImageFormat
 import com.example.service.PdfPageEdit
+import com.example.service.PdfSecurityInfo
+import com.example.service.PdfStampService
+import com.example.service.ProtectOptions
+import com.example.service.StampConfig
 import com.example.service.PdfToolsService
 import com.example.util.FileNames
 import com.example.util.queryUriInfo
@@ -62,7 +66,11 @@ abstract class SinglePdfViewModel(application: Application) : AndroidViewModel(a
             tools.readInfo(uri)
                 .onSuccess { pdf ->
                     when {
-                        pdf.isEncrypted -> _errorMessage.value = "Questo PDF è protetto da password: aprilo e salvalo senza password, poi riprova"
+                        pdf.isEncrypted && acceptsEncrypted -> {
+                            _source.value = LoadedPdf(uri, info.name, info.sizeBytes, 0)
+                            onLoaded(0)
+                        }
+                        pdf.isEncrypted -> _errorMessage.value = "Questo PDF è protetto da password: sbloccalo prima con «Proteggi PDF» › Sblocca"
                         pdf.pageCount == 0 -> _errorMessage.value = "Il PDF non contiene pagine"
                         else -> {
                             _source.value = LoadedPdf(uri, info.name, info.sizeBytes, pdf.pageCount)
@@ -76,6 +84,9 @@ abstract class SinglePdfViewModel(application: Application) : AndroidViewModel(a
     }
 
     protected open fun onLoaded(pageCount: Int) {}
+
+    /** Password-protected PDFs are rejected unless the tool can unlock them. */
+    protected open val acceptsEncrypted: Boolean = false
 
     open fun clear() {
         job?.cancel()
@@ -294,5 +305,133 @@ class PdfPagesViewModel(application: Application) : SinglePdfViewModel(applicati
 
     private companion object {
         const val THUMB_WIDTH = 220
+    }
+}
+
+class PdfStampViewModel(application: Application) : SinglePdfViewModel(application) {
+
+    private val stamper = PdfStampService(application.applicationContext)
+
+    private val _config = MutableStateFlow(StampConfig(text = "BOZZA"))
+    val config: StateFlow<StampConfig> = _config.asStateFlow()
+
+    fun update(transform: (StampConfig) -> StampConfig) {
+        _config.update(transform)
+    }
+
+    /** First page rendered for the live preview. */
+    suspend fun previewPage(widthPx: Int): Bitmap? {
+        val uri = source.value?.uri ?: return null
+        return tools.renderPage(uri, 0, widthPx)
+    }
+
+    fun apply() {
+        val pdf = source.value ?: return
+        val config = _config.value
+        runJob {
+            stamper.stamp(pdf.uri, pdf.name, config) { current, total -> _progress.value = Pair(current, total) }
+                .onSuccess { uri ->
+                    _resultUri.value = uri
+                    val label = if (config.hasWatermark) "Filigrana PDF" else "Numera pagine"
+                    HistoryRepository.record(getApplication<Application>(), uri, label, HistoryKind.PDF, pdf.name, 0L)
+                }
+                .onFailure { _errorMessage.value = it.userMessage("Non sono riuscito a modificare il PDF") }
+        }
+    }
+}
+
+enum class SecureMode(val label: String) { PROTECT("Proteggi"), UNLOCK("Sblocca") }
+
+class PdfSecureViewModel(application: Application) : SinglePdfViewModel(application) {
+
+    private val stamper = PdfStampService(application.applicationContext)
+
+    override val acceptsEncrypted: Boolean = true
+
+    private val _security = MutableStateFlow<PdfSecurityInfo?>(null)
+    val security: StateFlow<PdfSecurityInfo?> = _security.asStateFlow()
+
+    private val _mode = MutableStateFlow(SecureMode.PROTECT)
+    val mode: StateFlow<SecureMode> = _mode.asStateFlow()
+
+    private val _options = MutableStateFlow(ProtectOptions(password = ""))
+    val options: StateFlow<ProtectOptions> = _options.asStateFlow()
+
+    private val _confirm = MutableStateFlow("")
+    val confirm: StateFlow<String> = _confirm.asStateFlow()
+
+    /** Password of the source document (needed to unlock it or to change its password). */
+    private val _currentPassword = MutableStateFlow("")
+    val currentPassword: StateFlow<String> = _currentPassword.asStateFlow()
+
+    override fun onLoaded(pageCount: Int) {
+        _security.value = null
+        _currentPassword.value = ""
+        val uri = source.value?.uri ?: return
+        viewModelScope.launch {
+            stamper.inspect(uri)
+                .onSuccess { info ->
+                    _security.value = info
+                    _mode.value = if (info.isEncrypted) SecureMode.UNLOCK else SecureMode.PROTECT
+                }
+                .onFailure { _errorMessage.value = it.userMessage("Impossibile leggere il PDF") }
+        }
+    }
+
+    override fun clear() {
+        super.clear()
+        _security.value = null
+        _currentPassword.value = ""
+        _confirm.value = ""
+    }
+
+    fun setMode(mode: SecureMode) { _mode.value = mode }
+    fun setPassword(value: String) { _options.update { it.copy(password = value) } }
+    fun setConfirm(value: String) { _confirm.value = value }
+    fun setCurrentPassword(value: String) { _currentPassword.value = value }
+    fun setAllowPrinting(value: Boolean) { _options.update { it.copy(allowPrinting = value) } }
+    fun setAllowCopying(value: Boolean) { _options.update { it.copy(allowCopying = value) } }
+    fun setAllowEditing(value: Boolean) { _options.update { it.copy(allowEditing = value) } }
+
+    /** Why the main button is disabled, or null when the job can start. */
+    fun blockingReason(): String? {
+        val info = _security.value ?: return "Controllo la protezione del PDF…"
+        val needsCurrent = info.needsPassword && _currentPassword.value.isEmpty()
+        return when (_mode.value) {
+            SecureMode.UNLOCK -> when {
+                !info.isEncrypted -> "Il PDF non è protetto"
+                needsCurrent -> "Inserisci la password del PDF"
+                else -> null
+            }
+            SecureMode.PROTECT -> when {
+                needsCurrent -> "Inserisci prima la password attuale"
+                _options.value.password.length < 4 -> "La password deve avere almeno 4 caratteri"
+                _options.value.password != _confirm.value -> "Le due password non coincidono"
+                else -> null
+            }
+        }
+    }
+
+    fun run() {
+        val pdf = source.value ?: return
+        if (blockingReason() != null) return
+        val mode = _mode.value
+        val options = _options.value
+        val current = _currentPassword.value.ifEmpty { null }
+        runJob {
+            _progress.value = Pair(0, 1)
+            val result = when (mode) {
+                SecureMode.PROTECT -> stamper.protect(pdf.uri, pdf.name, current, options)
+                SecureMode.UNLOCK -> stamper.unlock(pdf.uri, pdf.name, current)
+            }
+            result
+                .onSuccess { uri ->
+                    _progress.value = Pair(1, 1)
+                    _resultUri.value = uri
+                    val label = if (mode == SecureMode.PROTECT) "Proteggi PDF" else "Sblocca PDF"
+                    HistoryRepository.record(getApplication<Application>(), uri, label, HistoryKind.PDF, pdf.name, 0L)
+                }
+                .onFailure { _errorMessage.value = it.userMessage("Operazione non riuscita") }
+        }
     }
 }

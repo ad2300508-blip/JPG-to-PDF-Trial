@@ -279,8 +279,8 @@ class PdfToolsService(private val context: Context) {
             var totalBytes = 0L
             val zipTemp = if (asZip) File(context.cacheDir, "pages_${System.nanoTime()}.zip") else null
 
+            val zip = zipTemp?.let { ZipOutputStream(it.outputStream().buffered()) }
             try {
-                val zip = zipTemp?.let { ZipOutputStream(it.outputStream().buffered()) }
                 renderMutex.withLock {
                     context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
                         PdfRenderer(pfd).use { renderer ->
@@ -331,6 +331,7 @@ class PdfToolsService(private val context: Context) {
             } catch (e: SecurityException) {
                 throw IllegalStateException("Il PDF è protetto da password")
             } finally {
+                runCatching { zip?.close() }
                 zipTemp?.delete()
             }
         }
@@ -342,7 +343,7 @@ class PdfToolsService(private val context: Context) {
         return try {
             stream.use { PDDocument.load(it, MemoryUsageSetting.setupTempFileOnly()) }
         } catch (e: InvalidPasswordException) {
-            throw IllegalStateException("Il PDF è protetto da password: aprilo e salvalo senza password, poi riprova")
+            throw IllegalStateException("Il PDF è protetto da password: sbloccalo prima con «Proteggi PDF» › Sblocca")
         }
     }
 

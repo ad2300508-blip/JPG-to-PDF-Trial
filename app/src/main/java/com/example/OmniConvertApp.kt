@@ -85,6 +85,8 @@ import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfCompressScreen
 import com.example.ui.PdfMergeScreen
 import com.example.ui.PdfOrganizeScreen
+import com.example.ui.PdfSecureScreen
+import com.example.ui.PdfStampScreen
 import com.example.ui.PdfStudioScreen
 import com.example.ui.PdfToImagesScreen
 import com.example.ui.SettingsScreen
@@ -120,6 +122,8 @@ import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfCompressViewModel
 import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfPagesViewModel
+import com.example.viewmodel.PdfSecureViewModel
+import com.example.viewmodel.PdfStampViewModel
 import com.example.viewmodel.PdfStudioViewModel
 
 enum class MainTab(val label: String, val icon: ImageVector) {
@@ -146,7 +150,9 @@ class ToolViewModels(
     val ocr: MarkdownExporterViewModel,
     val compress: PdfCompressViewModel,
     val organize: PdfPagesViewModel,
-    val pdfImages: PdfPagesViewModel
+    val pdfImages: PdfPagesViewModel,
+    val stamp: PdfStampViewModel,
+    val secure: PdfSecureViewModel
 )
 
 @Composable
@@ -166,7 +172,9 @@ fun OmniConvertApp(
         ocr = viewModel(key = "ocr"),
         compress = viewModel(),
         organize = viewModel(key = "organize"),
-        pdfImages = viewModel(key = "pdf_images")
+        pdfImages = viewModel(key = "pdf_images"),
+        stamp = viewModel(),
+        secure = viewModel()
     )
 
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
@@ -204,6 +212,8 @@ fun OmniConvertApp(
             ToolScreen.ORGANIZE_PDF -> uris.firstOrNull()?.let { tools.organize.loadPdf(it) }
             ToolScreen.PDF_TO_IMAGES -> uris.firstOrNull()?.let { tools.pdfImages.loadPdf(it) }
             ToolScreen.EXTRACT_ZIP -> uris.firstOrNull()?.let { tools.archive.selectZipToExtract(it) }
+            ToolScreen.STAMP_PDF -> uris.firstOrNull()?.let { tools.stamp.loadPdf(it) }
+            ToolScreen.SECURE_PDF -> uris.firstOrNull()?.let { tools.secure.loadPdf(it) }
         }
         openTool(tool)
     }
@@ -359,6 +369,8 @@ private fun ToolContent(
     val toMarkdown: (Uri) -> Unit = { onSendToTool(OmniTool.PDF_TO_MARKDOWN, listOf(it)) }
     val toCompress: (Uri) -> Unit = { onSendToTool(OmniTool.COMPRESS_PDF, listOf(it)) }
     val toOrganize: (Uri) -> Unit = { onSendToTool(OmniTool.ORGANIZE_PDF, listOf(it)) }
+    val toStamp: (Uri) -> Unit = { onSendToTool(OmniTool.STAMP_PDF, listOf(it)) }
+    val toSecure: (Uri) -> Unit = { onSendToTool(OmniTool.SECURE_PDF, listOf(it)) }
 
     when (tool.screen) {
         ToolScreen.IMAGES_TO_PDF -> PdfStudioScreen(
@@ -391,6 +403,8 @@ private fun ToolContent(
         )
         ToolScreen.ORGANIZE_PDF -> PdfOrganizeScreen(viewModel = tools.organize, onContinueWithCompress = toCompress)
         ToolScreen.PDF_TO_IMAGES -> PdfToImagesScreen(viewModel = tools.pdfImages)
+        ToolScreen.STAMP_PDF -> PdfStampScreen(viewModel = tools.stamp, onContinueWithCompress = toCompress, onContinueWithProtect = toSecure)
+        ToolScreen.SECURE_PDF -> PdfSecureScreen(viewModel = tools.secure, onContinueWithOrganize = toOrganize, onContinueWithStamp = toStamp)
     }
 }
 

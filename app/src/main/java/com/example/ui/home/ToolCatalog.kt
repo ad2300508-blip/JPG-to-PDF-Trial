@@ -8,10 +8,12 @@ import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.filled.Unarchive
 import androidx.compose.material.icons.filled.ViewModule
+import androidx.compose.material.icons.filled.WaterDrop
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import com.example.ui.theme.TintAudio
@@ -19,6 +21,8 @@ import com.example.ui.theme.TintImage
 import com.example.ui.theme.TintMerge
 import com.example.ui.theme.TintOcr
 import com.example.ui.theme.TintPdf
+import com.example.ui.theme.TintSecure
+import com.example.ui.theme.TintStamp
 import com.example.ui.theme.TintZip
 
 enum class ToolCategory(val label: String) {
@@ -29,7 +33,7 @@ enum class ToolCategory(val label: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF }
 
 enum class OmniTool(
     val title: String,
@@ -110,6 +114,30 @@ enum class OmniTool(
         categories = setOf(ToolCategory.DOCUMENTS, ToolCategory.IMAGES),
         screen = ToolScreen.PDF_TO_IMAGES,
         keywords = "pdf immagini jpg png pagine esporta",
+        accepts = listOf("application/pdf"),
+        isNew = true
+    ),
+    STAMP_PDF(
+        title = "Filigrana e numeri",
+        subtitle = "Timbra le pagine",
+        description = "Aggiungi una filigrana o i numeri di pagina a un PDF.",
+        icon = Icons.Default.WaterDrop,
+        tint = TintStamp,
+        categories = setOf(ToolCategory.DOCUMENTS),
+        screen = ToolScreen.STAMP_PDF,
+        keywords = "filigrana watermark timbro bozza numeri pagina numera pdf",
+        accepts = listOf("application/pdf"),
+        isNew = true
+    ),
+    SECURE_PDF(
+        title = "Proteggi PDF",
+        subtitle = "Password on/off",
+        description = "Metti o togli la password a un PDF.",
+        icon = Icons.Default.Lock,
+        tint = TintSecure,
+        categories = setOf(ToolCategory.DOCUMENTS),
+        screen = ToolScreen.SECURE_PDF,
+        keywords = "password proteggi sblocca cifra crittografa sicurezza lucchetto pdf",
         accepts = listOf("application/pdf"),
         isNew = true
     ),

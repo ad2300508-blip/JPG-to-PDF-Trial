@@ -1,6 +1,17 @@
 package com.example.ui.home
 
 import android.net.Uri
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material.icons.filled.Star
+import androidx.compose.runtime.collectAsState
+import com.example.data.AppPreferences
+import com.example.ui.theme.Motion
+import com.example.ui.theme.motionSpec
+import java.text.Normalizer
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.RepeatMode
@@ -132,14 +143,24 @@ fun HomeScreen(
     }
     val launchCamera = rememberCameraCapture { uri -> onImagesForPdf(listOf(uri)) }
 
-    val filters = listOf(ALL_FILTER) + ToolCategory.entries.map { it.label }
-    val normalizedQuery = query.trim().lowercase()
-    val tools = OmniTool.entries.filter { tool ->
-        (filter == ALL_FILTER || tool.categories.any { it.label == filter }) &&
-            (normalizedQuery.isEmpty() ||
-                tool.title.lowercase().contains(normalizedQuery) ||
-                tool.keywords.contains(normalizedQuery))
+    val favorites by AppPreferences.favoriteTools.collectAsState()
+    val haptics = rememberHaptics()
+    val filters = buildList {
+        add(ALL_FILTER)
+        if (favorites.isNotEmpty()) add(FAVORITES_FILTER)
+        addAll(ToolCategory.entries.map { it.label })
     }
+    if (filter == FAVORITES_FILTER && favorites.isEmpty()) filter = ALL_FILTER
+    val normalizedQuery = query.trim().lowercase()
+    val tools = OmniTool.entries
+        .filter { tool ->
+            when (filter) {
+                ALL_FILTER -> true
+                FAVORITES_FILTER -> tool.name in favorites
+                else -> tool.categories.any { it.label == filter }
+            } && tool.matches(normalizedQuery)
+        }
+        .sortedBy { if (it.name in favorites) 0 else 1 }
 
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val isWide = maxWidth >= 840.dp
@@ -211,6 +232,18 @@ fun HomeScreen(
                         }
                         Spacer(modifier = Modifier.height(12.dp))
                         MorphChipRow(options = filters, selected = filter, onSelected = { filter = it })
+                        AnimatedVisibility(
+                            visible = favorites.isEmpty() && normalizedQuery.isEmpty(),
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Text(
+                                text = "Suggerimento: tieni premuto uno strumento per fissarlo tra i preferiti",
+                                fontSize = 13.sp,
+                                color = OmniTextMuted,
+                                modifier = Modifier.padding(top = 10.dp)
+                            )
+                        }
                     }
                 }
 
@@ -218,7 +251,12 @@ fun HomeScreen(
                     ToolCard(
                         tool = tool,
                         highlighted = tool == OmniTool.IMAGES_TO_PDF,
+                        isFavorite = tool.name in favorites,
                         onClick = { onOpenTool(tool) },
+                        onLongClick = {
+                            haptics(Haptic.CONFIRM)
+                            AppPreferences.toggleFavorite(tool.name)
+                        },
                         modifier = Modifier
                             .animateItem(placementSpec = spring(dampingRatio = 0.8f, stiffness = 400f))
                             .enterAnimation(index + 2, key = tool.name)
@@ -508,15 +546,18 @@ private fun CameraButton(onClick: () -> Unit, withLabel: Boolean) {
 }
 
 @Composable
-private fun ToolCard(tool: OmniTool, highlighted: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+@OptIn(ExperimentalFoundationApi::class)
+private fun ToolCard(
+    tool: OmniTool,
+    highlighted: Boolean,
+    isFavorite: Boolean,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
     val interaction = remember { MutableInteractionSource() }
     val haptics = rememberHaptics()
     Surface(
-        onClick = {
-            haptics(Haptic.TAP)
-            onClick()
-        },
-        interactionSource = interaction,
         shape = RoundedCornerShape(RadiusCard),
         color = if (highlighted) OmniAccentSoft.copy(alpha = 0.55f) else OmniSurface,
         border = BorderStroke(if (highlighted) 1.5.dp else 1.dp, if (highlighted) OmniAccent else OmniBorder),
@@ -524,13 +565,34 @@ private fun ToolCard(tool: OmniTool, highlighted: Boolean, onClick: () -> Unit, 
             .fillMaxWidth()
             .heightIn(min = 150.dp)
             .pressScale(interaction, 0.95f)
+            .clip(RoundedCornerShape(RadiusCard))
+            .combinedClickable(
+                interactionSource = interaction,
+                indication = LocalIndication.current,
+                onClickLabel = "Apri ${tool.title}",
+                onLongClickLabel = if (isFavorite) "Togli dai preferiti" else "Aggiungi ai preferiti",
+                onLongClick = onLongClick,
+                onClick = {
+                    haptics(Haptic.TAP)
+                    onClick()
+                }
+            )
             .testTag("tool_card_${tool.name.lowercase()}")
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
             Row(verticalAlignment = Alignment.Top) {
                 IconTile(icon = tool.icon, tint = if (highlighted) OmniAccent else tool.tint, size = 48.dp, filled = highlighted)
                 Spacer(modifier = Modifier.weight(1f))
-                if (tool.isNew) MorphBadge("Nuovo")
+                Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    AnimatedVisibility(
+                        visible = isFavorite,
+                        enter = scaleIn(motionSpec(Motion.bouncy())) + fadeIn(),
+                        exit = scaleOut() + fadeOut()
+                    ) {
+                        Icon(Icons.Default.Star, contentDescription = "Preferito", tint = OmniAccent, modifier = Modifier.size(20.dp))
+                    }
+                    if (tool.isNew && !isFavorite) MorphBadge("Nuovo")
+                }
             }
             Spacer(modifier = Modifier.height(28.dp))
             Text(
@@ -647,3 +709,15 @@ private fun RecentsPanel(
         }
     }
 }
+
+private const val FAVORITES_FILTER = "Preferiti"
+
+/** Accent-insensitive search on title, subtitle, description and keywords; every word must match. */
+private fun OmniTool.matches(query: String): Boolean {
+    if (query.isEmpty()) return true
+    val haystack = foldAccents("$title $subtitle $description $keywords".lowercase())
+    return foldAccents(query).split(' ').filter { it.isNotBlank() }.all { haystack.contains(it) }
+}
+
+private fun foldAccents(text: String): String =
+    Normalizer.normalize(text, Normalizer.Form.NFD).replace(Regex("\\p{Mn}+"), "")

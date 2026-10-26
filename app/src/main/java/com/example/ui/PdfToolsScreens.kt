@@ -699,7 +699,7 @@ private fun PdfPageTile(
 
 /** Shared frame of the single-PDF tools: header, banners, picker dropzone and the loaded file card. */
 @Composable
-private fun SinglePdfScaffold(
+internal fun SinglePdfScaffold(
     title: String,
     description: String,
     source: LoadedPdf?,
@@ -770,7 +770,7 @@ private fun SinglePdfScaffold(
                     Column(modifier = Modifier.fillMaxSize()) {
                         FileCard(
                             name = pdf.name,
-                            details = "${pdf.pageCount} pagine · ${formatBytes(pdf.sizeBytes)}",
+                            details = if (pdf.pageCount > 0) "${pdf.pageCount} pagine · ${formatBytes(pdf.sizeBytes)}" else "Protetto da password · ${formatBytes(pdf.sizeBytes)}",
                             icon = Icons.Default.PictureAsPdf,
                             iconTint = tint,
                             trailingContent = {
