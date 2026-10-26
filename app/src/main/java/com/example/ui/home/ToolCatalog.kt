@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
@@ -37,7 +38,7 @@ enum class ToolCategory(val label: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER }
 
 enum class OmniTool(
     val title: String,
@@ -189,6 +190,18 @@ enum class OmniTool(
         categories = setOf(ToolCategory.IMAGES),
         screen = ToolScreen.COLLAGE,
         keywords = "collage unisci foto immagini griglia mosaico affianca combina",
+        accepts = listOf("image/"),
+        isNew = true
+    ),
+    GIF_MAKER(
+        title = "GIF animata",
+        subtitle = "Foto → GIF",
+        description = "Trasforma una serie di foto in una GIF animata.",
+        icon = Icons.Default.Gif,
+        tint = TintImage,
+        categories = setOf(ToolCategory.IMAGES),
+        screen = ToolScreen.GIF_MAKER,
+        keywords = "gif animazione animata foto fotogrammi boomerang sticker meme",
         accepts = listOf("image/"),
         isNew = true
     ),
