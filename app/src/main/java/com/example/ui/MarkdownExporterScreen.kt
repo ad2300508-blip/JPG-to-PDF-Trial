@@ -489,11 +489,11 @@ private fun DocumentChip(
                 )
             }
             if (item.hasMorePages) {
-                IconButton(onClick = onParseRemaining, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = onParseRemaining, modifier = Modifier.size(40.dp)) {
                     Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = "Estrai le pagine rimanenti", tint = OmniAccent, modifier = Modifier.size(16.dp))
                 }
             }
-            IconButton(onClick = onRemove, modifier = Modifier.size(32.dp)) {
+            IconButton(onClick = onRemove, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Default.Close, contentDescription = "Rimuovi", tint = OmniTextMuted, modifier = Modifier.size(16.dp))
             }
         }

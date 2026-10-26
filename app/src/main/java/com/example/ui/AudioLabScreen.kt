@@ -360,7 +360,7 @@ private fun AudioFileRow(
                     item.error != null -> Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = OmniDanger, modifier = Modifier.size(22.dp))
                 }
                 if (item.durationMs > 0) {
-                    IconButton(onClick = onTogglePlay, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onTogglePlay, modifier = Modifier.size(40.dp)) {
                         Icon(
                             imageVector = if (isPlaying) Icons.Default.Pause else Icons.Default.PlayArrow,
                             contentDescription = if (isPlaying) "Pausa" else "Ascolta",

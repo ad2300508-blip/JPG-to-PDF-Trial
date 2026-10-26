@@ -108,6 +108,7 @@ import com.example.ui.theme.Haptic
 import com.example.ui.theme.LocalReduceMotion
 import com.example.ui.theme.Motion
 import com.example.ui.theme.OmniAccent
+import com.example.ui.theme.OmniBg
 import com.example.ui.theme.OmniAccentSoft
 import com.example.ui.theme.OmniBorder
 import com.example.ui.theme.OmniDanger
@@ -670,10 +671,10 @@ private fun PdfPageTile(
                 .align(Alignment.BottomStart)
                 .padding(10.dp)
                 .clip(RoundedCornerShape(RadiusPill))
-                .background(Color(0xFF111827))
+                .background(OmniText)
                 .padding(horizontal = 8.dp, vertical = 3.dp)
         ) {
-            Text("${slot.sourceIndex + 1}", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            Text("${slot.sourceIndex + 1}", color = OmniBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         AnimatedVisibility(

@@ -113,6 +113,7 @@ import com.example.ui.theme.Haptic
 import com.example.ui.theme.LocalReduceMotion
 import com.example.ui.theme.Motion
 import com.example.ui.theme.OmniAccent
+import com.example.ui.theme.OmniAccentOnInk
 import com.example.ui.theme.OmniAccentSoft
 import com.example.ui.theme.OmniBorder
 import com.example.ui.theme.OmniDanger
@@ -982,7 +983,7 @@ fun OmniProgressBanner(
                 Spacer(modifier = Modifier.height(10.dp))
                 ShimmerProgressBar(
                     progress = animated,
-                    color = Color(0xFF8EA2FF),
+                    color = OmniAccentOnInk,
                     trackColor = OmniOnInk.copy(alpha = 0.15f)
                 )
             }
@@ -1130,7 +1131,7 @@ fun FileCard(
 
                 if (onMoveUp != null || onMoveDown != null) {
                     Column {
-                        IconButton(onClick = { onMoveUp?.invoke() }, enabled = onMoveUp != null, modifier = Modifier.size(30.dp)) {
+                        IconButton(onClick = { onMoveUp?.invoke() }, enabled = onMoveUp != null, modifier = Modifier.size(40.dp)) {
                             Icon(
                                 Icons.Default.ArrowUpward,
                                 contentDescription = "Sposta su",
@@ -1138,7 +1139,7 @@ fun FileCard(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
-                        IconButton(onClick = { onMoveDown?.invoke() }, enabled = onMoveDown != null, modifier = Modifier.size(30.dp)) {
+                        IconButton(onClick = { onMoveDown?.invoke() }, enabled = onMoveDown != null, modifier = Modifier.size(40.dp)) {
                             Icon(
                                 Icons.Default.ArrowDownward,
                                 contentDescription = "Sposta giù",
