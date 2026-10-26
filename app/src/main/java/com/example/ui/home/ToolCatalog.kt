@@ -1,6 +1,7 @@
 package com.example.ui.home
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Audiotrack
@@ -12,7 +13,9 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.TextSnippet
@@ -42,7 +45,7 @@ enum class ToolGroup(val label: String, val chip: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER, PHOTO_FILTERS }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER, PHOTO_FILTERS, PDF_READER, PDF_INFO, TEXT_TO_PDF }
 
 enum class OmniTool(
     val title: String,
@@ -66,6 +69,16 @@ enum class OmniTool(
         screen = ToolScreen.IMAGES_TO_PDF,
         keywords = "jpg png heic foto scansione pdf immagini",
         accepts = listOf("image/")
+    ),
+    TEXT_TO_PDF(
+        title = "Testo in PDF",
+        subtitle = "Scrivi → PDF",
+        description = "Scrivi o incolla un testo e salvalo come PDF impaginato.",
+        icon = Icons.Default.EditNote,
+        tint = TintPdf,
+        group = ToolGroup.CREATE,
+        screen = ToolScreen.TEXT_TO_PDF,
+        keywords = "testo scrivi incolla appunti note txt documento crea pdf"
     ),
     MERGE_PDF(
         title = "Unisci PDF",
@@ -142,6 +155,28 @@ enum class OmniTool(
         group = ToolGroup.SIGN,
         screen = ToolScreen.SECURE_PDF,
         keywords = "password proteggi sblocca cifra crittografa sicurezza lucchetto pdf",
+        accepts = listOf("application/pdf")
+    ),
+    PDF_READER(
+        title = "Leggi PDF",
+        subtitle = "Sfoglia e ingrandisci",
+        description = "Leggi un PDF con zoom, miniature e modalità notte.",
+        icon = Icons.AutoMirrored.Filled.MenuBook,
+        tint = TintPdf,
+        group = ToolGroup.READ,
+        screen = ToolScreen.PDF_READER,
+        keywords = "leggi visualizza apri sfoglia lettore viewer notte zoom libro pdf",
+        accepts = listOf("application/pdf")
+    ),
+    PDF_INFO(
+        title = "Info PDF",
+        subtitle = "Pagine, parole, metadati",
+        description = "Scopri formato, parole e tempo di lettura; modifica o togli i metadati.",
+        icon = Icons.Default.Info,
+        tint = TintPdf,
+        group = ToolGroup.READ,
+        screen = ToolScreen.PDF_INFO,
+        keywords = "info proprieta metadati autore titolo parole statistiche tempo lettura formato pdf",
         accepts = listOf("application/pdf")
     ),
     PDF_TO_MARKDOWN(
@@ -271,4 +306,10 @@ fun toolForHistoryLabel(label: String): OmniTool? = OmniTool.entries.firstOrNull
 /** Tools that can work with a file of [mimeType] (for files shared from other apps). */
 fun toolsFor(mimeType: String): List<OmniTool> = OmniTool.entries.filter { tool ->
     tool.accepts.any { prefix -> prefix.isEmpty() || mimeType.startsWith(prefix) }
-}.sortedBy { if (it.accepts.contains("")) 1 else 0 }
+}.sortedBy {
+    when {
+        it.accepts.contains("") -> 2
+        it == OmniTool.PDF_READER -> 0
+        else -> 1
+    }
+}
