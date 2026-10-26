@@ -257,6 +257,93 @@ class PdfToolsService(private val context: Context) {
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Split
+    // ---------------------------------------------------------------------------------------------
+
+    data class SplitResult(val uris: List<Uri>, val zipUri: Uri?, val parts: Int, val totalBytes: Long)
+
+    /** Writes one PDF per group of 0-based pages; with [asZip] they are bundled in a single archive. */
+    suspend fun split(
+        uri: Uri,
+        name: String,
+        groups: List<List<Int>>,
+        asZip: Boolean,
+        onProgress: (Int, Int) -> Unit
+    ): Result<SplitResult> = withContext(Dispatchers.IO) {
+        resultOf {
+            if (groups.isEmpty()) throw IllegalStateException("Nessuna parte da creare: controlla gli intervalli")
+            PDFBoxResourceLoader.init(context)
+            val baseName = FileNames.sanitize(FileNames.baseName(name), "Documento")
+            val digits = max(2, groups.size.toString().length)
+            val uris = mutableListOf<Uri>()
+            var totalBytes = 0L
+            val zipTemp = if (asZip) File(context.cacheDir, "split_${System.nanoTime()}.zip") else null
+            val zip = zipTemp?.let { ZipOutputStream(it.outputStream().buffered()) }
+            try {
+                loadDocument(uri).use { src ->
+                    if (src.isEncrypted) src.isAllSecurityToBeRemoved = true
+                    groups.forEachIndexed { index, pages ->
+                        coroutineContext.ensureActive()
+                        onProgress(index + 1, groups.size)
+                        val valid = pages.filter { it in 0 until src.numberOfPages }
+                        if (valid.isEmpty()) return@forEachIndexed
+                        val label = PageRangeLabel.of(valid)
+                        val fileName = "${baseName}_${(index + 1).toString().padStart(digits, '0')}_p$label.pdf"
+                        val temp = File(context.cacheDir, "part_${System.nanoTime()}.pdf")
+                        try {
+                            PDDocument(MemoryUsageSetting.setupTempFileOnly()).use { part ->
+                                valid.forEach { part.importPage(src.getPage(it)) }
+                                part.documentInformation.title = "$baseName ($label)"
+                                part.documentInformation.producer = "OmniConvert Studio"
+                                temp.outputStream().buffered().use { part.save(it) }
+                            }
+                            if (zip != null) {
+                                zip.putNextEntry(ZipEntry(fileName))
+                                temp.inputStream().use { it.copyTo(zip) }
+                                zip.closeEntry()
+                            } else {
+                                totalBytes += temp.length()
+                                uris += OutputStorage.save(context, fileName, "application/pdf", OutputFolder.PDFS) { out ->
+                                    temp.inputStream().use { it.copyTo(out) }
+                                }
+                            }
+                        } finally {
+                            temp.delete()
+                        }
+                    }
+                }
+                zip?.close()
+                if (zipTemp != null) {
+                    totalBytes = zipTemp.length()
+                    val zipUri = OutputStorage.save(context, FileNames.stamped("${baseName}_diviso", "PDF", "zip"), "application/zip", OutputFolder.ARCHIVES) { out ->
+                        zipTemp.inputStream().use { it.copyTo(out) }
+                    }
+                    SplitResult(emptyList(), zipUri, groups.size, totalBytes)
+                } else {
+                    SplitResult(uris, null, uris.size, totalBytes)
+                }
+            } finally {
+                runCatching { zip?.close() }
+                zipTemp?.delete()
+            }
+        }
+    }
+
+    private object PageRangeLabel {
+        /** [0,1,2] -> "1-3", [4] -> "5", [0,2] -> "1_3". */
+        fun of(pages: List<Int>): String {
+            val first = pages.first() + 1
+            val last = pages.last() + 1
+            val contiguous = pages.zipWithNext().all { (a, b) -> b == a + 1 }
+            return when {
+                pages.size == 1 -> "$first"
+                contiguous -> "$first-$last"
+                else -> pages.take(4).joinToString("_") { "${it + 1}" } + if (pages.size > 4) "_ecc" else ""
+            }
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // PDF → images
     // ---------------------------------------------------------------------------------------------
 

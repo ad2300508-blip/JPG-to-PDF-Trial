@@ -3,6 +3,8 @@ package com.example
 import com.example.service.PageNumberStyle
 import com.example.service.StampConfig
 import com.example.ui.PasswordStrength
+import com.example.ui.components.MarkdownParser
+import com.example.ui.components.MdBlock
 import com.example.util.FileNames
 import com.example.util.PageRange
 import com.example.viewmodel.NaturalOrder
@@ -73,5 +75,33 @@ class UtilsUnitTest {
         assertEquals(PasswordStrength.WEAK, PasswordStrength.of("1234"))
         assertEquals(PasswordStrength.STRONG, PasswordStrength.of("Fisica-2026!x"))
         assertTrue(PasswordStrength.of("studiare2026").level > PasswordStrength.of("abc").level)
+    }
+
+    @Test
+    fun markdownParserFindsBlocks() {
+        val md = """
+            # Titolo
+            Testo **grassetto** su
+            due righe.
+
+            - punto uno
+            1. primo
+            | A | B |
+            |---|---|
+            | 1 | 2 |
+        """.trimIndent()
+        val blocks = MarkdownParser.parse(md)
+        assertEquals(MdBlock.Heading(1, "Titolo"), blocks[0])
+        assertEquals(MdBlock.Paragraph("Testo **grassetto** su due righe."), blocks[1])
+        assertEquals(MdBlock.Bullet("punto uno", "•", 0), blocks[2])
+        assertEquals(MdBlock.Bullet("primo", "1.", 0), blocks[3])
+        assertEquals(MdBlock.Table(listOf(listOf("A", "B"), listOf("1", "2"))), blocks[4])
+    }
+
+    @Test
+    fun pageRangeGroupsAndChunks() {
+        assertEquals(listOf(listOf(0, 1, 2), listOf(3, 4), listOf(8, 9)), PageRange.groups("1-3, 4-5; 9-", 10))
+        assertEquals(listOf(listOf(0, 1), listOf(2, 3), listOf(4)), PageRange.chunks(5, 2))
+        assertTrue(PageRange.groups("abc, 99", 5).isEmpty())
     }
 }
