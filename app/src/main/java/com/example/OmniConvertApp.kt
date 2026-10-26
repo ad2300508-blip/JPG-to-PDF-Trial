@@ -88,6 +88,7 @@ import com.example.ui.GeminiHubScreen
 import com.example.ui.HistoryScreen
 import com.example.ui.CollageScreen
 import com.example.ui.GifMakerScreen
+import com.example.ui.PhotoFiltersScreen
 import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfCompressScreen
@@ -129,6 +130,7 @@ import com.example.viewmodel.AudioLabViewModel
 import com.example.viewmodel.GeminiHubViewModel
 import com.example.viewmodel.CollageViewModel
 import com.example.viewmodel.GifViewModel
+import com.example.viewmodel.PhotoFiltersViewModel
 import com.example.viewmodel.ImageLabViewModel
 import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfCompressViewModel
@@ -170,7 +172,8 @@ class ToolViewModels(
     val split: PdfSplitViewModel,
     val sign: PdfSignViewModel,
     val collage: CollageViewModel,
-    val gif: GifViewModel
+    val gif: GifViewModel,
+    val filters: PhotoFiltersViewModel
 )
 
 @Composable
@@ -196,7 +199,8 @@ fun OmniConvertApp(
         split = viewModel(),
         sign = viewModel(),
         collage = viewModel(),
-        gif = viewModel()
+        gif = viewModel(),
+        filters = viewModel()
     )
 
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
@@ -230,6 +234,7 @@ fun OmniConvertApp(
             ToolScreen.IMAGE_LAB -> tools.image.addImages(uris)
             ToolScreen.COLLAGE -> tools.collage.addImages(uris)
             ToolScreen.GIF_MAKER -> tools.gif.addImages(uris)
+            ToolScreen.PHOTO_FILTERS -> tools.filters.addImages(uris)
             ToolScreen.AUDIO_LAB -> tools.audio.addAudioFiles(uris)
             ToolScreen.ARCHIVE -> tools.archive.addFiles(uris)
             ToolScreen.COMPRESS_PDF -> uris.firstOrNull()?.let { tools.compress.loadPdf(it) }
@@ -419,6 +424,7 @@ private fun ToolContent(
         ToolScreen.IMAGE_LAB -> ImageLabScreen(viewModel = tools.image)
         ToolScreen.COLLAGE -> CollageScreen(viewModel = tools.collage)
         ToolScreen.GIF_MAKER -> GifMakerScreen(viewModel = tools.gif)
+        ToolScreen.PHOTO_FILTERS -> PhotoFiltersScreen(viewModel = tools.filters)
         ToolScreen.AUDIO_LAB -> AudioLabScreen(
             viewModel = tools.audio,
             onTranscribeAudio = { uri, _ -> onTranscribeAudio(uri) }

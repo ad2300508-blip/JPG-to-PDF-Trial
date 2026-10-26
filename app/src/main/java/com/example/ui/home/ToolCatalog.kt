@@ -5,6 +5,7 @@ import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.AutoAwesomeMosaic
+import androidx.compose.material.icons.filled.AutoFixHigh
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.ContentCut
@@ -38,7 +39,7 @@ enum class ToolCategory(val label: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER, PHOTO_FILTERS }
 
 enum class OmniTool(
     val title: String,
@@ -202,6 +203,18 @@ enum class OmniTool(
         categories = setOf(ToolCategory.IMAGES),
         screen = ToolScreen.GIF_MAKER,
         keywords = "gif animazione animata foto fotogrammi boomerang sticker meme",
+        accepts = listOf("image/"),
+        isNew = true
+    ),
+    PHOTO_FILTERS(
+        title = "Filtri foto",
+        subtitle = "Vivace, Seppia, B/N…",
+        description = "Applica un filtro a più foto, con confronto prima/dopo.",
+        icon = Icons.Default.AutoFixHigh,
+        tint = TintImage,
+        categories = setOf(ToolCategory.IMAGES),
+        screen = ToolScreen.PHOTO_FILTERS,
+        keywords = "filtri filtro foto seppia bianco nero vintage colori ritocca effetto",
         accepts = listOf("image/"),
         isNew = true
     ),
