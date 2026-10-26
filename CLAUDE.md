@@ -11,7 +11,7 @@ OmniConvert Studio (repo name "JPG to PDF Trial"): a single-module Android app (
 There is no local Android SDK in the cloud environment; CI is the build check.
 
 - CI: `.github/workflows/build-apk.yml` (JDK 21) runs on every push/PR:
-  `./gradlew assembleDebug testDebugUnitTest -PversionCode=<run> -PversionName=1.0.<run>`; the APK is uploaded as the `OmniConvert-Studio-APK` artifact.
+  `./gradlew assembleDebug testDebugUnitTest -PversionCode=<run> -PversionName=1.0.<run>`; the APK is uploaded as the `OmniConvert-Studio-APK` artifact (zipped). Pushes to `main` also publish the bare APK as a GitHub release `build-<run>`; the user downloads it from `https://github.com/ad2300508-blip/JPG-to-PDF-Trial/releases/latest/download/OmniConvert-Studio.apk`.
 - CI job logs are not downloadable from the sandbox. On failure the workflow posts the Kotlin/Gradle errors as a **commit comment**: read them with `gh api repos/ad2300508-blip/JPG-to-PDF-Trial/commits/<sha>/comments --jq '.[].body'`.
 - Unit tests: `app/src/test/java/com/example/` (`UtilsUnitTest` covers PageRange, FileNames, NaturalOrder, stamp config, password strength, Markdown parser).
 - Local (with SDK): `./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, single test: `./gradlew testDebugUnitTest --tests "com.example.PdfConverterUnitTest"`.

@@ -81,14 +81,31 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+      # Artifacts are always zipped by GitHub, which is awkward on a phone. Every push to main also
+      # publishes the bare .apk as a release, reachable at a fixed link:
+      # https://github.com/<owner>/<repo>/releases/latest/download/OmniConvert-Studio.apk
+      - name: Publish APK as a GitHub release (main only)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk OmniConvert-Studio.apk
+          gh release create "build-${{ github.run_number }}" OmniConvert-Studio.apk \
+            --repo "${{ github.repository }}" \
+            --target "${{ github.sha }}" \
+            --title "OmniConvert Studio 1.0.${{ github.run_number }}" \
+            --notes "APK generato automaticamente da main (commit ${{ github.sha }}). Dal telefono tocca OmniConvert-Studio.apk qui sotto per scaricarlo, poi aprilo per installarlo." \
+            --latest
+
       - name: Add Job Summary
         run: |
           APK_SIZE=$(du -h app/build/outputs/apk/debug/app-debug.apk | cut -f1)
           echo "### 🚀 APK Build Succeeded!" >> $GITHUB_STEP_SUMMARY
           echo "- **App**: OmniConvert Studio" >> $GITHUB_STEP_SUMMARY
           echo "- **Package**: \`com.aistudio.omniconvert.kxmpzq\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Version**: \`1.0.0\` (build 1)" >> $GITHUB_STEP_SUMMARY
+          echo "- **Version**: \`1.0.${{ github.run_number }}\` (build ${{ github.run_number }})" >> $GITHUB_STEP_SUMMARY
           echo "- **File**: \`app-debug.apk\`" >> $GITHUB_STEP_SUMMARY
           echo "- **Size**: $APK_SIZE" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "You can download the APK from the **Artifacts** section at the bottom of this Actions workflow run." >> $GITHUB_STEP_SUMMARY
+          echo "Direct APK (main): https://github.com/${{ github.repository }}/releases/latest/download/OmniConvert-Studio.apk" >> $GITHUB_STEP_SUMMARY
+          echo "Zipped APK: **Artifacts** section at the bottom of this run." >> $GITHUB_STEP_SUMMARY
