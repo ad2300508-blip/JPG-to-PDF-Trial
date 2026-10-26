@@ -97,6 +97,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontFamily
@@ -1099,11 +1100,14 @@ private fun SkeletonLine(fraction: Float, delayMillis: Int) {
         animationSpec = infiniteRepeatable(tween(700, delayMillis = delayMillis), RepeatMode.Reverse),
         label = "skeleton_alpha"
     )
+    val reduce = LocalReduceMotion.current
+    val color = OmniBorder
     Box(
         modifier = Modifier
             .fillMaxWidth(fraction)
             .height(12.dp)
             .clip(CircleShape)
-            .background(OmniBorder.copy(alpha = if (LocalReduceMotion.current) 0.6f else alpha))
+            // Drawn with the current pulse: the line redraws every frame without recomposing.
+            .drawBehind { drawRect(color.copy(alpha = if (reduce) 0.6f else alpha)) }
     )
 }

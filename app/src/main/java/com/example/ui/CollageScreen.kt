@@ -294,7 +294,7 @@ private fun CollagePreview(
         val corner = fit * (settings.corner * CollagePlanner.UNIT)
         Box(
             modifier = Modifier
-                .size(boxW, boxH)
+                .size(boxW.coerceAtLeast(0.dp), boxH.coerceAtLeast(0.dp))
                 .clip(RoundedCornerShape(6.dp))
                 .background(background)
                 .border(1.dp, OmniBorder, RoundedCornerShape(6.dp))

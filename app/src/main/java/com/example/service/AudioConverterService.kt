@@ -273,7 +273,12 @@ class AudioConverterService(private val context: Context) {
             setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 64 * 1024)
         }
         val encoder = MediaCodec.createEncoderByType(MediaFormat.MIMETYPE_AUDIO_AAC)
-        val muxer = MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        val muxer = try {
+            MediaMuxer(outFile.absolutePath, MediaMuxer.OutputFormat.MUXER_OUTPUT_MPEG_4)
+        } catch (e: Exception) {
+            encoder.release()
+            throw e
+        }
         var muxerStarted = false
         try {
             try {

@@ -336,7 +336,7 @@ private fun ZoomablePage(
                 colorFilter = colorFilter,
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(Unit) {
+                    .pointerInput(boxW, boxH) {
                         detectTapGestures(onDoubleTap = { tap ->
                             val from = scale
                             val to = if (from > 1.05f) 1f else 2.5f
@@ -351,7 +351,7 @@ private fun ZoomablePage(
                             }
                         })
                     }
-                    .pointerInput(Unit) {
+                    .pointerInput(boxW, boxH) {
                         awaitEachGesture {
                             awaitFirstDown(requireUnconsumed = false)
                             do {

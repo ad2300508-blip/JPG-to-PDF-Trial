@@ -74,6 +74,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -93,6 +94,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -388,7 +390,8 @@ private fun SocialPreview(photo: FilterPhoto, s: SocialSettings) {
     BoxWithConstraints(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         val w = minOf(maxWidth, maxHeight * ratio)
         val h = w / ratio
-        val inset = minOf(w, h) * border
+        // Springs overshoot a little: never let the animated frame or corners go below zero.
+        val inset = (minOf(w, h) * border).coerceAtLeast(0.dp)
         Box(
             modifier = Modifier
                 .size(w, h)
@@ -425,7 +428,7 @@ private fun SocialPreview(photo: FilterPhoto, s: SocialSettings) {
                     contentScale = ContentScale.Fit,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(minOf(maxWidth, maxHeight) * corner))
+                        .clip(RoundedCornerShape((minOf(maxWidth, maxHeight) * corner).coerceAtLeast(0.dp)))
                 )
             }
         }
@@ -908,6 +911,14 @@ fun RecorderScreen(
         permissionDenied = !granted
         if (granted) viewModel.start()
     }
+    // Android cuts the microphone of apps in the background (screen off included) unless a
+    // foreground service runs: keep the screen on while a recording is in progress.
+    val view = LocalView.current
+    DisposableEffect(state, view) {
+        val active = state != RecorderState.IDLE
+        if (active) view.keepScreenOn = true
+        onDispose { if (active) view.keepScreenOn = false }
+    }
     val startRecording = {
         haptics(Haptic.CONFIRM)
         if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
@@ -1008,7 +1019,12 @@ fun RecorderScreen(
                     )
                 }
                 Spacer(modifier = Modifier.height(24.dp))
-                Text("Le registrazioni restano sul telefono, in ${OutputStorage.displayPath(OutputFolder.AUDIO)}.", fontSize = 12.sp, color = OmniTextMuted)
+                Text(
+                    if (state == RecorderState.IDLE) "Le registrazioni restano sul telefono, in ${OutputStorage.displayPath(OutputFolder.AUDIO)}."
+                    else "Lo schermo resta acceso mentre registri: se lo spegni Android blocca il microfono.",
+                    fontSize = 12.sp,
+                    color = OmniTextMuted
+                )
                 Spacer(modifier = Modifier.height(12.dp))
             }
         }
@@ -1027,7 +1043,6 @@ private fun RecordButton(state: RecorderState, onClick: () -> Unit) {
         label = "record_pulse_scale"
     )
     val recording = state == RecorderState.RECORDING
-    val ringScale = if (recording) pulse else 1f
     val color by animateColorAsState(if (state == RecorderState.IDLE) OmniAccent else OmniDanger, label = "record_color")
     val size by animateDpAsState(if (recording) 92.dp else 84.dp, motionSpec(Motion.bouncy()), label = "record_size")
     Box(contentAlignment = Alignment.Center, modifier = Modifier.size(120.dp)) {
@@ -1035,6 +1050,8 @@ private fun RecordButton(state: RecorderState, onClick: () -> Unit) {
             modifier = Modifier
                 .size(size)
                 .graphicsLayer {
+                    // Pulse read here, in the layer block: the ring redraws without recomposing the button.
+                    val ringScale = if (recording) pulse else 1f
                     scaleX = ringScale
                     scaleY = ringScale
                     alpha = if (recording) 0.25f else 0f

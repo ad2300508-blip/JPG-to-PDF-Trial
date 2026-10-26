@@ -25,6 +25,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -258,6 +259,7 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
                 inlineImageUri = _imageAttachmentUri.value,
                 smartRouting = _smartRouting.value,
                 onFallbackEvent = { from, to, _ ->
+                    if (!isActive) return@streamGenerateWithFallback
                     // Text streamed by the model that failed is discarded so the answer is not duplicated.
                     outputSb.setLength(0)
                     thinkingSb.setLength(0)
@@ -269,12 +271,15 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
                     )
                 },
                 onThinkingChunk = { chunk ->
+                    // A stopped or replaced generation must not write into the new answer.
+                    if (!isActive) return@streamGenerateWithFallback
                     thinkingSb.append(chunk)
                     _generationState.value = _generationState.value.copy(
                         thinkingTrace = thinkingSb.toString()
                     )
                 },
                 onTextChunk = { chunk ->
+                    if (!isActive) return@streamGenerateWithFallback
                     outputSb.append(chunk)
                     _generationState.value = _generationState.value.copy(
                         outputText = outputSb.toString(),

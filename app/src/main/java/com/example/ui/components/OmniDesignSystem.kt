@@ -274,8 +274,14 @@ fun Dropzone(
             Box(
                 modifier = Modifier
                     .enterAnimation(0)
-                    .graphicsLayer { translationY = -6.dp.toPx() * float }
-                    .shadow(10.dp * (0.6f + 0.4f * float), RoundedCornerShape(RadiusCard), ambientColor = tintColor, spotColor = tintColor)
+                    // Float and shadow are read in the layer block: the loop redraws, it never recomposes.
+                    .graphicsLayer {
+                        translationY = -6.dp.toPx() * float
+                        shadowElevation = (10.dp * (0.6f + 0.4f * float)).toPx()
+                        shape = RoundedCornerShape(RadiusCard)
+                        ambientShadowColor = tintColor
+                        spotShadowColor = tintColor
+                    }
                     .size(76.dp)
                     .clip(RoundedCornerShape(RadiusCard))
                     .background(Brush.linearGradient(listOf(tintColor, tintColor.copy(alpha = 0.82f)))),
