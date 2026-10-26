@@ -69,6 +69,7 @@ import com.example.data.HistoryRepository
 import com.example.ui.components.EmptyState
 import com.example.ui.components.HistoryRow
 import com.example.ui.components.MorphChipRow
+import com.example.util.SearchText
 import com.example.ui.components.OmniToast
 import com.example.ui.components.RevealVertically
 import com.example.ui.components.SectionLabel
@@ -109,10 +110,17 @@ fun HistoryScreen(modifier: Modifier = Modifier) {
 
     val usedKinds = entries.map { it.kind }.toSet()
     val filters = listOf(ALL) + HistoryKind.entries.filter { it in usedKinds }.map { it.label }
-    val normalized = query.trim().lowercase()
+    val filterCounts = remember(entries) {
+        buildMap {
+            put(ALL, entries.size)
+            HistoryKind.entries.forEach { kind -> put(kind.label, entries.count { it.kind == kind }) }
+        }
+    }
+    // Same accent-insensitive matching as the home search ("perche" finds "perché").
+    val normalized = SearchText.fold(query.trim())
     val visible = entries.filter { entry ->
         (filter == ALL || entry.kind.label == filter) &&
-            (normalized.isEmpty() || entry.name.lowercase().contains(normalized) || entry.toolLabel.lowercase().contains(normalized))
+            SearchText.matches(SearchText.fold("${entry.name} ${entry.toolLabel}"), normalized)
     }
     val grouped = visible.groupBy { dayBucket(it.timestamp) }
     val totalBytes = entries.sumOf { it.sizeBytes }
@@ -165,7 +173,7 @@ fun HistoryScreen(modifier: Modifier = Modifier) {
                         Spacer(modifier = Modifier.height(16.dp))
                         HistorySearchField(query = query, onQueryChange = { query = it }, modifier = Modifier.enterAnimation(2))
                         Spacer(modifier = Modifier.height(12.dp))
-                        MorphChipRow(options = filters, selected = filter, onSelected = { filter = it }, modifier = Modifier.enterAnimation(3))
+                        MorphChipRow(options = filters, selected = filter, onSelected = { filter = it }, modifier = Modifier.enterAnimation(3), counts = filterCounts)
                     }
                 }
             }

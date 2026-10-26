@@ -1077,6 +1077,7 @@ private fun CameraButton(onClick: () -> Unit, withLabel: Boolean) {
 
 /** Phone-only horizontal strip with the last converted files. */
 @Composable
+@OptIn(ExperimentalFoundationApi::class)
 private fun RecentsStrip(recents: List<HistoryEntry>, onOpenHistory: () -> Unit) {
     val context = LocalContext.current
     Column {
@@ -1089,9 +1090,9 @@ private fun RecentsStrip(recents: List<HistoryEntry>, onOpenHistory: () -> Unit)
         LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             itemsIndexed(recents.take(6), key = { _, e -> e.id }) { index, entry ->
                 val interaction = remember { MutableInteractionSource() }
+                val haptics = rememberHaptics()
+                // Tap opens the file, long press shares it straight away.
                 Surface(
-                    onClick = { openFile(context, Uri.parse(entry.uri), mimeForKind(entry.kind)) },
-                    interactionSource = interaction,
                     shape = RoundedCornerShape(RadiusMd + 2.dp),
                     color = OmniSurface,
                     border = BorderStroke(1.dp, OmniBorder),
@@ -1099,6 +1100,18 @@ private fun RecentsStrip(recents: List<HistoryEntry>, onOpenHistory: () -> Unit)
                         .width(210.dp)
                         .enterAnimation(index, key = entry.id)
                         .pressScale(interaction)
+                        .clip(RoundedCornerShape(RadiusMd + 2.dp))
+                        .combinedClickable(
+                            interactionSource = interaction,
+                            indication = LocalIndication.current,
+                            onClickLabel = "Apri ${entry.name}",
+                            onLongClickLabel = "Condividi ${entry.name}",
+                            onLongClick = {
+                                haptics(Haptic.CONFIRM)
+                                shareFile(context, Uri.parse(entry.uri), mimeForKind(entry.kind))
+                            },
+                            onClick = { openFile(context, Uri.parse(entry.uri), mimeForKind(entry.kind)) }
+                        )
                 ) {
                     Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         IconTile(icon = entry.kind.icon(), tint = entry.kind.tint(), size = 40.dp)

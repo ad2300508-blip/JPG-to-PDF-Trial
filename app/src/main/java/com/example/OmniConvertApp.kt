@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -118,6 +119,7 @@ import com.example.ui.SettingsScreen
 import com.example.ui.components.IconTile
 import com.example.ui.components.LocalToolBack
 import com.example.ui.components.OmniTutorialDialog
+import com.example.ui.components.WhatsNewDialog
 import com.example.ui.home.BrandLogo
 import com.example.ui.home.HomeScreen
 import com.example.ui.home.OmniTool
@@ -226,7 +228,12 @@ fun OmniConvertApp(
     pdfViewModel: PdfStudioViewModel = viewModel(),
     geminiViewModel: GeminiHubViewModel = viewModel(),
     sharedFiles: SharedFiles? = null,
-    onSharedFilesConsumed: () -> Unit = {}
+    onSharedFilesConsumed: () -> Unit = {},
+    /** Tool asked for by a launcher shortcut (OmniTool name). */
+    toolRequest: String? = null,
+    onToolRequestConsumed: () -> Unit = {},
+    /** False while another dialog (crash report) is up. */
+    canShowWhatsNew: Boolean = true
 ) {
     val tools = ToolViewModels(
         pdf = pdfViewModel,
@@ -264,6 +271,7 @@ fun OmniConvertApp(
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
     var toolName by rememberSaveable { mutableStateOf<String?>(null) }
     var showTutorial by rememberSaveable { mutableStateOf(false) }
+    var showWhatsNew by rememberSaveable { mutableStateOf(AppPreferences.isNewVersion(BuildConfig.VERSION_NAME)) }
 
     val tab = MainTab.valueOf(tabName)
     val activeTool = toolName?.let { name -> OmniTool.entries.firstOrNull { it.name == name } }
@@ -360,7 +368,8 @@ fun OmniConvertApp(
                 MainTab.HISTORY -> HistoryScreen()
                 MainTab.SETTINGS -> SettingsScreen(
                     onOpenGuide = { showTutorial = true },
-                    onOpenGemini = { selectTab(MainTab.GEMINI) }
+                    onOpenGemini = { selectTab(MainTab.GEMINI) },
+                    onOpenWhatsNew = { showWhatsNew = true }
                 )
             }
         }
@@ -424,6 +433,21 @@ fun OmniConvertApp(
 
         if (showTutorial) {
             OmniTutorialDialog(onDismiss = { showTutorial = false })
+        } else if (showWhatsNew && canShowWhatsNew) {
+            WhatsNewDialog(
+                versionName = BuildConfig.VERSION_NAME,
+                onDismiss = {
+                    showWhatsNew = false
+                    AppPreferences.markVersionSeen(BuildConfig.VERSION_NAME)
+                }
+            )
+        }
+    }
+
+    if (toolRequest != null) {
+        LaunchedEffect(toolRequest) {
+            OmniTool.entries.firstOrNull { it.name == toolRequest }?.let { openTool(it) }
+            onToolRequestConsumed()
         }
     }
 
@@ -606,20 +630,42 @@ private fun MorphBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
                     .height(1.dp)
                     .background(OmniBorder)
             )
-            Row(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
                     .navigationBarsPadding()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                horizontalArrangement = Arrangement.SpaceAround
+                    .padding(horizontal = 8.dp, vertical = 8.dp)
             ) {
-                MainTab.entries.forEach { item ->
-                    NavItem(
-                        tab = item,
-                        selected = item == selected,
-                        onClick = { onSelect(item) },
-                        modifier = Modifier.weight(1f)
-                    )
+                // One pill that slides under the selected tab (instead of one per tab).
+                val count = MainTab.entries.size
+                val slot = maxWidth / count
+                val pillWidth = 60.dp
+                val pillX by animateDpAsState(
+                    targetValue = slot * selected.ordinal + (slot - pillWidth) / 2,
+                    animationSpec = motionSpec(spring(dampingRatio = 0.72f, stiffness = 420f)),
+                    label = "nav_pill_x"
+                )
+                Box(
+                    modifier = Modifier
+                        .padding(top = 4.dp)
+                        .offset(x = pillX)
+                        .size(width = pillWidth, height = 34.dp)
+                        .clip(RoundedCornerShape(17.dp))
+                        .background(OmniAccentSoft)
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround
+                ) {
+                    MainTab.entries.forEach { item ->
+                        NavItem(
+                            tab = item,
+                            selected = item == selected,
+                            onClick = { onSelect(item) },
+                            drawPill = false,
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
                 }
             }
         }
@@ -677,11 +723,13 @@ private fun NavItem(
     tab: MainTab,
     selected: Boolean,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** False when the parent draws a shared sliding pill (bottom bar). */
+    drawPill: Boolean = true
 ) {
     val interaction = remember { MutableInteractionSource() }
     val pillWidth by animateDpAsState(if (selected) 60.dp else 36.dp, motionSpec(spring(dampingRatio = 0.6f, stiffness = 500f)), label = "nav_pill")
-    val pillColor by animateColorAsState(if (selected) OmniAccentSoft else Color.Transparent, label = "nav_pill_color")
+    val pillColor by animateColorAsState(if (selected && drawPill) OmniAccentSoft else Color.Transparent, label = "nav_pill_color")
     val iconTint by animateColorAsState(if (selected) OmniAccent else OmniTextMuted, label = "nav_icon")
     val iconScale by animateFloatAsState(if (selected) 1.12f else 1f, motionSpec(spring(dampingRatio = 0.4f, stiffness = 400f)), label = "nav_icon_scale")
     Surface(

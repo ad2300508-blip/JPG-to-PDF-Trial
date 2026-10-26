@@ -29,6 +29,10 @@ object AppPreferences {
     private const val KEY_DEFAULT_PAGE_SIZE = "default_page_size"
     private const val KEY_AUTO_CLEAN = "default_auto_clean"
     private const val KEY_STRIP_METADATA = "strip_metadata"
+    private const val KEY_PURE_BLACK = "pure_black"
+    private const val KEY_DYNAMIC_ACCENT = "dynamic_accent"
+    private const val KEY_CACHE_CLEANUP = "cache_cleanup"
+    private const val KEY_LAST_SEEN_VERSION = "last_seen_version"
 
     private var prefs: SharedPreferences? = null
 
@@ -67,6 +71,18 @@ object AppPreferences {
     /** Leaves author, subject, keywords and custom dates out of generated PDFs. */
     val stripMetadata: StateFlow<Boolean> = _stripMetadata.asStateFlow()
 
+    private val _pureBlack = MutableStateFlow(false)
+    /** Dark theme with true black backgrounds (saves battery on OLED screens). */
+    val pureBlack: StateFlow<Boolean> = _pureBlack.asStateFlow()
+
+    private val _dynamicAccent = MutableStateFlow(false)
+    /** Accent taken from the wallpaper colours (Android 12+). */
+    val dynamicAccent: StateFlow<Boolean> = _dynamicAccent.asStateFlow()
+
+    private val _cacheCleanup = MutableStateFlow(true)
+    /** Removes temporary files older than a day when the app starts. */
+    val cacheCleanup: StateFlow<Boolean> = _cacheCleanup.asStateFlow()
+
     fun init(context: Context) {
         if (prefs != null) return
         val p = context.applicationContext.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
@@ -82,6 +98,46 @@ object AppPreferences {
         _defaultPageSize.value = p.getString(KEY_DEFAULT_PAGE_SIZE, null)?.takeIf { it in setOf("A4", "Letter", "Original") } ?: "A4"
         _autoClean.value = p.getBoolean(KEY_AUTO_CLEAN, true)
         _stripMetadata.value = p.getBoolean(KEY_STRIP_METADATA, true)
+        _pureBlack.value = p.getBoolean(KEY_PURE_BLACK, false)
+        _dynamicAccent.value = p.getBoolean(KEY_DYNAMIC_ACCENT, false)
+        _cacheCleanup.value = p.getBoolean(KEY_CACHE_CLEANUP, true)
+    }
+
+    fun setPureBlack(enabled: Boolean) {
+        _pureBlack.value = enabled
+        prefs?.edit()?.putBoolean(KEY_PURE_BLACK, enabled)?.apply()
+    }
+
+    fun setDynamicAccent(enabled: Boolean) {
+        _dynamicAccent.value = enabled
+        prefs?.edit()?.putBoolean(KEY_DYNAMIC_ACCENT, enabled)?.apply()
+    }
+
+    fun setCacheCleanup(enabled: Boolean) {
+        _cacheCleanup.value = enabled
+        prefs?.edit()?.putBoolean(KEY_CACHE_CLEANUP, enabled)?.apply()
+    }
+
+    /** True once per new version (also after the first install), until [markVersionSeen]. */
+    fun isNewVersion(versionName: String): Boolean = prefs?.getString(KEY_LAST_SEEN_VERSION, null) != versionName
+
+    fun markVersionSeen(versionName: String) {
+        prefs?.edit()?.putString(KEY_LAST_SEEN_VERSION, versionName)?.apply()
+    }
+
+    /** Back to the defaults; favourites, history and the "seen version" are kept. */
+    fun resetToDefaults() {
+        setThemeMode(ThemeMode.SYSTEM)
+        setReduceMotion(false)
+        setHaptics(true)
+        setAccent(AccentChoice.INDIGO)
+        setDefaultQuality(PdfQuality.BALANCED)
+        setDefaultPageSize("A4")
+        setAutoClean(true)
+        setStripMetadata(true)
+        setPureBlack(false)
+        setDynamicAccent(false)
+        setCacheCleanup(true)
     }
 
     fun setAccent(choice: AccentChoice) {

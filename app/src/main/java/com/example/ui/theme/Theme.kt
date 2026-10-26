@@ -10,6 +10,10 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.material3.dynamicDarkColorScheme
+import androidx.compose.material3.dynamicLightColorScheme
+import androidx.compose.ui.platform.LocalContext
+import android.os.Build
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.graphics.Color
@@ -76,6 +80,8 @@ fun OmniConvertTheme(
     themeMode: ThemeMode = ThemeMode.SYSTEM,
     reduceMotion: Boolean = false,
     accent: AccentChoice = AccentChoice.INDIGO,
+    pureBlack: Boolean = false,
+    dynamicAccent: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val darkTheme = when (themeMode) {
@@ -83,7 +89,23 @@ fun OmniConvertTheme(
         ThemeMode.LIGHT -> false
         ThemeMode.DARK -> true
     }
-    val target = (if (darkTheme) MorphDarkColors else MorphLightColors).withAccent(accent)
+    val base = when {
+        !darkTheme -> MorphLightColors
+        pureBlack -> MorphPureBlackColors
+        else -> MorphDarkColors
+    }
+    val context = LocalContext.current
+    val target = if (dynamicAccent && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val scheme = if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+        base.withAccentColors(
+            accent = scheme.primary,
+            accentSoft = scheme.primaryContainer,
+            onAccent = scheme.onPrimary,
+            accentOnInk = dynamicDarkColorScheme(context).primary
+        )
+    } else {
+        base.withAccent(accent)
+    }
     // Switching theme cross-fades every colour instead of flashing.
     val morphColors = animateMorphColors(target, animate = !reduceMotion)
 
