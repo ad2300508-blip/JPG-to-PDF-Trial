@@ -1,5 +1,23 @@
 package com.example.ui
 
+import com.example.ui.theme.LocalReduceMotion
+import com.example.ui.components.MarkdownText
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.scaleIn
+import com.example.ui.theme.pressScale
+import com.example.ui.theme.enterAnimation
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.GraphicEq
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import com.example.ui.components.RevealVertically
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.animation.animateColorAsState
@@ -635,7 +653,7 @@ private fun GeminiInputAndPipelinesPane(
         )
 
         // 5 Pipeline cards: icon in tinted tile, title, one-line description, 64px high
-        pipelines.forEach { preset ->
+        pipelines.forEachIndexed { index, preset ->
             val icon = when (preset.id) {
                 "ai_ocr_post_correction" -> Icons.Default.AutoAwesome
                 "executive_summary" -> Icons.Default.Description
@@ -644,15 +662,19 @@ private fun GeminiInputAndPipelinesPane(
                 else -> Icons.Default.Psychology
             }
 
+            val pipelineInteraction = remember { MutableInteractionSource() }
             Surface(
                 onClick = { onRunPipeline(preset) },
                 enabled = !isGenerating,
+                interactionSource = pipelineInteraction,
                 shape = RoundedCornerShape(RadiusMd),
                 color = OmniSurface2,
                 border = BorderStroke(1.dp, OmniBorder),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(64.dp)
+                    .enterAnimation(index)
+                    .pressScale(pipelineInteraction, 0.97f)
                     .testTag("pipeline_preset_${preset.id}")
             ) {
                 Row(
@@ -700,7 +722,7 @@ private fun GeminiInputAndPipelinesPane(
         }
 
         // Context Attachment Indicators
-        if (contextDocument != null || imageUri != null || audioUri != null) {
+        RevealVertically(visible = contextDocument != null || imageUri != null || audioUri != null) {
             Surface(
                 shape = RoundedCornerShape(RadiusSm),
                 color = OmniSurface2,
@@ -730,7 +752,7 @@ private fun GeminiInputAndPipelinesPane(
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Immagine allegata", fontSize = 13.sp, color = OmniAccent)
                         } else if (audioUri != null) {
-                            Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = OmniAccent, modifier = Modifier.size(20.dp))
+                            Icon(Icons.Default.GraphicEq, contentDescription = null, tint = OmniAccent, modifier = Modifier.size(20.dp))
                             Spacer(modifier = Modifier.width(8.dp))
                             Text("Audio pronto per la trascrizione", fontSize = 13.sp, color = OmniAccent)
                         } else {
@@ -799,7 +821,7 @@ private fun GeminiInputAndPipelinesPane(
 
         Button(
             onClick = onGenerate,
-            enabled = !isGenerating && (inputText.isNotBlank() || contextDocument != null || imageUri != null),
+            enabled = !isGenerating && (inputText.isNotBlank() || contextDocument != null || imageUri != null || audioUri != null),
             colors = ButtonDefaults.buttonColors(
                 containerColor = OmniAccent,
                 contentColor = OmniOnAccent,
@@ -812,9 +834,17 @@ private fun GeminiInputAndPipelinesPane(
                 .height(52.dp)
                 .testTag("run_gemini_button")
         ) {
-            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("Esegui", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+            AnimatedContent(targetState = isGenerating, transitionSpec = { stageTransition(if (initialState) 1 else 0, if (targetState) 1 else 0) }, label = "run_label") { generating ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (generating) {
+                        CircularProgressIndicator(color = OmniTextMuted, strokeWidth = 2.dp, modifier = Modifier.size(16.dp))
+                    } else {
+                        Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, modifier = Modifier.size(18.dp))
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(if (generating) "Gemini sta scrivendo…" else "Esegui", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                }
+            }
         }
     }
 }
@@ -844,12 +874,11 @@ private fun GeminiOutputCanvas(
                 .padding(16.dp)
         ) {
             // Top action bar of the output canvas: Copy / Export / PDF icon buttons with labels
-            Row(
+            Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(bottom = 12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 // Left telemetry tags
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -862,7 +891,7 @@ private fun GeminiOutputCanvas(
                     if (genState.latencyMs > 0) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "${genState.latencyMs}ms",
+                            text = "${genState.latencyMs} ms" + if (genState.estimatedTokens > 0) " · ~${genState.estimatedTokens} token" else "",
                             fontSize = 13.sp,
                             color = OmniTextMuted
                         )
@@ -870,7 +899,10 @@ private fun GeminiOutputCanvas(
                 }
 
                 // Result actions: Copy, Export, PDF
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(
+                    modifier = Modifier.horizontalScroll(rememberScrollState()),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
                     OutlinedButton(
                         onClick = onCopyOutput,
                         enabled = genState.outputText.isNotEmpty(),
@@ -910,7 +942,7 @@ private fun GeminiOutputCanvas(
                         Text("PDF", fontSize = 13.sp)
                     }
 
-                    if (genState.isGenerating) {
+                    AnimatedVisibility(visible = genState.isGenerating, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
                         Button(
                             onClick = onStopGeneration,
                             colors = ButtonDefaults.buttonColors(containerColor = OmniDanger, contentColor = Color.White),
@@ -926,16 +958,18 @@ private fun GeminiOutputCanvas(
             }
 
             // Progress indicator while generating
-            if (genState.isGenerating) {
-                LinearProgressIndicator(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(4.dp)
-                        .clip(CircleShape),
-                    color = OmniAccent,
-                    trackColor = OmniSurface2
-                )
-                Spacer(modifier = Modifier.height(10.dp))
+            RevealVertically(visible = genState.isGenerating) {
+                Column {
+                    LinearProgressIndicator(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .clip(CircleShape),
+                        color = OmniAccent,
+                        trackColor = OmniSurface2
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                }
             }
 
             // Extended cognitive thinking trace collapsible
@@ -997,7 +1031,18 @@ private fun GeminiOutputCanvas(
                 border = BorderStroke(1.dp, OmniBorder),
                 shape = RoundedCornerShape(RadiusSm)
             ) {
-                if (genState.outputText.isEmpty() && !genState.isGenerating) {
+                val outputScroll = rememberScrollState()
+                // Follow the answer while it streams in.
+                LaunchedEffect(genState.outputText.length, genState.isGenerating) {
+                    if (genState.isGenerating && outputScroll.maxValue > 0) outputScroll.animateScrollTo(outputScroll.maxValue)
+                }
+                if (genState.outputText.isEmpty() && genState.isGenerating) {
+                    Column(modifier = Modifier.fillMaxSize().padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        listOf(0.55f, 0.95f, 0.85f, 0.9f, 0.6f).forEachIndexed { index, fraction ->
+                            SkeletonLine(fraction = fraction, delayMillis = index * 120)
+                        }
+                    }
+                } else if (genState.outputText.isEmpty()) {
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
@@ -1031,19 +1076,34 @@ private fun GeminiOutputCanvas(
                     Column(
                         modifier = Modifier
                             .fillMaxSize()
-                            .verticalScroll(rememberScrollState())
+                            .verticalScroll(outputScroll)
                             .padding(14.dp)
                     ) {
-                        Text(
-                            text = genState.outputText,
-                            fontSize = 14.sp,
-                            lineHeight = 22.sp,
-                            color = OmniText,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        SelectionContainer {
+                            MarkdownText(markdown = genState.outputText, modifier = Modifier.fillMaxWidth())
+                        }
                     }
                 }
             }
         }
     }
+}
+
+/** Pulsing placeholder line shown while waiting for the first tokens. */
+@Composable
+private fun SkeletonLine(fraction: Float, delayMillis: Int) {
+    val transition = rememberInfiniteTransition(label = "skeleton")
+    val alpha by transition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 0.9f,
+        animationSpec = infiniteRepeatable(tween(700, delayMillis = delayMillis), RepeatMode.Reverse),
+        label = "skeleton_alpha"
+    )
+    Box(
+        modifier = Modifier
+            .fillMaxWidth(fraction)
+            .height(12.dp)
+            .clip(CircleShape)
+            .background(OmniBorder.copy(alpha = if (LocalReduceMotion.current) 0.6f else alpha))
+    )
 }
