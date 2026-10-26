@@ -444,7 +444,7 @@ class MarkdownExporterService(private val context: Context) {
 
         if (settings.includeMetadataHeader) {
             rawBuilder.append("<!--\n")
-            rawBuilder.append("OmniConvert Studio - Contesto Markdown per AI\n")
+            rawBuilder.append("Morph - Contesto Markdown per AI\n")
             rawBuilder.append("Data di esportazione: ").append(java.util.Date()).append("\n")
             rawBuilder.append("Documenti: ").append(validItems.size).append("\n")
             rawBuilder.append("-->\n\n")

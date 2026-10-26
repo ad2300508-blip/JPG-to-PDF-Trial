@@ -305,7 +305,7 @@ private fun BrandBar(onOpenHistory: () -> Unit) {
         BrandLogo(size = 44)
         Spacer(modifier = Modifier.width(12.dp))
         Text(
-            text = "OmniConvert",
+            text = "Morph",
             fontSize = 22.sp,
             fontWeight = FontWeight.Bold,
             color = OmniText,
@@ -336,7 +336,7 @@ fun BrandLogo(size: Int, modifier: Modifier = Modifier) {
     ) {
         Icon(
             imageVector = Icons.Default.SwapHoriz,
-            contentDescription = "OmniConvert",
+            contentDescription = "Morph",
             tint = OmniOnAccent,
             modifier = Modifier.size((size * 0.58f).dp)
         )

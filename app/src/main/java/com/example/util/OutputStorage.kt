@@ -16,7 +16,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-/** Sub-folders of Download/OmniConvert where each tool saves its output. */
+/** Sub-folders of Download/Morph where each tool saves its output. */
 enum class OutputFolder(val dirName: String) {
     PDFS("PDFs"),
     IMAGES("Images"),
@@ -29,14 +29,14 @@ enum class OutputFolder(val dirName: String) {
 /**
  * Single place where the app writes its output files.
  *
- * - Android 10+: MediaStore Downloads (`Download/OmniConvert/<folder>`), written with IS_PENDING so a
+ * - Android 10+: MediaStore Downloads (`Download/Morph/<folder>`), written with IS_PENDING so a
  *   half-written file never shows up in other apps and is removed if the write fails or is cancelled.
  * - Android 8-9: `MediaStore.Downloads` does not exist there, so files go to the app's own external
  *   Download folder and are exposed through the FileProvider (no storage permission needed).
  */
 object OutputStorage {
 
-    const val ROOT_DIR = "OmniConvert"
+    const val ROOT_DIR = "Morph"
 
     fun displayPath(folder: OutputFolder): String = "Download/$ROOT_DIR/${folder.dirName}"
 

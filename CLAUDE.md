@@ -4,14 +4,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-OmniConvert Studio (repo name "JPG to PDF Trial"): a single-module Android app (Kotlin, Jetpack Compose, Material3, package `com.example`, applicationId `com.aistudio.omniconvert.kxmpzq`, minSdk 26 / targetSdk 35). It converts and processes files fully on-device (images→PDF, PDF merge/compress/organize/→images, watermark & page numbers, password protect/unlock, PDF/DOCX→Markdown, image/audio conversion, ZIP create/extract, OCR) plus a Gemini AI hub. The UI is in Italian and follows the "Morph" design (light/dark/system theme).
+Morph (formerly OmniConvert Studio; repo name "JPG to PDF Trial"): a single-module Android app (Kotlin, Jetpack Compose, Material3, package `com.example`, applicationId `com.aistudio.omniconvert.kxmpzq`, minSdk 26 / targetSdk 35). It converts and processes files fully on-device (images→PDF, PDF merge/compress/organize/→images, watermark & page numbers, password protect/unlock, PDF/DOCX→Markdown, image/audio conversion, ZIP create/extract, OCR) plus a Gemini AI hub. The UI is in Italian and follows the "Morph" design (light/dark/system theme).
 
 ## Build & test
 
 There is no local Android SDK in the cloud environment; CI is the build check.
 
 - CI: `.github/workflows/build-apk.yml` (JDK 21) runs on every push/PR:
-  `./gradlew assembleDebug testDebugUnitTest -PversionCode=<run> -PversionName=1.0.<run>`; the APK is uploaded as the `OmniConvert-Studio-APK` artifact (zipped). Pushes to `main` also publish the bare APK as a GitHub release `build-<run>`; the user downloads it from `https://github.com/ad2300508-blip/JPG-to-PDF-Trial/releases/latest/download/OmniConvert-Studio.apk`.
+  `./gradlew assembleDebug testDebugUnitTest -PversionCode=<run> -PversionName=1.0.<run>`; the APK is uploaded as the `Morph-APK` artifact (zipped). Pushes to `main` also publish the bare APK as a GitHub release `build-<run>`; the user downloads it from `https://github.com/ad2300508-blip/JPG-to-PDF-Trial/releases/latest/download/Morph.apk` (also attached as `OmniConvert-Studio.apk` for old links).
 - CI job logs are not downloadable from the sandbox. On failure the workflow posts the Kotlin/Gradle errors as a **commit comment**: read them with `gh api repos/ad2300508-blip/JPG-to-PDF-Trial/commits/<sha>/comments --jq '.[].body'`.
 - Unit tests: `app/src/test/java/com/example/` (`UtilsUnitTest` covers PageRange, FileNames, NaturalOrder, stamp config, password strength, Markdown parser).
 - Local (with SDK): `./gradlew assembleDebug`, `./gradlew testDebugUnitTest`, single test: `./gradlew testDebugUnitTest --tests "com.example.PdfConverterUnitTest"`.
@@ -32,7 +32,7 @@ Things that need several files to understand:
 - **Theming**: colors are never hard-coded in screens. `ui/theme/Color.kt` defines `MorphColors` light/dark palettes exposed via `LocalMorphColors`; `OmniBg`, `OmniText`, `OmniAccent`… are `@Composable @ReadOnlyComposable` top-level getters (keep that one-getter-per-line form) so every screen follows the active theme. Legacy names (`Slate*`, `CyanAccent`, …) are aliases. `Tint*` are static category colors. `OmniConvertTheme(themeMode)` in `Theme.kt` provides the palette and sets system bar appearance.
 - **Reusable UI**: `ui/components/OmniDesignSystem.kt` (tool header, dropzone, segmented control, action bar, progress banner) and `MorphCommon.kt` (icon tiles, chips, history rows, `ConversionResultView`, share/open helpers). New tool screens should compose these rather than restyle.
 - **Persistence**: `data/AppPreferences` (theme, reduce motion, haptics, favourite tools) and `data/HistoryRepository` (≤200 entries, JSON in SharedPreferences) are singleton objects initialized in `MainActivity`. Every tool ViewModel calls `HistoryRepository.record(...)` on success. Gemini key/quota use their own prefs inside `GeminiApiService`.
-- **Output files**: always via `OutputStorage.save(context, name, mime, OutputFolder.X) { out -> … }` → MediaStore `Download/OmniConvert/<category>/` (API 29+, IS_PENDING) or app-specific Downloads + FileProvider below; write big outputs to a cache temp file first; sharing/opening uses content URIs with `FLAG_GRANT_READ_URI_PERMISSION`. Camera capture (`CameraCapture.kt`) uses a FileProvider (`res/xml/file_paths.xml`, authority `${applicationId}.fileprovider`) with `TakePicture`, so no CAMERA permission.
+- **Output files**: always via `OutputStorage.save(context, name, mime, OutputFolder.X) { out -> … }` → MediaStore `Download/Morph/<category>/` (API 29+, IS_PENDING) or app-specific Downloads + FileProvider below; write big outputs to a cache temp file first; sharing/opening uses content URIs with `FLAG_GRANT_READ_URI_PERMISSION`. Camera capture (`CameraCapture.kt`) uses a FileProvider (`res/xml/file_paths.xml`, authority `${applicationId}.fileprovider`) with `TakePicture`, so no CAMERA permission.
 - **Gemini key**: `BuildConfig.GEMINI_API_KEY` is empty by default (see `.env.example`); the user normally enters the key in-app.
 
 ## Notes

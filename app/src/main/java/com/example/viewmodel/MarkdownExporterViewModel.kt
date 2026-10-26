@@ -210,7 +210,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
     fun copyPromptToClipboard() {
         val prompt = _compiledResult.value?.wrappedPrompt ?: return
         val clipboard = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-        val clip = ClipData.newPlainText("OmniConvert LLM Markdown", prompt)
+        val clip = ClipData.newPlainText("Morph LLM Markdown", prompt)
         clipboard.setPrimaryClip(clip)
         _copySuccessMessage.value = "Copiato negli appunti (~${_compiledResult.value?.totalTokens} token)"
     }

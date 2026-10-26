@@ -128,7 +128,7 @@ class PdfStampService(private val context: Context) {
                             }
                         }
                     }
-                    doc.documentInformation.producer = "OmniConvert Studio"
+                    doc.documentInformation.producer = "Morph"
                     val suffix = if (watermark.isNotBlank()) "filigrana" else "numerato"
                     save(doc, "${FileNames.sanitize(FileNames.baseName(name), "Documento")}_$suffix.pdf")
                 }
