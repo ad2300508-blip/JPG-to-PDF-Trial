@@ -2,6 +2,7 @@
 
 package com.example.ui.components
 
+import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.SizeTransform
@@ -81,6 +82,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -101,6 +103,7 @@ import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.VisualTransformation
@@ -109,6 +112,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlin.math.roundToInt
 import com.example.ui.theme.Haptic
 import com.example.ui.theme.LocalReduceMotion
 import com.example.ui.theme.Motion
@@ -947,6 +951,14 @@ fun OmniProgressBanner(
         animationSpec = motionSpec(spring(dampingRatio = 1f, stiffness = 120f)),
         label = "progress_banner"
     )
+    // A long conversion must not be cut short by the screen turning off.
+    val view = LocalView.current
+    DisposableEffect(view) {
+        view.keepScreenOn = true
+        onDispose { view.keepScreenOn = false }
+    }
+    val startedAt = remember { SystemClock.elapsedRealtime() }
+    val etaText = remember(progress) { remainingTimeText(progress, SystemClock.elapsedRealtime() - startedAt) }
     Surface(
         modifier = modifier.fillMaxWidth(),
         color = OmniInk,
@@ -986,6 +998,14 @@ fun OmniProgressBanner(
                     color = OmniAccentOnInk,
                     trackColor = OmniOnInk.copy(alpha = 0.15f)
                 )
+                RevealVertically(visible = etaText != null) {
+                    AnimatedText(
+                        text = etaText.orEmpty(),
+                        fontSize = 12.sp,
+                        color = OmniOnInk.copy(alpha = 0.75f),
+                        modifier = Modifier.padding(top = 6.dp)
+                    )
+                }
             }
             if (onCancel != null) {
                 Spacer(modifier = Modifier.width(8.dp))
@@ -995,6 +1015,17 @@ fun OmniProgressBanner(
             }
         }
     }
+}
+
+/**
+ * "circa 12 s rimanenti" from the share done so far and the time it took; null while the
+ * estimate would be noise (first seconds, first 5% or the very end).
+ */
+internal fun remainingTimeText(progress: Float, elapsedMs: Long): String? {
+    val p = progress.coerceIn(0f, 1f)
+    if (p < 0.05f || p > 0.98f || elapsedMs < 2500) return null
+    val seconds = (elapsedMs * (1 - p) / p / 1000f).roundToInt().coerceAtLeast(1)
+    return if (seconds < 60) "circa $seconds s rimanenti" else "circa ${(seconds + 30) / 60} min rimanenti"
 }
 
 /** Rounded progress bar with a light sweep running across the filled part ("working" feel). */

@@ -257,7 +257,7 @@ private enum class StudioStage { EDITOR, PROGRESS, RESULT }
 /** Forward stages slide/scale in, going back fades the previous stage away. */
 internal fun stageTransition(from: Int, to: Int): ContentTransform {
     // Read directly: transition specs are not composable, so LocalReduceMotion is out of reach here.
-    if (AppPreferences.reduceMotion.value) return ContentTransform(EnterTransition.None, ExitTransition.None)
+    if (AppPreferences.reduceMotionNow()) return ContentTransform(EnterTransition.None, ExitTransition.None)
     val forward = to > from
     val enter = fadeIn(tween(Motion.MEDIUM, delayMillis = 60)) +
         scaleIn(initialScale = if (forward) 0.94f else 1.04f, animationSpec = tween(Motion.LONG, easing = Motion.EmphasizedDecelerate))

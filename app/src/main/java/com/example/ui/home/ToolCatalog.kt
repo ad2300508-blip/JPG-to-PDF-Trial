@@ -29,13 +29,16 @@ import com.example.ui.theme.TintPdf
 import com.example.ui.theme.TintSecure
 import com.example.ui.theme.TintStamp
 import com.example.ui.theme.TintZip
+import com.example.util.SearchText
 
-enum class ToolCategory(val label: String) {
-    DOCUMENTS("Documenti"),
-    IMAGES("Immagini"),
-    COMPRESSION("Compressione"),
-    AUDIO("Audio"),
-    ARCHIVES("Archivi")
+/** Home sections, in the order they are shown; [chip] is the short label of the filter chip. */
+enum class ToolGroup(val label: String, val chip: String) {
+    CREATE("Crea PDF", "Crea"),
+    EDIT("Modifica PDF", "Modifica"),
+    SIGN("Firma e proteggi", "Firma"),
+    READ("Leggi ed estrai", "Estrai"),
+    PHOTOS("Foto", "Foto"),
+    MEDIA("Audio e archivi", "Audio e ZIP")
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
@@ -47,12 +50,11 @@ enum class OmniTool(
     val description: String,
     val icon: ImageVector,
     val tint: Color,
-    val categories: Set<ToolCategory>,
+    val group: ToolGroup,
     val screen: ToolScreen,
     val keywords: String,
     /** MIME prefixes this tool accepts, used to suggest tools for files shared from other apps. */
-    val accepts: List<String> = emptyList(),
-    val isNew: Boolean = false
+    val accepts: List<String> = emptyList()
 ) {
     IMAGES_TO_PDF(
         title = "Immagini in PDF",
@@ -60,21 +62,10 @@ enum class OmniTool(
         description = "Unisci foto e scansioni in un unico PDF impaginato.",
         icon = Icons.Default.PhotoLibrary,
         tint = TintPdf,
-        categories = setOf(ToolCategory.DOCUMENTS, ToolCategory.IMAGES),
+        group = ToolGroup.CREATE,
         screen = ToolScreen.IMAGES_TO_PDF,
         keywords = "jpg png heic foto scansione pdf immagini",
         accepts = listOf("image/")
-    ),
-    PDF_TO_MARKDOWN(
-        title = "PDF in Markdown",
-        subtitle = "PDF → MD",
-        description = "Estrai testo pulito da PDF e appunti, pronto per l'AI.",
-        icon = Icons.Default.TextSnippet,
-        tint = TintPdf,
-        categories = setOf(ToolCategory.DOCUMENTS),
-        screen = ToolScreen.MARKDOWN,
-        keywords = "pdf markdown md testo ai prompt docx word txt",
-        accepts = listOf("application/pdf", "text/", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     ),
     MERGE_PDF(
         title = "Unisci PDF",
@@ -82,9 +73,31 @@ enum class OmniTool(
         description = "Combina più PDF in un documento ordinato, anche protetto.",
         icon = Icons.AutoMirrored.Filled.MergeType,
         tint = TintMerge,
-        categories = setOf(ToolCategory.DOCUMENTS),
+        group = ToolGroup.CREATE,
         screen = ToolScreen.MERGE_PDF,
         keywords = "unisci merge pdf combina password pagine",
+        accepts = listOf("application/pdf")
+    ),
+    ORGANIZE_PDF(
+        title = "Organizza pagine",
+        subtitle = "Riordina, ruota, estrai",
+        description = "Riordina, ruota, elimina o estrai pagine da un PDF.",
+        icon = Icons.Default.ViewModule,
+        tint = TintMerge,
+        group = ToolGroup.EDIT,
+        screen = ToolScreen.ORGANIZE_PDF,
+        keywords = "organizza pagine ruota elimina estrai dividi split riordina pdf",
+        accepts = listOf("application/pdf")
+    ),
+    SPLIT_PDF(
+        title = "Dividi PDF",
+        subtitle = "Un PDF → più file",
+        description = "Spezza un PDF ogni N pagine, pagina per pagina o per intervalli.",
+        icon = Icons.Default.ContentCut,
+        tint = TintStamp,
+        group = ToolGroup.EDIT,
+        screen = ToolScreen.SPLIT_PDF,
+        keywords = "dividi split separa spezza capitoli pagine pdf",
         accepts = listOf("application/pdf")
     ),
     COMPRESS_PDF(
@@ -93,59 +106,10 @@ enum class OmniTool(
         description = "Riduci il peso di PDF scansionati per email e WhatsApp.",
         icon = Icons.Default.Compress,
         tint = TintPdf,
-        categories = setOf(ToolCategory.DOCUMENTS, ToolCategory.COMPRESSION),
+        group = ToolGroup.EDIT,
         screen = ToolScreen.COMPRESS_PDF,
         keywords = "comprimi riduci peso pdf leggero email whatsapp",
-        accepts = listOf("application/pdf"),
-        isNew = true
-    ),
-    ORGANIZE_PDF(
-        title = "Organizza pagine",
-        subtitle = "Riordina, ruota, estrai",
-        description = "Riordina, ruota, elimina o estrai pagine da un PDF.",
-        icon = Icons.Default.ViewModule,
-        tint = TintMerge,
-        categories = setOf(ToolCategory.DOCUMENTS),
-        screen = ToolScreen.ORGANIZE_PDF,
-        keywords = "organizza pagine ruota elimina estrai dividi split riordina pdf",
-        accepts = listOf("application/pdf"),
-        isNew = true
-    ),
-    SPLIT_PDF(
-        title = "Dividi PDF",
-        subtitle = "Un PDF → più file",
-        description = "Spezza un PDF ogni N pagine, pagina per pagina o per intervalli.",
-        icon = Icons.Default.ContentCut,
-        tint = TintStamp,
-        categories = setOf(ToolCategory.DOCUMENTS),
-        screen = ToolScreen.SPLIT_PDF,
-        keywords = "dividi split separa spezza capitoli pagine pdf",
-        accepts = listOf("application/pdf"),
-        isNew = true
-    ),
-    PDF_TO_IMAGES(
-        title = "PDF in immagini",
-        subtitle = "PDF → JPG, PNG",
-        description = "Salva le pagine di un PDF come immagini.",
-        icon = Icons.Default.Collections,
-        tint = TintImage,
-        categories = setOf(ToolCategory.DOCUMENTS, ToolCategory.IMAGES),
-        screen = ToolScreen.PDF_TO_IMAGES,
-        keywords = "pdf immagini jpg png pagine esporta",
-        accepts = listOf("application/pdf"),
-        isNew = true
-    ),
-    STAMP_PDF(
-        title = "Filigrana e numeri",
-        subtitle = "Timbra le pagine",
-        description = "Aggiungi una filigrana o i numeri di pagina a un PDF.",
-        icon = Icons.Default.WaterDrop,
-        tint = TintStamp,
-        categories = setOf(ToolCategory.DOCUMENTS),
-        screen = ToolScreen.STAMP_PDF,
-        keywords = "filigrana watermark timbro bozza numeri pagina numera pdf",
-        accepts = listOf("application/pdf"),
-        isNew = true
+        accepts = listOf("application/pdf")
     ),
     SIGN_PDF(
         title = "Firma PDF",
@@ -153,11 +117,21 @@ enum class OmniTool(
         description = "Disegna la tua firma e mettila su un modulo o una giustificazione.",
         icon = Icons.Default.Draw,
         tint = TintStamp,
-        categories = setOf(ToolCategory.DOCUMENTS),
+        group = ToolGroup.SIGN,
         screen = ToolScreen.SIGN_PDF,
         keywords = "firma firmare sign autografo modulo giustificazione autorizzazione gita pdf",
-        accepts = listOf("application/pdf"),
-        isNew = true
+        accepts = listOf("application/pdf")
+    ),
+    STAMP_PDF(
+        title = "Filigrana e numeri",
+        subtitle = "Timbra le pagine",
+        description = "Aggiungi una filigrana o i numeri di pagina a un PDF.",
+        icon = Icons.Default.WaterDrop,
+        tint = TintStamp,
+        group = ToolGroup.SIGN,
+        screen = ToolScreen.STAMP_PDF,
+        keywords = "filigrana watermark timbro bozza numeri pagina numera pdf",
+        accepts = listOf("application/pdf")
     ),
     SECURE_PDF(
         title = "Proteggi PDF",
@@ -165,11 +139,43 @@ enum class OmniTool(
         description = "Metti o togli la password a un PDF.",
         icon = Icons.Default.Lock,
         tint = TintSecure,
-        categories = setOf(ToolCategory.DOCUMENTS),
+        group = ToolGroup.SIGN,
         screen = ToolScreen.SECURE_PDF,
         keywords = "password proteggi sblocca cifra crittografa sicurezza lucchetto pdf",
-        accepts = listOf("application/pdf"),
-        isNew = true
+        accepts = listOf("application/pdf")
+    ),
+    PDF_TO_MARKDOWN(
+        title = "PDF in Markdown",
+        subtitle = "PDF → MD",
+        description = "Estrai testo pulito da PDF e appunti, pronto per l'AI.",
+        icon = Icons.Default.TextSnippet,
+        tint = TintPdf,
+        group = ToolGroup.READ,
+        screen = ToolScreen.MARKDOWN,
+        keywords = "pdf markdown md testo ai prompt docx word txt",
+        accepts = listOf("application/pdf", "text/", "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+    ),
+    IMAGE_TO_TEXT(
+        title = "Immagine in testo",
+        subtitle = "OCR · JPG, PNG, PDF",
+        description = "Riconosci il testo da foto e scansioni.",
+        icon = Icons.Default.DocumentScanner,
+        tint = TintOcr,
+        group = ToolGroup.READ,
+        screen = ToolScreen.MARKDOWN,
+        keywords = "ocr testo immagine riconoscimento scansione",
+        accepts = listOf("image/")
+    ),
+    PDF_TO_IMAGES(
+        title = "PDF in immagini",
+        subtitle = "PDF → JPG, PNG",
+        description = "Salva le pagine di un PDF come immagini.",
+        icon = Icons.Default.Collections,
+        tint = TintImage,
+        group = ToolGroup.READ,
+        screen = ToolScreen.PDF_TO_IMAGES,
+        keywords = "pdf immagini jpg png pagine esporta",
+        accepts = listOf("application/pdf")
     ),
     IMAGE_CONVERT(
         title = "Converti immagini",
@@ -177,9 +183,20 @@ enum class OmniTool(
         description = "Cambia formato, comprimi e ridimensiona le immagini.",
         icon = Icons.Default.Image,
         tint = TintImage,
-        categories = setOf(ToolCategory.IMAGES, ToolCategory.COMPRESSION),
+        group = ToolGroup.PHOTOS,
         screen = ToolScreen.IMAGE_LAB,
         keywords = "immagini converti comprimi webp jpg png exif ridimensiona",
+        accepts = listOf("image/")
+    ),
+    PHOTO_FILTERS(
+        title = "Filtri foto",
+        subtitle = "Vivace, Seppia, B/N…",
+        description = "Applica un filtro a più foto, con confronto prima/dopo.",
+        icon = Icons.Default.AutoFixHigh,
+        tint = TintImage,
+        group = ToolGroup.PHOTOS,
+        screen = ToolScreen.PHOTO_FILTERS,
+        keywords = "filtri filtro foto seppia bianco nero vintage colori ritocca effetto",
         accepts = listOf("image/")
     ),
     COLLAGE(
@@ -188,11 +205,10 @@ enum class OmniTool(
         description = "Unisci più foto in colonna, in riga o a griglia.",
         icon = Icons.Default.AutoAwesomeMosaic,
         tint = TintImage,
-        categories = setOf(ToolCategory.IMAGES),
+        group = ToolGroup.PHOTOS,
         screen = ToolScreen.COLLAGE,
         keywords = "collage unisci foto immagini griglia mosaico affianca combina",
-        accepts = listOf("image/"),
-        isNew = true
+        accepts = listOf("image/")
     ),
     GIF_MAKER(
         title = "GIF animata",
@@ -200,33 +216,9 @@ enum class OmniTool(
         description = "Trasforma una serie di foto in una GIF animata.",
         icon = Icons.Default.Gif,
         tint = TintImage,
-        categories = setOf(ToolCategory.IMAGES),
+        group = ToolGroup.PHOTOS,
         screen = ToolScreen.GIF_MAKER,
         keywords = "gif animazione animata foto fotogrammi boomerang sticker meme",
-        accepts = listOf("image/"),
-        isNew = true
-    ),
-    PHOTO_FILTERS(
-        title = "Filtri foto",
-        subtitle = "Vivace, Seppia, B/N…",
-        description = "Applica un filtro a più foto, con confronto prima/dopo.",
-        icon = Icons.Default.AutoFixHigh,
-        tint = TintImage,
-        categories = setOf(ToolCategory.IMAGES),
-        screen = ToolScreen.PHOTO_FILTERS,
-        keywords = "filtri filtro foto seppia bianco nero vintage colori ritocca effetto",
-        accepts = listOf("image/"),
-        isNew = true
-    ),
-    IMAGE_TO_TEXT(
-        title = "Immagine in testo",
-        subtitle = "OCR · JPG, PNG, PDF",
-        description = "Riconosci il testo da foto e scansioni.",
-        icon = Icons.Default.DocumentScanner,
-        tint = TintOcr,
-        categories = setOf(ToolCategory.DOCUMENTS, ToolCategory.IMAGES),
-        screen = ToolScreen.MARKDOWN,
-        keywords = "ocr testo immagine riconoscimento scansione",
         accepts = listOf("image/")
     ),
     AUDIO_CONVERT(
@@ -235,7 +227,7 @@ enum class OmniTool(
         description = "Converti, taglia e alza il volume di lezioni, o trascrivile con Gemini.",
         icon = Icons.Default.Audiotrack,
         tint = TintAudio,
-        categories = setOf(ToolCategory.AUDIO),
+        group = ToolGroup.MEDIA,
         screen = ToolScreen.AUDIO_LAB,
         keywords = "audio m4a wav mp3 voce lezione trascrivi taglia normalizza",
         accepts = listOf("audio/", "video/")
@@ -246,7 +238,7 @@ enum class OmniTool(
         description = "Comprimi file e documenti in un archivio ZIP.",
         icon = Icons.Default.Archive,
         tint = TintZip,
-        categories = setOf(ToolCategory.ARCHIVES),
+        group = ToolGroup.MEDIA,
         screen = ToolScreen.ARCHIVE,
         keywords = "zip archivio comprimi file",
         accepts = listOf("")
@@ -257,12 +249,23 @@ enum class OmniTool(
         description = "Apri un archivio ZIP e salva i file che contiene.",
         icon = Icons.Default.Unarchive,
         tint = TintZip,
-        categories = setOf(ToolCategory.ARCHIVES),
+        group = ToolGroup.MEDIA,
         screen = ToolScreen.EXTRACT_ZIP,
         keywords = "estrai decomprimi unzip zip archivio",
-        accepts = listOf("application/zip", "application/x-zip"),
-        isNew = true
-    )
+        accepts = listOf("application/zip", "application/x-zip")
+    );
+
+    /** Accent-free, lower-case text matched by the home search (built once, not on every keystroke). */
+    val searchIndex: String by lazy { SearchText.fold("$title $subtitle $description $keywords ${group.label}") }
+}
+
+/** The tool that produced a history entry (entries store the tool title or an older label). */
+fun toolForHistoryLabel(label: String): OmniTool? = OmniTool.entries.firstOrNull { it.title == label } ?: when (label) {
+    "Organizza PDF" -> OmniTool.ORGANIZE_PDF
+    "Archivio ZIP" -> OmniTool.ZIP_ARCHIVE
+    "Filigrana PDF", "Numera pagine" -> OmniTool.STAMP_PDF
+    "Sblocca PDF" -> OmniTool.SECURE_PDF
+    else -> null
 }
 
 /** Tools that can work with a file of [mimeType] (for files shared from other apps). */

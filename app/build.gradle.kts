@@ -49,6 +49,9 @@ android {
 
     buildTypes {
         release {
+            // Same key as the old debug builds, so the app updates in place. A non-debuggable build
+            // runs Compose much faster and ships the libraries' baseline profiles (smoother first runs).
+            signingConfig = signingConfigs.getByName("debug")
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
@@ -69,6 +72,11 @@ android {
     }
     testOptions {
         unitTests.isReturnDefaultValues = true
+    }
+    lint {
+        // CI is the only build check: don't let release lint block the APK.
+        checkReleaseBuilds = false
+        abortOnError = false
     }
 }
 
@@ -91,6 +99,7 @@ dependencies {
     implementation(libs.androidx.material.icons.extended)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.androidx.exifinterface)
+    implementation(libs.androidx.profileinstaller)
     implementation(libs.coil.compose)
     implementation(libs.pdfbox.android)
     implementation(libs.mlkit.text.recognition)

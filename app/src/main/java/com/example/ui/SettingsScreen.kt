@@ -114,6 +114,7 @@ fun SettingsScreen(
 ) {
     val themeMode by AppPreferences.themeMode.collectAsState()
     val reduceMotion by AppPreferences.reduceMotion.collectAsState()
+    val systemReduceMotion by AppPreferences.systemReduceMotion.collectAsState()
     val haptics by AppPreferences.haptics.collectAsState()
     val accent by AppPreferences.accent.collectAsState()
     val defaultQuality by AppPreferences.defaultQuality.collectAsState()
@@ -187,7 +188,7 @@ fun SettingsScreen(
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     OptionRow(
                         label = "Riduci animazioni",
-                        description = "Transizioni istantanee, utile su telefoni lenti o se le animazioni danno fastidio",
+                        description = if (systemReduceMotion) "Già attive: le animazioni sono disattivate nelle impostazioni del telefono" else "Transizioni istantanee, utile su telefoni lenti o se le animazioni danno fastidio",
                         checked = reduceMotion,
                         onCheckedChange = { AppPreferences.setReduceMotion(it) }
                     )

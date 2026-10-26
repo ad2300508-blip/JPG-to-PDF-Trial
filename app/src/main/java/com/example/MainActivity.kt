@@ -40,7 +40,9 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             val themeMode by AppPreferences.themeMode.collectAsState()
-            val reduceMotion by AppPreferences.reduceMotion.collectAsState()
+            val appReduceMotion by AppPreferences.reduceMotion.collectAsState()
+            val systemReduceMotion by AppPreferences.systemReduceMotion.collectAsState()
+            val reduceMotion = appReduceMotion || systemReduceMotion
             val accent by AppPreferences.accent.collectAsState()
             OmniConvertTheme(themeMode = themeMode, reduceMotion = reduceMotion, accent = accent) {
                 OmniConvertApp(
@@ -59,6 +61,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        AppPreferences.refreshSystemMotion(this)
     }
 
     override fun onNewIntent(intent: Intent) {
