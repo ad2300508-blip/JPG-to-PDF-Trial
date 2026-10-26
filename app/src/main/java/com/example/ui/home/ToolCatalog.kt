@@ -13,6 +13,11 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.Transform
+import androidx.compose.material.icons.filled.TextFields
+import androidx.compose.material.icons.filled.AspectRatio
 import androidx.compose.material.icons.filled.NoteAlt
 import androidx.compose.material.icons.filled.LayersClear
 import androidx.compose.material.icons.filled.FlipToBack
@@ -50,7 +55,7 @@ enum class ToolGroup(val label: String, val chip: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER, PHOTO_FILTERS, PDF_READER, PDF_INFO, TEXT_TO_PDF, BLANK_PAGES, NUP_PDF, NOTES_PDF, DUPLEX_PDF, CROP_PDF }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER, PHOTO_FILTERS, PDF_READER, PDF_INFO, TEXT_TO_PDF, BLANK_PAGES, NUP_PDF, NOTES_PDF, DUPLEX_PDF, CROP_PDF, SOCIAL_FORMAT, PHOTO_WATERMARK, ROTATE_PHOTOS, PALETTE, RECORDER }
 
 enum class OmniTool(
     val title: String,
@@ -316,6 +321,50 @@ enum class OmniTool(
         keywords = "gif animazione animata foto fotogrammi boomerang sticker meme",
         accepts = listOf("image/")
     ),
+    SOCIAL_FORMAT(
+        title = "Formato social",
+        subtitle = "1:1, 4:5, 9:16 · cornice",
+        description = "Adatta le foto a post e storie senza tagliarle, con sfondo sfocato o colorato e cornice.",
+        icon = Icons.Default.AspectRatio,
+        tint = TintImage,
+        group = ToolGroup.PHOTOS,
+        screen = ToolScreen.SOCIAL_FORMAT,
+        keywords = "social instagram storia story post quadrato formato cornice bordo sfondo sfocato foto",
+        accepts = listOf("image/")
+    ),
+    PHOTO_WATERMARK(
+        title = "Filigrana foto",
+        subtitle = "Firma con un testo",
+        description = "Aggiungi il tuo nome o una scritta alle foto, in un angolo o ripetuta.",
+        icon = Icons.Default.TextFields,
+        tint = TintImage,
+        group = ToolGroup.PHOTOS,
+        screen = ToolScreen.PHOTO_WATERMARK,
+        keywords = "filigrana watermark firma testo copyright nome foto immagini",
+        accepts = listOf("image/")
+    ),
+    ROTATE_PHOTOS(
+        title = "Ruota e specchia",
+        subtitle = "Più foto insieme",
+        description = "Ruota di 90° o specchia tutte le foto scelte in un colpo.",
+        icon = Icons.Default.Transform,
+        tint = TintImage,
+        group = ToolGroup.PHOTOS,
+        screen = ToolScreen.ROTATE_PHOTOS,
+        keywords = "ruota gira raddrizza specchia capovolgi orizzontale verticale foto",
+        accepts = listOf("image/")
+    ),
+    PALETTE(
+        title = "Palette colori",
+        subtitle = "Colori di una foto",
+        description = "Trova i colori principali di una foto e copia i loro codici.",
+        icon = Icons.Default.Palette,
+        tint = TintImage,
+        group = ToolGroup.PHOTOS,
+        screen = ToolScreen.PALETTE,
+        keywords = "palette colori codice hex rgb tinta grafica disegno foto",
+        accepts = listOf("image/")
+    ),
     AUDIO_CONVERT(
         title = "Converti audio",
         subtitle = "M4A, WAV · taglia",
@@ -326,6 +375,16 @@ enum class OmniTool(
         screen = ToolScreen.AUDIO_LAB,
         keywords = "audio m4a wav mp3 voce lezione trascrivi taglia normalizza",
         accepts = listOf("audio/", "video/")
+    ),
+    RECORDER(
+        title = "Registra audio",
+        subtitle = "Lezioni e note vocali",
+        description = "Registra una lezione o una nota vocale, con pausa e onda dal vivo.",
+        icon = Icons.Default.Mic,
+        tint = TintAudio,
+        group = ToolGroup.MEDIA,
+        screen = ToolScreen.RECORDER,
+        keywords = "registra registratore microfono voce lezione nota vocale audio"
     ),
     ZIP_ARCHIVE(
         title = "Crea archivio ZIP",
