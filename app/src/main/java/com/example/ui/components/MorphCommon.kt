@@ -168,7 +168,7 @@ fun mimeForKind(kind: HistoryKind): String = when (kind) {
     HistoryKind.OTHER -> "*/*"
 }
 
-/** Prefers the real type of the file over a generic "image/*" so viewers pick the right app. */
+/** Prefers the real type of the file over a generic wildcard type so viewers pick the right app. */
 private fun resolveMime(context: Context, uri: Uri, fallback: String?): String {
     val actual = runCatching { context.contentResolver.getType(uri) }.getOrNull()
     return when {

@@ -16,6 +16,7 @@ import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.using
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.material.icons.filled.Compress
