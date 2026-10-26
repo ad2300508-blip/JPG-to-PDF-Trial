@@ -14,6 +14,7 @@ import com.example.util.OutputFolder
 import com.example.util.OutputStorage
 import com.example.util.resultOf
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import java.io.File
 import kotlin.math.max
@@ -45,12 +46,19 @@ class ImageConverterService(private val context: Context) {
             // Encode into a temp file first: EXIF can only be written to seekable files.
             val temp = File(context.cacheDir, "img_${System.nanoTime()}.${settings.targetFormat.extension}")
             try {
-                temp.outputStream().buffered().use { out ->
-                    if (!bitmap.compress(settings.targetFormat.compressFormat(), quality, out)) {
-                        throw IllegalStateException("Codifica ${settings.targetFormat.extension.uppercase()} non riuscita")
+                if (settings.targetSizeKb > 0 && !settings.targetFormat.isLossless) {
+                    val (bytes, scaled) = encodeUnder(bitmap, settings.targetFormat.compressFormat(), quality, settings.targetSizeKb * 1024L)
+                    if (scaled !== bitmap) bitmap.recycle()
+                    temp.writeBytes(bytes)
+                    scaled.recycle()
+                } else {
+                    temp.outputStream().buffered().use { out ->
+                        if (!bitmap.compress(settings.targetFormat.compressFormat(), quality, out)) {
+                            throw IllegalStateException("Codifica ${settings.targetFormat.extension.uppercase()} non riuscita")
+                        }
                     }
+                    bitmap.recycle()
                 }
-                bitmap.recycle()
 
                 if (!settings.stripExif && settings.targetFormat == ImageFormat.JPEG) {
                     copyExif(item.uri, temp)
@@ -65,6 +73,38 @@ class ImageConverterService(private val context: Context) {
                 temp.delete()
             }
         }
+    }
+
+    /**
+     * Finds the highest quality that fits in [maxBytes] (binary search between 15 and [maxQuality]);
+     * if even the lowest quality is too big, shrinks the image by 20% and tries again.
+     * Returns the encoded bytes and the bitmap that produced them.
+     */
+    private suspend fun encodeUnder(source: Bitmap, format: Bitmap.CompressFormat, maxQuality: Int, maxBytes: Long): Pair<ByteArray, Bitmap> {
+        var bitmap = source
+        repeat(8) {
+            kotlin.coroutines.coroutineContext.ensureActive()
+            fun encode(q: Int): ByteArray = java.io.ByteArrayOutputStream().also { bitmap.compress(format, q, it) }.toByteArray()
+            var best: ByteArray? = null
+            var low = 15
+            var high = maxQuality.coerceAtLeast(15)
+            while (low <= high) {
+                val mid = (low + high) / 2
+                val bytes = encode(mid)
+                if (bytes.size <= maxBytes) {
+                    best = bytes
+                    low = mid + 1
+                } else {
+                    high = mid - 1
+                }
+            }
+            if (best != null) return best!! to bitmap
+            val next = Bitmap.createScaledBitmap(bitmap, (bitmap.width * 0.8f).roundToInt().coerceAtLeast(1), (bitmap.height * 0.8f).roundToInt().coerceAtLeast(1), true)
+            if (bitmap !== source) bitmap.recycle()
+            bitmap = next
+        }
+        // Give up shrinking: return the smallest version we can make.
+        return java.io.ByteArrayOutputStream().also { bitmap.compress(format, 15, it) }.toByteArray() to bitmap
     }
 
     /** Keeps date, camera and GPS info when the user turns off "Rimuovi metadati EXIF". */

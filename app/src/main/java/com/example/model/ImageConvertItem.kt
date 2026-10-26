@@ -28,5 +28,7 @@ data class ImageConversionSettings(
     val resolutionScalePercent: Int = 100, // 100, 75, 50, 25
     /** 0 = no limit, otherwise longest side in pixels. */
     val maxSidePx: Int = 0,
+    /** 0 = no limit, otherwise the lossy encoder lowers quality (and size if needed) to stay under it. */
+    val targetSizeKb: Int = 0,
     val stripExif: Boolean = true
 )

@@ -96,6 +96,9 @@ fun ImageLabScreen(
     val maxSideOptions = listOf("Nessuno", "1080", "1600", "2560")
     val maxSideValues = listOf(0, 1080, 1600, 2560)
     val selectedMaxSide = maxSideValues.indexOf(settings.maxSidePx).coerceAtLeast(0)
+    val targetSizeOptions = listOf("Libero", "200 KB", "500 KB", "1 MB")
+    val targetSizeValues = listOf(0, 200, 500, 1024)
+    val selectedTargetSize = targetSizeValues.indexOf(settings.targetSizeKb).coerceAtLeast(0)
 
     val convertible = items.filter { it.originalWidth > 0 }
     val convertedCount = items.count { it.convertedSizeBytes != null }
@@ -263,6 +266,16 @@ fun ImageLabScreen(
                         )
                     }
 
+                    RevealVertically(visible = !settings.targetFormat.isLossless) {
+                        OptionSection(title = "Peso massimo per file", hint = if (settings.targetSizeKb > 0) "Abbasso qualità e, se serve, risoluzione finché il file ci sta" else "Per portali scolastici e moduli con limiti di upload") {
+                            SegmentedControl(
+                                options = targetSizeOptions,
+                                selectedIndex = selectedTargetSize,
+                                onOptionSelected = { idx -> viewModel.updateSettings(settings.copy(targetSizeKb = targetSizeValues[idx])) }
+                            )
+                        }
+                    }
+
                     OptionRow(
                         label = "Rimuovi metadati EXIF",
                         description = if (settings.stripExif) "Rimuove posizione GPS e dati della fotocamera" else "Mantiene data, fotocamera e GPS (solo JPEG)",
@@ -284,7 +297,8 @@ fun ImageLabScreen(
                     detailText = listOfNotNull(
                         "${settings.qualityPercent}%".takeIf { !settings.targetFormat.isLossless },
                         "${settings.resolutionScalePercent}% risoluzione",
-                        "max ${settings.maxSidePx}px".takeIf { settings.maxSidePx > 0 }
+                        "max ${settings.maxSidePx}px".takeIf { settings.maxSidePx > 0 },
+                        "≤ ${targetSizeOptions[selectedTargetSize]}".takeIf { settings.targetSizeKb > 0 && !settings.targetFormat.isLossless }
                     ).joinToString(" · "),
                     primaryButtonLabel = if (isProcessing) "Conversione…" else if (pending == 0 && convertible.isNotEmpty()) "Fatto" else "Converti",
                     isEnabled = pending > 0 && !isProcessing,
