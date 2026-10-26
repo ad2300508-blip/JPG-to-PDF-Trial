@@ -87,6 +87,7 @@ import com.example.ui.PdfMergeScreen
 import com.example.ui.PdfOrganizeScreen
 import com.example.ui.PdfSecureScreen
 import com.example.ui.PdfStampScreen
+import com.example.ui.PdfSplitScreen
 import com.example.ui.PdfStudioScreen
 import com.example.ui.PdfToImagesScreen
 import com.example.ui.SettingsScreen
@@ -123,6 +124,7 @@ import com.example.viewmodel.PdfCompressViewModel
 import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfPagesViewModel
 import com.example.viewmodel.PdfSecureViewModel
+import com.example.viewmodel.PdfSplitViewModel
 import com.example.viewmodel.PdfStampViewModel
 import com.example.viewmodel.PdfStudioViewModel
 
@@ -152,7 +154,8 @@ class ToolViewModels(
     val organize: PdfPagesViewModel,
     val pdfImages: PdfPagesViewModel,
     val stamp: PdfStampViewModel,
-    val secure: PdfSecureViewModel
+    val secure: PdfSecureViewModel,
+    val split: PdfSplitViewModel
 )
 
 @Composable
@@ -174,7 +177,8 @@ fun OmniConvertApp(
         organize = viewModel(key = "organize"),
         pdfImages = viewModel(key = "pdf_images"),
         stamp = viewModel(),
-        secure = viewModel()
+        secure = viewModel(),
+        split = viewModel()
     )
 
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
@@ -214,6 +218,7 @@ fun OmniConvertApp(
             ToolScreen.EXTRACT_ZIP -> uris.firstOrNull()?.let { tools.archive.selectZipToExtract(it) }
             ToolScreen.STAMP_PDF -> uris.firstOrNull()?.let { tools.stamp.loadPdf(it) }
             ToolScreen.SECURE_PDF -> uris.firstOrNull()?.let { tools.secure.loadPdf(it) }
+            ToolScreen.SPLIT_PDF -> uris.firstOrNull()?.let { tools.split.loadPdf(it) }
         }
         openTool(tool)
     }
@@ -405,6 +410,7 @@ private fun ToolContent(
         ToolScreen.PDF_TO_IMAGES -> PdfToImagesScreen(viewModel = tools.pdfImages)
         ToolScreen.STAMP_PDF -> PdfStampScreen(viewModel = tools.stamp, onContinueWithCompress = toCompress, onContinueWithProtect = toSecure)
         ToolScreen.SECURE_PDF -> PdfSecureScreen(viewModel = tools.secure, onContinueWithOrganize = toOrganize, onContinueWithStamp = toStamp)
+        ToolScreen.SPLIT_PDF -> PdfSplitScreen(viewModel = tools.split, onContinueWithOrganize = toOrganize)
     }
 }
 

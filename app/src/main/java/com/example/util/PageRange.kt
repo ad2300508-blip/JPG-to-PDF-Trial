@@ -32,6 +32,19 @@ object PageRange {
         return result.toList()
     }
 
+    /**
+     * Splits the text into separate groups, one per comma/semicolon token: "1-3, 4-6; 9" -> [[0,1,2],[3,4,5],[8]].
+     * Invalid tokens are skipped; pages are 0-based.
+     */
+    fun groups(text: String, pageCount: Int): List<List<Int>> =
+        text.split(',', ';').map { it.trim() }.filter { it.isNotEmpty() }
+            .map { token -> if (token.lowercase() in setOf("tutte", "all", "*")) (0 until pageCount).toList() else parse(token, pageCount) }
+            .filter { it.isNotEmpty() }
+
+    /** Consecutive chunks of [size] pages: chunks(5, 2) -> [[0,1],[2,3],[4]]. */
+    fun chunks(pageCount: Int, size: Int): List<List<Int>> =
+        if (pageCount <= 0) emptyList() else (0 until pageCount).chunked(size.coerceAtLeast(1))
+
     /** True when the text is empty or selects at least one page. */
     fun isValid(text: String, pageCount: Int): Boolean =
         text.isBlank() || pageCount <= 0 || parse(text, pageCount).isNotEmpty()

@@ -97,4 +97,11 @@ class UtilsUnitTest {
         assertEquals(MdBlock.Bullet("primo", "1.", 0), blocks[3])
         assertEquals(MdBlock.Table(listOf(listOf("A", "B"), listOf("1", "2"))), blocks[4])
     }
+
+    @Test
+    fun pageRangeGroupsAndChunks() {
+        assertEquals(listOf(listOf(0, 1, 2), listOf(3, 4), listOf(8, 9)), PageRange.groups("1-3, 4-5; 9-", 10))
+        assertEquals(listOf(listOf(0, 1), listOf(2, 3), listOf(4)), PageRange.chunks(5, 2))
+        assertTrue(PageRange.groups("abc, 99", 5).isEmpty())
+    }
 }

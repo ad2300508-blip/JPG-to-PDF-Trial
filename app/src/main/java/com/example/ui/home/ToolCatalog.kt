@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Compress
+import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
@@ -33,7 +34,7 @@ enum class ToolCategory(val label: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF }
 
 enum class OmniTool(
     val title: String,
@@ -102,6 +103,18 @@ enum class OmniTool(
         categories = setOf(ToolCategory.DOCUMENTS),
         screen = ToolScreen.ORGANIZE_PDF,
         keywords = "organizza pagine ruota elimina estrai dividi split riordina pdf",
+        accepts = listOf("application/pdf"),
+        isNew = true
+    ),
+    SPLIT_PDF(
+        title = "Dividi PDF",
+        subtitle = "Un PDF → più file",
+        description = "Spezza un PDF ogni N pagine, pagina per pagina o per intervalli.",
+        icon = Icons.Default.ContentCut,
+        tint = TintStamp,
+        categories = setOf(ToolCategory.DOCUMENTS),
+        screen = ToolScreen.SPLIT_PDF,
+        keywords = "dividi split separa spezza capitoli pagine pdf",
         accepts = listOf("application/pdf"),
         isNew = true
     ),

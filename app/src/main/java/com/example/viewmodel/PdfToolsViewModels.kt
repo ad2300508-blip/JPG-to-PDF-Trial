@@ -17,6 +17,7 @@ import com.example.service.ProtectOptions
 import com.example.service.StampConfig
 import com.example.service.PdfToolsService
 import com.example.util.FileNames
+import com.example.util.PageRange
 import com.example.util.queryUriInfo
 import com.example.util.userMessage
 import kotlinx.coroutines.Dispatchers
@@ -432,6 +433,70 @@ class PdfSecureViewModel(application: Application) : SinglePdfViewModel(applicat
                     HistoryRepository.record(getApplication<Application>(), uri, label, HistoryKind.PDF, pdf.name, 0L)
                 }
                 .onFailure { _errorMessage.value = it.userMessage("Operazione non riuscita") }
+        }
+    }
+}
+
+enum class SplitMode(val label: String) { EVERY_N("Ogni N pagine"), SINGLE("Una per file"), CUSTOM("Intervalli") }
+
+class PdfSplitViewModel(application: Application) : SinglePdfViewModel(application) {
+
+    private val _mode = MutableStateFlow(SplitMode.EVERY_N)
+    val mode: StateFlow<SplitMode> = _mode.asStateFlow()
+
+    private val _everyN = MutableStateFlow(2)
+    val everyN: StateFlow<Int> = _everyN.asStateFlow()
+
+    private val _customRanges = MutableStateFlow("")
+    val customRanges: StateFlow<String> = _customRanges.asStateFlow()
+
+    private val _asZip = MutableStateFlow(true)
+    val asZip: StateFlow<Boolean> = _asZip.asStateFlow()
+
+    private val _result = MutableStateFlow<PdfToolsService.SplitResult?>(null)
+    val result: StateFlow<PdfToolsService.SplitResult?> = _result.asStateFlow()
+
+    fun setMode(mode: SplitMode) { _mode.value = mode }
+    fun setEveryN(n: Int) { _everyN.value = n.coerceAtLeast(1) }
+    fun setCustomRanges(text: String) { _customRanges.value = text }
+    fun setAsZip(enabled: Boolean) { _asZip.value = enabled }
+
+    override fun onLoaded(pageCount: Int) {
+        _everyN.value = _everyN.value.coerceIn(1, pageCount.coerceAtLeast(1))
+        _result.value = null
+    }
+
+    override fun clear() {
+        super.clear()
+        _result.value = null
+    }
+
+    /** The parts that will be created with the current options (0-based pages). */
+    fun groups(pageCount: Int = source.value?.pageCount ?: 0): List<List<Int>> = when (_mode.value) {
+        SplitMode.EVERY_N -> PageRange.chunks(pageCount, _everyN.value)
+        SplitMode.SINGLE -> PageRange.chunks(pageCount, 1)
+        SplitMode.CUSTOM -> PageRange.groups(_customRanges.value, pageCount)
+    }
+
+    fun split() {
+        val pdf = source.value ?: return
+        val groups = groups(pdf.pageCount)
+        // Many single files are hard to manage: always bundle more than 30 parts.
+        val zip = _asZip.value || groups.size > 30
+        runJob {
+            tools.split(pdf.uri, pdf.name, groups, zip) { current, total -> _progress.value = Pair(current, total) }
+                .onSuccess { res ->
+                    _result.value = res
+                    val output = res.zipUri ?: res.uris.firstOrNull()
+                    _resultUri.value = output
+                    val app = getApplication<Application>()
+                    if (res.zipUri != null) {
+                        HistoryRepository.record(app, res.zipUri, "Dividi PDF", HistoryKind.ZIP, pdf.name, res.totalBytes)
+                    } else {
+                        res.uris.forEach { HistoryRepository.record(app, it, "Dividi PDF", HistoryKind.PDF, pdf.name, 0L) }
+                    }
+                }
+                .onFailure { _errorMessage.value = it.userMessage("Divisione non riuscita") }
         }
     }
 }
