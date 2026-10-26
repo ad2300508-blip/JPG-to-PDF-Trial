@@ -69,20 +69,34 @@ val MorphDarkColors = MorphColors(
 val LocalMorphColors = staticCompositionLocalOf { MorphLightColors }
 
 // Active theme tokens (resolved from the current theme)
-val OmniBg: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.bg
-val OmniSurface: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.surface
-val OmniSurface2: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.surface2
-val OmniBorder: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.border
-val OmniText: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.text
-val OmniTextMuted: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.textMuted
-val OmniAccent: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.accent
-val OmniAccentSoft: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.accentSoft
-val OmniOnAccent: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.onAccent
-val OmniDanger: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.danger
-val OmniSuccess: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.success
-val OmniSuccessSoft: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.successSoft
-val OmniInk: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.ink
-val OmniOnInk: Color @Composable @ReadOnlyComposable get() = LocalMorphColors.current.onInk
+val OmniBg: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.bg
+val OmniSurface: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.surface
+val OmniSurface2: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.surface2
+val OmniBorder: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.border
+val OmniText: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.text
+val OmniTextMuted: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.textMuted
+val OmniAccent: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.accent
+val OmniAccentSoft: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.accentSoft
+val OmniOnAccent: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.onAccent
+val OmniDanger: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.danger
+val OmniSuccess: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.success
+val OmniSuccessSoft: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.successSoft
+val OmniInk: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.ink
+val OmniOnInk: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.onInk
 
 // Category Tints (icon tiles: 14% opacity background + full color icon, readable in both themes)
 val TintPdf = Color(0xFF3B5BE8)
@@ -105,35 +119,63 @@ val RadiusMd = 16.dp
 val RadiusLg = 20.dp
 
 // Backward-compatible semantic aliases
-val SurfaceCanvas: Color @Composable @ReadOnlyComposable get() = OmniBg
-val SurfaceCard: Color @Composable @ReadOnlyComposable get() = OmniSurface
-val SurfaceElevated: Color @Composable @ReadOnlyComposable get() = OmniSurface2
-val BorderSubtle: Color @Composable @ReadOnlyComposable get() = OmniBorder
-val BorderFocused: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val BorderCrisp: Color @Composable @ReadOnlyComposable get() = OmniBorder
-val CardSurface: Color @Composable @ReadOnlyComposable get() = OmniSurface
+val SurfaceCanvas: Color
+    @Composable @ReadOnlyComposable get() = OmniBg
+val SurfaceCard: Color
+    @Composable @ReadOnlyComposable get() = OmniSurface
+val SurfaceElevated: Color
+    @Composable @ReadOnlyComposable get() = OmniSurface2
+val BorderSubtle: Color
+    @Composable @ReadOnlyComposable get() = OmniBorder
+val BorderFocused: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val BorderCrisp: Color
+    @Composable @ReadOnlyComposable get() = OmniBorder
+val CardSurface: Color
+    @Composable @ReadOnlyComposable get() = OmniSurface
 
-val Slate950: Color @Composable @ReadOnlyComposable get() = OmniBg
-val Slate900: Color @Composable @ReadOnlyComposable get() = OmniSurface
-val Slate800: Color @Composable @ReadOnlyComposable get() = OmniSurface2
-val Slate700: Color @Composable @ReadOnlyComposable get() = OmniBorder
+val Slate950: Color
+    @Composable @ReadOnlyComposable get() = OmniBg
+val Slate900: Color
+    @Composable @ReadOnlyComposable get() = OmniSurface
+val Slate800: Color
+    @Composable @ReadOnlyComposable get() = OmniSurface2
+val Slate700: Color
+    @Composable @ReadOnlyComposable get() = OmniBorder
 val Slate600 = Color(0xFF64748B)
-val Slate400: Color @Composable @ReadOnlyComposable get() = OmniTextMuted
+val Slate400: Color
+    @Composable @ReadOnlyComposable get() = OmniTextMuted
 val Slate300 = Color(0xFFCBD5E1)
-val Slate100: Color @Composable @ReadOnlyComposable get() = OmniText
+val Slate100: Color
+    @Composable @ReadOnlyComposable get() = OmniText
 
-val CyanAccent: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val CyanGlow: Color @Composable @ReadOnlyComposable get() = OmniAccentSoft
-val IndigoAccent: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val EmeraldAccent: Color @Composable @ReadOnlyComposable get() = OmniSuccess
-val AmberAccent: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val RoseAccent: Color @Composable @ReadOnlyComposable get() = OmniDanger
-val PdfGreen: Color @Composable @ReadOnlyComposable get() = OmniSuccess
-val PdfRed: Color @Composable @ReadOnlyComposable get() = OmniDanger
-val PdfPurple: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val PdfOrange: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val SuccessGreen: Color @Composable @ReadOnlyComposable get() = OmniSuccess
-val AccentCyan: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val WarningAmber: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val BadgeMd: Color @Composable @ReadOnlyComposable get() = OmniAccent
-val BadgeMdBg: Color @Composable @ReadOnlyComposable get() = OmniAccentSoft
+val CyanAccent: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val CyanGlow: Color
+    @Composable @ReadOnlyComposable get() = OmniAccentSoft
+val IndigoAccent: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val EmeraldAccent: Color
+    @Composable @ReadOnlyComposable get() = OmniSuccess
+val AmberAccent: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val RoseAccent: Color
+    @Composable @ReadOnlyComposable get() = OmniDanger
+val PdfGreen: Color
+    @Composable @ReadOnlyComposable get() = OmniSuccess
+val PdfRed: Color
+    @Composable @ReadOnlyComposable get() = OmniDanger
+val PdfPurple: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val PdfOrange: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val SuccessGreen: Color
+    @Composable @ReadOnlyComposable get() = OmniSuccess
+val AccentCyan: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val WarningAmber: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val BadgeMd: Color
+    @Composable @ReadOnlyComposable get() = OmniAccent
+val BadgeMdBg: Color
+    @Composable @ReadOnlyComposable get() = OmniAccentSoft
