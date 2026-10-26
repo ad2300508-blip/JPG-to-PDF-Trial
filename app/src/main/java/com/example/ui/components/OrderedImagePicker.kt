@@ -218,8 +218,11 @@ private fun OrderedImagePickerDialog(
                                         image = image,
                                         order = if (order >= 0) order + 1 else null,
                                         onClick = {
-                                            if (order >= 0) {
-                                                selected.removeAt(order)
+                                            // Look the photo up again at tap time: two quick taps can arrive before
+                                            // recomposition, and a stale index would remove the wrong page or crash.
+                                            val current = selected.indexOf(image.uri)
+                                            if (current >= 0) {
+                                                selected.removeAt(current)
                                                 haptics(Haptic.TICK)
                                             } else {
                                                 selected.add(image.uri)
