@@ -78,7 +78,8 @@ data class PdfExportConfig(
     val subject: String = "",
     val keywords: String = "",
     val creator: String = "Morph",
-    val creationDate: String = ""
+    val creationDate: String = "",
+    val stripMetadata: Boolean = false
 ) {
     val hasCustomMetadata: Boolean
         get() = author.isNotBlank() || subject.isNotBlank() || keywords.isNotBlank() || creationDate.isNotBlank()

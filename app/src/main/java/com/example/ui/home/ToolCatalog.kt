@@ -29,6 +29,7 @@ import com.example.ui.theme.TintZip
 enum class ToolCategory(val label: String) {
     DOCUMENTS("Documenti"),
     IMAGES("Immagini"),
+    COMPRESSION("Compressione"),
     AUDIO("Audio"),
     ARCHIVES("Archivi")
 }
@@ -88,7 +89,7 @@ enum class OmniTool(
         description = "Riduci il peso di PDF scansionati per email e WhatsApp.",
         icon = Icons.Default.Compress,
         tint = TintPdf,
-        categories = setOf(ToolCategory.DOCUMENTS),
+        categories = setOf(ToolCategory.DOCUMENTS, ToolCategory.COMPRESSION),
         screen = ToolScreen.COMPRESS_PDF,
         keywords = "comprimi riduci peso pdf leggero email whatsapp",
         accepts = listOf("application/pdf"),
@@ -160,7 +161,7 @@ enum class OmniTool(
         description = "Cambia formato, comprimi e ridimensiona le immagini.",
         icon = Icons.Default.Image,
         tint = TintImage,
-        categories = setOf(ToolCategory.IMAGES),
+        categories = setOf(ToolCategory.IMAGES, ToolCategory.COMPRESSION),
         screen = ToolScreen.IMAGE_LAB,
         keywords = "immagini converti comprimi webp jpg png exif ridimensiona",
         accepts = listOf("image/")

@@ -34,7 +34,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val themeMode by AppPreferences.themeMode.collectAsState()
             val reduceMotion by AppPreferences.reduceMotion.collectAsState()
-            OmniConvertTheme(themeMode = themeMode, reduceMotion = reduceMotion) {
+            val accent by AppPreferences.accent.collectAsState()
+            OmniConvertTheme(themeMode = themeMode, reduceMotion = reduceMotion, accent = accent) {
                 OmniConvertApp(
                     pdfViewModel = pdfViewModel,
                     sharedFiles = sharedFiles.value,

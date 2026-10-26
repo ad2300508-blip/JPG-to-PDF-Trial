@@ -31,6 +31,15 @@ import kotlinx.coroutines.withContext
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import com.example.model.PdfQuality
+import com.example.ui.components.SegmentedControl
+import com.example.ui.theme.AccentChoice
+import com.example.ui.theme.LocalMorphColors
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -106,6 +115,11 @@ fun SettingsScreen(
     val themeMode by AppPreferences.themeMode.collectAsState()
     val reduceMotion by AppPreferences.reduceMotion.collectAsState()
     val haptics by AppPreferences.haptics.collectAsState()
+    val accent by AppPreferences.accent.collectAsState()
+    val defaultQuality by AppPreferences.defaultQuality.collectAsState()
+    val defaultPageSize by AppPreferences.defaultPageSize.collectAsState()
+    val autoClean by AppPreferences.autoClean.collectAsState()
+    val stripMetadata by AppPreferences.stripMetadata.collectAsState()
     val historyEntries by HistoryRepository.entries.collectAsState()
     val historyCount = historyEntries.size
     val context = LocalContext.current
@@ -153,6 +167,23 @@ fun SettingsScreen(
 
             Spacer(modifier = Modifier.height(16.dp))
             SettingsGroup {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp)) {
+                    Text("Colore principale", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = OmniText)
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                        AccentChoice.entries.forEach { choice ->
+                            AccentSwatch(
+                                choice = choice,
+                                selected = choice == accent,
+                                onClick = { AppPreferences.setAccent(choice) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            SettingsGroup {
                 Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
                     OptionRow(
                         label = "Riduci animazioni",
@@ -166,6 +197,49 @@ fun SettingsScreen(
                         checked = haptics,
                         onCheckedChange = { AppPreferences.setHaptics(it) }
                     )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(28.dp))
+            SectionLabel("Conversione")
+            Spacer(modifier = Modifier.height(10.dp))
+            SettingsGroup {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    Column {
+                        Text("Qualità predefinita", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = OmniText)
+                        Text("Per i nuovi PDF creati da immagini", fontSize = 13.sp, color = OmniTextMuted)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        SegmentedControl(
+                            options = PdfQuality.entries.map { it.label },
+                            selectedIndex = defaultQuality.ordinal,
+                            onOptionSelected = { AppPreferences.setDefaultQuality(PdfQuality.entries[it]) }
+                        )
+                    }
+                    Column {
+                        Text("Formato pagina", fontSize = 15.sp, fontWeight = FontWeight.SemiBold, color = OmniText)
+                        Text("Per Immagini in PDF", fontSize = 13.sp, color = OmniTextMuted)
+                        Spacer(modifier = Modifier.height(10.dp))
+                        val sizes = listOf("A4", "Letter", "Original")
+                        SegmentedControl(
+                            options = listOf("A4", "Lettera", "Originale"),
+                            selectedIndex = sizes.indexOf(defaultPageSize).coerceAtLeast(0),
+                            onOptionSelected = { AppPreferences.setDefaultPageSize(sizes[it]) }
+                        )
+                    }
+                    Column {
+                        OptionRow(
+                            label = "Contrasto e pulizia automatici",
+                            description = "Migliora le scansioni",
+                            checked = autoClean,
+                            onCheckedChange = { AppPreferences.setAutoClean(it) }
+                        )
+                        OptionRow(
+                            label = "Rimuovi metadati",
+                            description = "Autore, parole chiave e date personalizzate restano fuori dal PDF",
+                            checked = stripMetadata,
+                            onCheckedChange = { AppPreferences.setStripMetadata(it) }
+                        )
+                    }
                 }
             }
 
@@ -243,6 +317,29 @@ fun SettingsScreen(
             }
             Spacer(modifier = Modifier.height(24.dp))
         }
+    }
+}
+
+@Composable
+private fun AccentSwatch(choice: AccentChoice, selected: Boolean, onClick: () -> Unit) {
+    val dark = LocalMorphColors.current.isDark
+    val color = if (dark) choice.dark else choice.light
+    val ring by animateColorAsState(if (selected) OmniText else Color.Transparent, label = "swatch_ring")
+    val scale by animateFloatAsState(if (selected) 1f else 0.9f, motionSpec(Motion.bouncy()), label = "swatch_scale")
+    Box(
+        modifier = Modifier
+            .size(46.dp)
+            .graphicsLayer { scaleX = scale; scaleY = scale }
+            .border(2.dp, ring, CircleShape)
+            .padding(5.dp)
+            .clip(CircleShape)
+            .background(color)
+            .clickable(onClickLabel = choice.label, role = Role.RadioButton, onClick = onClick)
+            .semantics { this.selected = selected; contentDescription = choice.label }
+            .testTag("accent_${choice.name.lowercase()}"),
+        contentAlignment = Alignment.Center
+    ) {
+        if (selected) Icon(Icons.Default.Check, contentDescription = null, tint = if (dark) choice.darkOn else Color.White, modifier = Modifier.size(20.dp))
     }
 }
 

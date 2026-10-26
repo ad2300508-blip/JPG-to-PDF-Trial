@@ -11,6 +11,7 @@ import com.example.viewmodel.NaturalOrder
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
+import com.example.ui.theme.withAccent
 import org.junit.Test
 
 class UtilsUnitTest {
@@ -103,5 +104,16 @@ class UtilsUnitTest {
         assertEquals(listOf(listOf(0, 1, 2), listOf(3, 4), listOf(8, 9)), PageRange.groups("1-3, 4-5; 9-", 10))
         assertEquals(listOf(listOf(0, 1), listOf(2, 3), listOf(4)), PageRange.chunks(5, 2))
         assertTrue(PageRange.groups("abc, 99", 5).isEmpty())
+    }
+
+    @Test
+    fun accentChoiceOnlyChangesAccentColours() {
+        val teal = com.example.ui.theme.MorphLightColors.withAccent(com.example.ui.theme.AccentChoice.TEAL)
+        assertEquals(com.example.ui.theme.AccentChoice.TEAL.light, teal.accent)
+        assertEquals(com.example.ui.theme.MorphLightColors.bg, teal.bg)
+        val darkOrange = com.example.ui.theme.MorphDarkColors.withAccent(com.example.ui.theme.AccentChoice.ORANGE)
+        assertEquals(com.example.ui.theme.AccentChoice.ORANGE.dark, darkOrange.accent)
+        assertEquals(com.example.ui.theme.AccentChoice.ORANGE.darkOn, darkOrange.onAccent)
+        assertEquals(5, com.example.ui.theme.AccentChoice.entries.map { it.light }.toSet().size.coerceAtLeast(4) + 1)
     }
 }

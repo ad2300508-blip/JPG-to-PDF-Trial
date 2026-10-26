@@ -68,6 +68,28 @@ val MorphDarkColors = MorphColors(
 
 val LocalMorphColors = staticCompositionLocalOf { MorphLightColors }
 
+/** Main colour the user can pick in Settings; indigo is the original Morph accent. */
+enum class AccentChoice(
+    val label: String,
+    val light: Color,
+    val lightSoft: Color,
+    val dark: Color,
+    val darkSoft: Color,
+    val darkOn: Color
+) {
+    INDIGO("Indaco", Color(0xFF3050E3), Color(0xFFE5EAFC), Color(0xFF7F95FF), Color(0xFF222A4A), Color(0xFF0A1033)),
+    TEAL("Verde acqua", Color(0xFF0B7F73), Color(0xFFDDF3F0), Color(0xFF4FD1C0), Color(0xFF16363A), Color(0xFF04201D)),
+    PURPLE("Viola", Color(0xFF7440DB), Color(0xFFEDE5FB), Color(0xFFB394FF), Color(0xFF2E2250), Color(0xFF1B0B3D)),
+    ORANGE("Arancio", Color(0xFFC2410C), Color(0xFFFBE8DD), Color(0xFFFF9A5C), Color(0xFF3F2616), Color(0xFF2E1100))
+}
+
+/** The palette with its accent swapped for the chosen one; neutrals and status colours stay. */
+fun MorphColors.withAccent(choice: AccentChoice): MorphColors = copy(
+    accent = if (isDark) choice.dark else choice.light,
+    accentSoft = if (isDark) choice.darkSoft else choice.lightSoft,
+    onAccent = if (isDark) choice.darkOn else Color(0xFFFFFFFF)
+)
+
 // Active theme tokens (resolved from the current theme)
 val OmniBg: Color
     @Composable @ReadOnlyComposable get() = LocalMorphColors.current.bg

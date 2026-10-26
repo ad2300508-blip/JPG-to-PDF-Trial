@@ -1308,7 +1308,9 @@ private fun PdfMetadataDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(currentConfig.copy(title = title, author = author, subject = subject, keywords = keywords))
+                    val custom = author.isNotBlank() || subject.isNotBlank() || keywords.isNotBlank()
+                    // Typing metadata here is an explicit choice, so it overrides the "remove metadata" default.
+                    onSave(currentConfig.copy(title = title, author = author, subject = subject, keywords = keywords, stripMetadata = currentConfig.stripMetadata && !custom))
                 },
                 colors = ButtonDefaults.buttonColors(containerColor = OmniAccent, contentColor = OmniOnAccent),
                 shape = RoundedCornerShape(RadiusSm),
