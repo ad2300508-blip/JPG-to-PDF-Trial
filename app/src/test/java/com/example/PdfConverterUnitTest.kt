@@ -107,7 +107,7 @@ class PdfConverterUnitTest {
         assertEquals("", defaultConfig.author)
         assertEquals("", defaultConfig.keywords)
         assertEquals("", defaultConfig.creationDate)
-        assertEquals("OmniConvert Studio", defaultConfig.creator)
+        assertEquals("Morph", defaultConfig.creator)
 
         val customConfig = defaultConfig.copy(
             title = "Renaissance Architecture",
