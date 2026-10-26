@@ -413,8 +413,10 @@ class GeminiApiService(private val context: Context) {
                 return@withContext Result.failure(Exception("HTTP ${response.code}: $errBody"))
             }
 
-            val source = response.body?.byteStream()
-                ?: return@withContext Result.failure(Exception("Risposta vuota da Gemini")).also { response.close() }
+            val source = response.body?.byteStream() ?: run {
+                response.close()
+                return@withContext Result.failure(Exception("Risposta vuota da Gemini"))
+            }
 
             source.bufferedReader().use { reader ->
                 var line: String?

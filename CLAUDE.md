@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Morph (formerly OmniConvert Studio; repo name "JPG to PDF Trial"): a single-module Android app (Kotlin, Jetpack Compose, Material3, package `com.example`, applicationId `com.aistudio.omniconvert.kxmpzq`, minSdk 26 / targetSdk 35). It converts and processes files fully on-device (images→PDF, PDF merge/compress/organize/→images, watermark & page numbers, password protect/unlock, PDF/DOCX→Markdown, image/audio conversion, ZIP create/extract, OCR) plus a Gemini AI hub. The UI is in Italian and follows the "Morph" design (light/dark/system theme).
+Morph (formerly OmniConvert Studio; repo name "JPG to PDF Trial"): a single-module Android app (Kotlin, Jetpack Compose, Material3, package `com.example`, applicationId `com.aistudio.omniconvert.kxmpzq`, minSdk 26 / targetSdk 35). It converts and processes files fully on-device (images→PDF, PDF merge/compress/organize/→images, watermark & page numbers, password protect/unlock, PDF/DOCX→Markdown, image/audio conversion, ZIP create/extract, OCR) plus a Gemini AI hub. The UI is in Italian and follows the "Morph" design (light/dark/system theme). Author: **Alessio Delfino** (shown in Impostazioni › Info › Autore).
 
 ## Build & test
 
