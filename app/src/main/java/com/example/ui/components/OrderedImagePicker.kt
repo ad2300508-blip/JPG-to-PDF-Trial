@@ -805,7 +805,8 @@ private fun PhotoPreview(
                     .background(OmniInk)
             ) {
                 HorizontalPager(state = pager, beyondViewportPageCount = 1, modifier = Modifier.fillMaxSize()) { page ->
-                    val image = images[page]
+                    // The gallery can reload (and shrink) while the preview is open.
+                    val image = images.getOrNull(page) ?: return@HorizontalPager
                     AsyncImage(
                         model = remember(image.uri) { ImageRequest.Builder(context).data(image.uri).size(2048).crossfade(true).build() },
                         contentDescription = image.name,
