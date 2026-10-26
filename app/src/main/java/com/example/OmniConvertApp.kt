@@ -93,6 +93,11 @@ import com.example.ui.PhotoFiltersScreen
 import com.example.ui.PdfInfoScreen
 import com.example.ui.PdfReaderScreen
 import com.example.ui.TextToPdfScreen
+import com.example.ui.PdfBlankPagesScreen
+import com.example.ui.PdfCropScreen
+import com.example.ui.PdfDuplexScreen
+import com.example.ui.PdfNotesScreen
+import com.example.ui.PdfNupScreen
 import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfCompressScreen
@@ -138,6 +143,11 @@ import com.example.viewmodel.PhotoFiltersViewModel
 import com.example.viewmodel.PdfInfoViewModel
 import com.example.viewmodel.PdfReaderViewModel
 import com.example.viewmodel.TextToPdfViewModel
+import com.example.viewmodel.PdfBlankPagesViewModel
+import com.example.viewmodel.PdfCropViewModel
+import com.example.viewmodel.PdfDuplexViewModel
+import com.example.viewmodel.PdfNotesViewModel
+import com.example.viewmodel.PdfNupViewModel
 import com.example.viewmodel.ImageLabViewModel
 import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfCompressViewModel
@@ -188,7 +198,12 @@ class ToolViewModels(
     val filters: PhotoFiltersViewModel,
     val reader: PdfReaderViewModel,
     val info: PdfInfoViewModel,
-    val textPdf: TextToPdfViewModel
+    val textPdf: TextToPdfViewModel,
+    val blank: PdfBlankPagesViewModel,
+    val nup: PdfNupViewModel,
+    val notes: PdfNotesViewModel,
+    val duplex: PdfDuplexViewModel,
+    val crop: PdfCropViewModel
 )
 
 @Composable
@@ -218,7 +233,12 @@ fun OmniConvertApp(
         filters = viewModel(),
         reader = viewModel(),
         info = viewModel(),
-        textPdf = viewModel()
+        textPdf = viewModel(),
+        blank = viewModel(),
+        nup = viewModel(),
+        notes = viewModel(),
+        duplex = viewModel(),
+        crop = viewModel()
     )
 
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
@@ -256,6 +276,14 @@ fun OmniConvertApp(
             ToolScreen.PDF_READER -> uris.firstOrNull()?.let { tools.reader.loadPdf(it) }
             ToolScreen.PDF_INFO -> uris.firstOrNull()?.let { tools.info.loadPdf(it) }
             ToolScreen.TEXT_TO_PDF -> Unit
+            ToolScreen.BLANK_PAGES -> uris.firstOrNull()?.let { tools.blank.loadPdf(it) }
+            ToolScreen.NUP_PDF -> uris.firstOrNull()?.let { tools.nup.loadPdf(it) }
+            ToolScreen.NOTES_PDF -> uris.firstOrNull()?.let { tools.notes.loadPdf(it) }
+            ToolScreen.DUPLEX_PDF -> {
+                uris.getOrNull(0)?.let { tools.duplex.loadPdf(it) }
+                uris.getOrNull(1)?.let { tools.duplex.loadBacks(it) }
+            }
+            ToolScreen.CROP_PDF -> uris.firstOrNull()?.let { tools.crop.loadPdf(it) }
             ToolScreen.AUDIO_LAB -> tools.audio.addAudioFiles(uris)
             ToolScreen.ARCHIVE -> tools.archive.addFiles(uris)
             ToolScreen.COMPRESS_PDF -> uris.firstOrNull()?.let { tools.compress.loadPdf(it) }
@@ -455,6 +483,11 @@ private fun ToolContent(
         ToolScreen.PDF_READER -> PdfReaderScreen(viewModel = tools.reader)
         ToolScreen.PDF_INFO -> PdfInfoScreen(viewModel = tools.info, onOpenInReader = toReader)
         ToolScreen.TEXT_TO_PDF -> TextToPdfScreen(viewModel = tools.textPdf, onOpenInReader = toReader, onCompress = toCompress)
+        ToolScreen.BLANK_PAGES -> PdfBlankPagesScreen(viewModel = tools.blank, onOpenInReader = toReader)
+        ToolScreen.NUP_PDF -> PdfNupScreen(viewModel = tools.nup, onOpenInReader = toReader)
+        ToolScreen.NOTES_PDF -> PdfNotesScreen(viewModel = tools.notes, onOpenInReader = toReader)
+        ToolScreen.DUPLEX_PDF -> PdfDuplexScreen(viewModel = tools.duplex, onOpenInReader = toReader)
+        ToolScreen.CROP_PDF -> PdfCropScreen(viewModel = tools.crop, onOpenInReader = toReader)
         ToolScreen.AUDIO_LAB -> AudioLabScreen(
             viewModel = tools.audio,
             onTranscribeAudio = { uri, _ -> onTranscribeAudio(uri) }

@@ -39,11 +39,11 @@ e implementate (✅ = fatto, ⏳ = in lavorazione); le altre 50 restano idee per
 25. ✅ Info PDF: titolo, autore, pagine, dimensioni, versione, protezione
 26. ✅ Statistiche del testo: parole, caratteri, tempo di lettura
 27. ✅ Testo in PDF: scrivi o incolla un testo e salvalo in PDF
-28. ⏳ Rimuovi pagine bianche
-29. ⏳ Più pagine per foglio (2 o 4) per stampare risparmiando carta
-30. ⏳ Spazio per appunti: pagina ridotta con righe a lato
-31. ⏳ Unisci scansioni fronte/retro
-32. ⏳ Ritaglia margini
+28. ✅ Rimuovi pagine bianche
+29. ✅ Più pagine per foglio (2 o 4) per stampare risparmiando carta
+30. ✅ Spazio per appunti: pagina ridotta con righe a lato
+31. ✅ Unisci scansioni fronte/retro
+32. ✅ Ritaglia margini
 
 ### Nuove operazioni foto e audio
 33. ⏳ Formato social (1:1, 4:5, 9:16, 16:9) con sfondo sfocato o tinta unita

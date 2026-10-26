@@ -13,6 +13,11 @@ import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.DocumentScanner
 import androidx.compose.material.icons.filled.Gif
 import androidx.compose.material.icons.filled.Draw
+import androidx.compose.material.icons.filled.NoteAlt
+import androidx.compose.material.icons.filled.LayersClear
+import androidx.compose.material.icons.filled.FlipToBack
+import androidx.compose.material.icons.filled.Dashboard
+import androidx.compose.material.icons.filled.Crop
 import androidx.compose.material.icons.filled.EditNote
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
@@ -45,7 +50,7 @@ enum class ToolGroup(val label: String, val chip: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER, PHOTO_FILTERS, PDF_READER, PDF_INFO, TEXT_TO_PDF }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE, GIF_MAKER, PHOTO_FILTERS, PDF_READER, PDF_INFO, TEXT_TO_PDF, BLANK_PAGES, NUP_PDF, NOTES_PDF, DUPLEX_PDF, CROP_PDF }
 
 enum class OmniTool(
     val title: String,
@@ -91,6 +96,17 @@ enum class OmniTool(
         keywords = "unisci merge pdf combina password pagine",
         accepts = listOf("application/pdf")
     ),
+    DUPLEX_PDF(
+        title = "Unisci fronte/retro",
+        subtitle = "Scansioni a due facciate",
+        description = "Alterna fronti e retro scansionati separatamente nell'ordine giusto.",
+        icon = Icons.Default.FlipToBack,
+        tint = TintMerge,
+        group = ToolGroup.CREATE,
+        screen = ToolScreen.DUPLEX_PDF,
+        keywords = "fronte retro duplex scansione due facciate alterna ordina pagine pdf",
+        accepts = listOf("application/pdf")
+    ),
     ORGANIZE_PDF(
         title = "Organizza pagine",
         subtitle = "Riordina, ruota, estrai",
@@ -122,6 +138,50 @@ enum class OmniTool(
         group = ToolGroup.EDIT,
         screen = ToolScreen.COMPRESS_PDF,
         keywords = "comprimi riduci peso pdf leggero email whatsapp",
+        accepts = listOf("application/pdf")
+    ),
+    BLANK_PAGES(
+        title = "Togli pagine bianche",
+        subtitle = "Trova le pagine vuote",
+        description = "Trova ed elimina da sole le pagine bianche di una scansione.",
+        icon = Icons.Default.LayersClear,
+        tint = TintMerge,
+        group = ToolGroup.EDIT,
+        screen = ToolScreen.BLANK_PAGES,
+        keywords = "pagine bianche vuote elimina togli pulisci scansione pdf",
+        accepts = listOf("application/pdf")
+    ),
+    CROP_PDF(
+        title = "Ritaglia margini",
+        subtitle = "Togli i bordi bianchi",
+        description = "Ritaglia i margini di tutte le pagine, anche in automatico.",
+        icon = Icons.Default.Crop,
+        tint = TintStamp,
+        group = ToolGroup.EDIT,
+        screen = ToolScreen.CROP_PDF,
+        keywords = "ritaglia margini bordi crop taglia ingrandisci leggibile pdf",
+        accepts = listOf("application/pdf")
+    ),
+    NUP_PDF(
+        title = "Più pagine per foglio",
+        subtitle = "2 o 4 per A4",
+        description = "Metti 2 o 4 pagine su ogni foglio per stampare risparmiando carta.",
+        icon = Icons.Default.Dashboard,
+        tint = TintMerge,
+        group = ToolGroup.EDIT,
+        screen = ToolScreen.NUP_PDF,
+        keywords = "piu pagine per foglio stampa risparmia carta slide dispense nup pdf",
+        accepts = listOf("application/pdf")
+    ),
+    NOTES_PDF(
+        title = "Spazio per appunti",
+        subtitle = "Righe accanto alle pagine",
+        description = "Rimpicciolisci le pagine e aggiungi righe o quadretti per gli appunti.",
+        icon = Icons.Default.NoteAlt,
+        tint = TintStamp,
+        group = ToolGroup.EDIT,
+        screen = ToolScreen.NOTES_PDF,
+        keywords = "appunti note righe quadretti margine stampa slide studio pdf",
         accepts = listOf("application/pdf")
     ),
     SIGN_PDF(
