@@ -14,6 +14,10 @@ import com.example.service.PdfPageEdit
 import com.example.service.PdfSecurityInfo
 import com.example.service.PdfStampService
 import com.example.service.ProtectOptions
+import com.example.service.SignPages
+import com.example.service.SignPlacement
+import com.example.util.InkPoint
+import com.example.util.SignatureInk
 import com.example.service.StampConfig
 import com.example.service.PdfToolsService
 import com.example.util.FileNames
@@ -498,5 +502,88 @@ class PdfSplitViewModel(application: Application) : SinglePdfViewModel(applicati
                 }
                 .onFailure { _errorMessage.value = it.userMessage("Divisione non riuscita") }
         }
+    }
+}
+
+/** Ink colours for the signature pad (stored as ARGB so the service can draw with them). */
+enum class SignInk(val label: String, val argb: Long) {
+    BLACK("Nero", 0xFF15171CL),
+    BLUE("Blu", 0xFF1E3FAEL)
+}
+
+class PdfSignViewModel(application: Application) : SinglePdfViewModel(application) {
+
+    private val stamper = PdfStampService(application.applicationContext)
+
+    private val _strokes = MutableStateFlow<List<List<InkPoint>>>(emptyList())
+    val strokes: StateFlow<List<List<InkPoint>>> = _strokes.asStateFlow()
+
+    private val _pages = MutableStateFlow(SignPages.LAST)
+    val pages: StateFlow<SignPages> = _pages.asStateFlow()
+
+    private val _placement = MutableStateFlow(SignPlacement())
+    val placement: StateFlow<SignPlacement> = _placement.asStateFlow()
+
+    private val _ink = MutableStateFlow(SignInk.BLUE)
+    val ink: StateFlow<SignInk> = _ink.asStateFlow()
+
+    fun addStroke(stroke: List<InkPoint>) {
+        if (stroke.isNotEmpty()) _strokes.update { it + listOf(stroke) }
+    }
+
+    fun undoStroke() {
+        _strokes.update { it.dropLast(1) }
+    }
+
+    fun clearInk() {
+        _strokes.value = emptyList()
+    }
+
+    fun setPages(pages: SignPages) {
+        _pages.value = pages
+    }
+
+    fun setInk(ink: SignInk) {
+        _ink.value = ink
+    }
+
+    fun updatePlacement(transform: (SignPlacement) -> SignPlacement) {
+        _placement.update(transform)
+    }
+
+    /** The page the signature goes on (the first one when signing every page), for the preview. */
+    suspend fun previewPage(widthPx: Int): Bitmap? {
+        val pdf = source.value ?: return null
+        val index = _pages.value.indices(pdf.pageCount).firstOrNull() ?: 0
+        return tools.renderPage(pdf.uri, index, widthPx)
+    }
+
+    fun apply(strokeWidthPx: Float) {
+        val pdf = source.value ?: return
+        val strokes = _strokes.value
+        if (strokes.isEmpty()) return
+        val pages = _pages.value
+        val placement = _placement.value
+        val color = _ink.value.argb.toInt()
+        runJob {
+            val bitmap = withContext(Dispatchers.Default) { SignatureInk.render(strokes, color, strokeWidthPx) }
+            if (bitmap == null) {
+                _errorMessage.value = "Disegna la firma nel riquadro"
+                return@runJob
+            }
+            stamper.sign(pdf.uri, pdf.name, bitmap, pages, placement) { current, total -> _progress.value = Pair(current, total) }
+                .onSuccess { uri ->
+                    _resultUri.value = uri
+                    HistoryRepository.record(getApplication<Application>(), uri, "Firma PDF", HistoryKind.PDF, pdf.name, 0L)
+                }
+                .onFailure { _errorMessage.value = it.userMessage("Non sono riuscito a firmare il PDF") }
+            bitmap.recycle()
+        }
+    }
+
+    override fun clear() {
+        super.clear()
+        _strokes.value = emptyList()
+        _placement.value = SignPlacement()
     }
 }

@@ -16,6 +16,7 @@ import com.tom_roush.pdfbox.pdmodel.encryption.InvalidPasswordException
 import com.tom_roush.pdfbox.pdmodel.encryption.StandardProtectionPolicy
 import com.tom_roush.pdfbox.pdmodel.font.PDFont
 import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
+import com.tom_roush.pdfbox.pdmodel.graphics.image.LosslessFactory
 import com.tom_roush.pdfbox.pdmodel.graphics.state.PDExtendedGraphicsState
 import com.tom_roush.pdfbox.util.Matrix
 import kotlinx.coroutines.Dispatchers
@@ -134,6 +135,39 @@ class PdfStampService(private val context: Context) {
                 }
             }
         }
+
+    /**
+     * Draws the hand-written [signature] (transparent PNG-like bitmap) on the chosen pages, centred at
+     * the placement's fractions of the visible page; rotated pages are handled like the stamp.
+     */
+    suspend fun sign(
+        uri: Uri,
+        name: String,
+        signature: android.graphics.Bitmap,
+        pages: SignPages,
+        placement: SignPlacement,
+        onProgress: (Int, Int) -> Unit
+    ): Result<Uri> = withContext(Dispatchers.IO) {
+        resultOf {
+            loadDocument(uri, null).use { doc ->
+                if (doc.isEncrypted) doc.isAllSecurityToBeRemoved = true
+                val image = LosslessFactory.createFromImage(doc, signature)
+                val targets = pages.indices(doc.numberOfPages)
+                targets.forEachIndexed { i, index ->
+                    coroutineContext.ensureActive()
+                    onProgress(i + 1, targets.size)
+                    val page = doc.getPage(index)
+                    PDPageContentStream(doc, page, PDPageContentStream.AppendMode.APPEND, true, true).use { cs ->
+                        val (width, height) = uprightFrame(cs, page)
+                        val rect = placement.rectOn(width, height, signature.width.toFloat() / signature.height)
+                        cs.drawImage(image, rect[0], rect[1], rect[2], rect[3])
+                    }
+                }
+                doc.documentInformation.producer = "Morph"
+                save(doc, "${FileNames.sanitize(FileNames.baseName(name), "Documento")}_firmato.pdf")
+            }
+        }
+    }
 
     /**
      * Rotated pages (/Rotate 90, 180, 270) are drawn in unrotated user space. This applies the inverse
@@ -318,5 +352,31 @@ class PdfStampService(private val context: Context) {
             if (rawPasswordErrors) throw e
             throw IllegalStateException(if (password.isNullOrEmpty()) "Il PDF è protetto: inserisci la password" else "Password errata")
         }
+    }
+}
+
+/** Which pages receive the signature. */
+enum class SignPages(val label: String) {
+    LAST("Ultima"),
+    FIRST("Prima"),
+    ALL("Tutte");
+
+    fun indices(total: Int): List<Int> = when {
+        total <= 0 -> emptyList()
+        this == LAST -> listOf(total - 1)
+        this == FIRST -> listOf(0)
+        else -> (0 until total).toList()
+    }
+}
+
+/** Signature position as fractions of the visible page (centre, from the top-left) and its width. */
+data class SignPlacement(val centerX: Float = 0.72f, val centerY: Float = 0.86f, val widthFraction: Float = 0.32f) {
+    /** x, y (bottom-left, PDF points), width, height of the signature, kept inside the page. */
+    fun rectOn(pageWidth: Float, pageHeight: Float, aspect: Float): FloatArray {
+        val w = (widthFraction * pageWidth).coerceAtMost(pageWidth)
+        val h = (w / aspect.coerceAtLeast(0.05f)).coerceAtMost(pageHeight)
+        val x = (centerX * pageWidth - w / 2f).coerceIn(0f, pageWidth - w)
+        val yTop = (centerY * pageHeight - h / 2f).coerceIn(0f, pageHeight - h)
+        return floatArrayOf(x, pageHeight - yTop - h, w, h)
     }
 }

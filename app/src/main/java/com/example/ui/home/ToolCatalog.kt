@@ -9,6 +9,7 @@ import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.DocumentScanner
+import androidx.compose.material.icons.filled.Draw
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.PhotoLibrary
@@ -36,7 +37,7 @@ enum class ToolCategory(val label: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, COLLAGE }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE }
 
 enum class OmniTool(
     val title: String,
@@ -141,6 +142,18 @@ enum class OmniTool(
         categories = setOf(ToolCategory.DOCUMENTS),
         screen = ToolScreen.STAMP_PDF,
         keywords = "filigrana watermark timbro bozza numeri pagina numera pdf",
+        accepts = listOf("application/pdf"),
+        isNew = true
+    ),
+    SIGN_PDF(
+        title = "Firma PDF",
+        subtitle = "Firma col dito",
+        description = "Disegna la tua firma e mettila su un modulo o una giustificazione.",
+        icon = Icons.Default.Draw,
+        tint = TintStamp,
+        categories = setOf(ToolCategory.DOCUMENTS),
+        screen = ToolScreen.SIGN_PDF,
+        keywords = "firma firmare sign autografo modulo giustificazione autorizzazione gita pdf",
         accepts = listOf("application/pdf"),
         isNew = true
     ),
