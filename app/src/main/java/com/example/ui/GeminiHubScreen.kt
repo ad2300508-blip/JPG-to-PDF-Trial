@@ -945,7 +945,7 @@ private fun GeminiOutputCanvas(
                     AnimatedVisibility(visible = genState.isGenerating, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
                         Button(
                             onClick = onStopGeneration,
-                            colors = ButtonDefaults.buttonColors(containerColor = OmniDanger, contentColor = Color.White),
+                            colors = ButtonDefaults.buttonColors(containerColor = OmniDanger, contentColor = OmniOnAccent),
                             shape = RoundedCornerShape(RadiusSm),
                             modifier = Modifier.height(38.dp)
                         ) {

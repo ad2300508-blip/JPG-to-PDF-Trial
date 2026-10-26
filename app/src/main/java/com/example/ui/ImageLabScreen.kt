@@ -357,7 +357,7 @@ private fun ImageFileRow(
                     item.error != null -> Icon(Icons.Default.ErrorOutline, contentDescription = null, tint = OmniDanger, modifier = Modifier.size(22.dp))
                 }
                 if (item.outputUri != null) {
-                    IconButton(onClick = onOpenResult, modifier = Modifier.size(36.dp)) {
+                    IconButton(onClick = onOpenResult, modifier = Modifier.size(40.dp)) {
                         Icon(Icons.Default.OpenInNew, contentDescription = "Apri", tint = OmniTextMuted, modifier = Modifier.size(18.dp))
                     }
                 }

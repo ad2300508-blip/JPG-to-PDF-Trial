@@ -3,6 +3,7 @@ package com.example.ui.components
 import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.Canvas
+import com.example.ui.theme.OmniAccentOnInk
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Arrangement
@@ -156,6 +157,7 @@ fun CropDialog(
                             modifier = Modifier.fillMaxSize()
                         )
 
+                        val handleColor = OmniAccentOnInk
                         Canvas(
                             modifier = Modifier
                                 .fillMaxSize()
@@ -244,8 +246,8 @@ fun CropDialog(
                             listOf(Offset(l, t), Offset(r, t), Offset(l, b), Offset(r, b)).forEachIndexed { index, corner ->
                                 val sx = if (index % 2 == 0) 1f else -1f
                                 val sy = if (index < 2) 1f else -1f
-                                drawLine(OmniAccentHandle, corner, Offset(corner.x + handleSize * sx, corner.y), stroke)
-                                drawLine(OmniAccentHandle, corner, Offset(corner.x, corner.y + handleSize * sy), stroke)
+                                drawLine(handleColor, corner, Offset(corner.x + handleSize * sx, corner.y), stroke)
+                                drawLine(handleColor, corner, Offset(corner.x, corner.y + handleSize * sy), stroke)
                             }
                         }
                     }
@@ -302,7 +304,6 @@ fun CropDialog(
     }
 }
 
-private val OmniAccentHandle = Color(0xFF8EA2FF)
 
 /**
  * Forces the crop frame to [ratio] (width/height in real pixels), keeping the corner

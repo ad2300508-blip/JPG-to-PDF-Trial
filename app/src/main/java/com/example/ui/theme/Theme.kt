@@ -127,6 +127,7 @@ private fun animateMorphColors(target: MorphColors, animate: Boolean): MorphColo
         successSoft = animateColorAsState(target.successSoft, spec, label = "successSoft").value,
         ink = animateColorAsState(target.ink, spec, label = "ink").value,
         onInk = animateColorAsState(target.onInk, spec, label = "onInk").value,
+        accentOnInk = animateColorAsState(target.accentOnInk, spec, label = "accentOnInk").value,
         isDark = target.isDark
     )
 }

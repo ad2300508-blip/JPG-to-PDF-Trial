@@ -27,6 +27,8 @@ data class MorphColors(
     val successSoft: Color,
     val ink: Color,
     val onInk: Color,
+    /** Accent readable on [ink] and on always-dark surfaces (progress banner, crop editor). */
+    val accentOnInk: Color,
     val isDark: Boolean
 )
 
@@ -45,6 +47,7 @@ val MorphLightColors = MorphColors(
     successSoft = Color(0xFFDDF2E7),
     ink = Color(0xFF111827),
     onInk = Color(0xFFFFFFFF),
+    accentOnInk = Color(0xFF8EA2FF),
     isDark = false
 )
 
@@ -63,6 +66,7 @@ val MorphDarkColors = MorphColors(
     successSoft = Color(0xFF173528),
     ink = Color(0xFF1E2433),
     onInk = Color(0xFFFFFFFF),
+    accentOnInk = Color(0xFF8EA2FF),
     isDark = true
 )
 
@@ -87,7 +91,8 @@ enum class AccentChoice(
 fun MorphColors.withAccent(choice: AccentChoice): MorphColors = copy(
     accent = if (isDark) choice.dark else choice.light,
     accentSoft = if (isDark) choice.darkSoft else choice.lightSoft,
-    onAccent = if (isDark) choice.darkOn else Color(0xFFFFFFFF)
+    onAccent = if (isDark) choice.darkOn else Color(0xFFFFFFFF),
+    accentOnInk = choice.dark
 )
 
 // Active theme tokens (resolved from the current theme)
@@ -119,6 +124,8 @@ val OmniInk: Color
     @Composable @ReadOnlyComposable get() = LocalMorphColors.current.ink
 val OmniOnInk: Color
     @Composable @ReadOnlyComposable get() = LocalMorphColors.current.onInk
+val OmniAccentOnInk: Color
+    @Composable @ReadOnlyComposable get() = LocalMorphColors.current.accentOnInk
 
 // Category Tints (icon tiles: 14% opacity background + full color icon, readable in both themes)
 val TintPdf = Color(0xFF3B5BE8)

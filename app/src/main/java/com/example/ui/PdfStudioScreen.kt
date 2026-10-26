@@ -1,5 +1,8 @@
 package com.example.ui
 
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.EnterTransition
+import com.example.data.AppPreferences
 import com.example.ui.components.rememberOrderedImagePicker
 import androidx.activity.result.PickVisualMediaRequest
 import android.net.Uri
@@ -155,6 +158,7 @@ import com.example.ui.components.ToolLayout
 import com.example.ui.components.formatBytes
 import com.example.ui.components.rememberCameraCapture
 import com.example.ui.theme.OmniAccent
+import com.example.ui.theme.OmniBg
 import com.example.ui.theme.OmniAccentSoft
 import com.example.ui.theme.OmniBorder
 import com.example.ui.theme.OmniDanger
@@ -251,6 +255,8 @@ private enum class StudioStage { EDITOR, PROGRESS, RESULT }
 
 /** Forward stages slide/scale in, going back fades the previous stage away. */
 internal fun stageTransition(from: Int, to: Int): ContentTransform {
+    // Read directly: transition specs are not composable, so LocalReduceMotion is out of reach here.
+    if (AppPreferences.reduceMotion.value) return ContentTransform(EnterTransition.None, ExitTransition.None)
     val forward = to > from
     val enter = fadeIn(tween(Motion.MEDIUM, delayMillis = 60)) +
         scaleIn(initialScale = if (forward) 0.94f else 1.04f, animationSpec = tween(Motion.LONG, easing = Motion.EmphasizedDecelerate))
@@ -803,10 +809,10 @@ private fun PageTile(
                 .padding(10.dp)
                 .size(26.dp)
                 .clip(CircleShape)
-                .background(Color(0xFF111827)),
+                .background(OmniText),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedText("$pageNumber", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            AnimatedText("$pageNumber", color = OmniBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         val badges = buildList {

@@ -369,7 +369,7 @@ private fun HistorySearchField(query: String, onQueryChange: (String) -> Unit, m
                 )
             }
             AnimatedVisibility(visible = query.isNotEmpty()) {
-                IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = { onQueryChange("") }, modifier = Modifier.size(40.dp)) {
                     Icon(Icons.Default.Close, contentDescription = "Cancella ricerca", tint = OmniTextMuted, modifier = Modifier.size(18.dp))
                 }
             }
