@@ -440,7 +440,7 @@ private fun BackgroundSwatch(choice: CollageBackground, selected: Boolean, onCli
                 .clickable(onClickLabel = "Sfondo ${choice.label}", onClick = onClick),
             contentAlignment = Alignment.Center
         ) {
-            AnimatedVisibility(visible = selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
+            androidx.compose.animation.AnimatedVisibility(visible = selected, enter = scaleIn() + fadeIn(), exit = scaleOut() + fadeOut()) {
                 // Contrast against the swatch itself, not the app theme.
                 Icon(Icons.Default.Check, contentDescription = null, tint = if (fill.luminance() > 0.5f) Color.Black else Color.White, modifier = Modifier.size(18.dp))
             }
