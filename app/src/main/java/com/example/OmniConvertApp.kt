@@ -93,6 +93,7 @@ import com.example.ui.PdfCompressScreen
 import com.example.ui.PdfMergeScreen
 import com.example.ui.PdfOrganizeScreen
 import com.example.ui.PdfSecureScreen
+import com.example.ui.PdfSignScreen
 import com.example.ui.PdfStampScreen
 import com.example.ui.PdfSplitScreen
 import com.example.ui.PdfStudioScreen
@@ -133,6 +134,7 @@ import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfPagesViewModel
 import com.example.viewmodel.PdfSecureViewModel
 import com.example.viewmodel.PdfSplitViewModel
+import com.example.viewmodel.PdfSignViewModel
 import com.example.viewmodel.PdfStampViewModel
 import com.example.viewmodel.PdfStudioViewModel
 
@@ -164,6 +166,7 @@ class ToolViewModels(
     val stamp: PdfStampViewModel,
     val secure: PdfSecureViewModel,
     val split: PdfSplitViewModel,
+    val sign: PdfSignViewModel,
     val collage: CollageViewModel
 )
 
@@ -188,6 +191,7 @@ fun OmniConvertApp(
         stamp = viewModel(),
         secure = viewModel(),
         split = viewModel(),
+        sign = viewModel(),
         collage = viewModel()
     )
 
@@ -228,6 +232,7 @@ fun OmniConvertApp(
             ToolScreen.PDF_TO_IMAGES -> uris.firstOrNull()?.let { tools.pdfImages.loadPdf(it) }
             ToolScreen.EXTRACT_ZIP -> uris.firstOrNull()?.let { tools.archive.selectZipToExtract(it) }
             ToolScreen.STAMP_PDF -> uris.firstOrNull()?.let { tools.stamp.loadPdf(it) }
+            ToolScreen.SIGN_PDF -> uris.firstOrNull()?.let { tools.sign.loadPdf(it) }
             ToolScreen.SECURE_PDF -> uris.firstOrNull()?.let { tools.secure.loadPdf(it) }
             ToolScreen.SPLIT_PDF -> uris.firstOrNull()?.let { tools.split.loadPdf(it) }
         }
@@ -421,6 +426,7 @@ private fun ToolContent(
         ToolScreen.ORGANIZE_PDF -> PdfOrganizeScreen(viewModel = tools.organize, onContinueWithCompress = toCompress)
         ToolScreen.PDF_TO_IMAGES -> PdfToImagesScreen(viewModel = tools.pdfImages)
         ToolScreen.STAMP_PDF -> PdfStampScreen(viewModel = tools.stamp, onContinueWithCompress = toCompress, onContinueWithProtect = toSecure)
+        ToolScreen.SIGN_PDF -> PdfSignScreen(viewModel = tools.sign, onContinueWithCompress = toCompress, onContinueWithProtect = toSecure)
         ToolScreen.SECURE_PDF -> PdfSecureScreen(viewModel = tools.secure, onContinueWithOrganize = toOrganize, onContinueWithStamp = toStamp)
         ToolScreen.SPLIT_PDF -> PdfSplitScreen(viewModel = tools.split, onContinueWithOrganize = toOrganize)
     }
