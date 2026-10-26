@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.Audiotrack
+import androidx.compose.material.icons.filled.AutoAwesomeMosaic
 import androidx.compose.material.icons.filled.Collections
 import androidx.compose.material.icons.filled.Compress
 import androidx.compose.material.icons.filled.ContentCut
@@ -36,7 +37,7 @@ enum class ToolCategory(val label: String) {
 }
 
 /** Screen that actually implements a tool (several catalog entries can share one). */
-enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF }
+enum class ToolScreen { IMAGES_TO_PDF, MERGE_PDF, MARKDOWN, IMAGE_LAB, AUDIO_LAB, ARCHIVE, COMPRESS_PDF, ORGANIZE_PDF, PDF_TO_IMAGES, EXTRACT_ZIP, STAMP_PDF, SECURE_PDF, SPLIT_PDF, SIGN_PDF, COLLAGE }
 
 enum class OmniTool(
     val title: String,
@@ -178,6 +179,18 @@ enum class OmniTool(
         screen = ToolScreen.IMAGE_LAB,
         keywords = "immagini converti comprimi webp jpg png exif ridimensiona",
         accepts = listOf("image/")
+    ),
+    COLLAGE(
+        title = "Collage foto",
+        subtitle = "Foto → 1 immagine",
+        description = "Unisci più foto in colonna, in riga o a griglia.",
+        icon = Icons.Default.AutoAwesomeMosaic,
+        tint = TintImage,
+        categories = setOf(ToolCategory.IMAGES),
+        screen = ToolScreen.COLLAGE,
+        keywords = "collage unisci foto immagini griglia mosaico affianca combina",
+        accepts = listOf("image/"),
+        isNew = true
     ),
     IMAGE_TO_TEXT(
         title = "Immagine in testo",

@@ -86,6 +86,7 @@ import com.example.ui.ArchiveScreen
 import com.example.ui.AudioLabScreen
 import com.example.ui.GeminiHubScreen
 import com.example.ui.HistoryScreen
+import com.example.ui.CollageScreen
 import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfCompressScreen
@@ -125,6 +126,7 @@ import com.example.viewmodel.ArchiveMode
 import com.example.viewmodel.ArchiveViewModel
 import com.example.viewmodel.AudioLabViewModel
 import com.example.viewmodel.GeminiHubViewModel
+import com.example.viewmodel.CollageViewModel
 import com.example.viewmodel.ImageLabViewModel
 import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfCompressViewModel
@@ -164,7 +166,8 @@ class ToolViewModels(
     val stamp: PdfStampViewModel,
     val secure: PdfSecureViewModel,
     val split: PdfSplitViewModel,
-    val sign: PdfSignViewModel
+    val sign: PdfSignViewModel,
+    val collage: CollageViewModel
 )
 
 @Composable
@@ -188,7 +191,8 @@ fun OmniConvertApp(
         stamp = viewModel(),
         secure = viewModel(),
         split = viewModel(),
-        sign = viewModel()
+        sign = viewModel(),
+        collage = viewModel()
     )
 
     var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
@@ -220,6 +224,7 @@ fun OmniConvertApp(
             ToolScreen.MERGE_PDF -> tools.merge.addPdfDocuments(uris)
             ToolScreen.MARKDOWN -> if (tool == OmniTool.IMAGE_TO_TEXT) tools.ocr.addFiles(uris) else tools.markdown.addFiles(uris)
             ToolScreen.IMAGE_LAB -> tools.image.addImages(uris)
+            ToolScreen.COLLAGE -> tools.collage.addImages(uris)
             ToolScreen.AUDIO_LAB -> tools.audio.addAudioFiles(uris)
             ToolScreen.ARCHIVE -> tools.archive.addFiles(uris)
             ToolScreen.COMPRESS_PDF -> uris.firstOrNull()?.let { tools.compress.loadPdf(it) }
@@ -407,6 +412,7 @@ private fun ToolContent(
             MarkdownExporterScreen(viewModel = tools.markdown, onSendToGemini = onSendToGemini)
         }
         ToolScreen.IMAGE_LAB -> ImageLabScreen(viewModel = tools.image)
+        ToolScreen.COLLAGE -> CollageScreen(viewModel = tools.collage)
         ToolScreen.AUDIO_LAB -> AudioLabScreen(
             viewModel = tools.audio,
             onTranscribeAudio = { uri, _ -> onTranscribeAudio(uri) }

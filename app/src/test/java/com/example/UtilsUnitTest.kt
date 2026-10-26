@@ -137,4 +137,22 @@ class UtilsUnitTest {
         assertEquals((100f + 4f) / (20f + 4f), ink.aspect(strokes, 2f), 0.01f)
         assertEquals(null, ink.bounds(emptyList()))
     }
+
+    @Test
+    fun dragSelectionAddsInCrossedOrderAndUndoesOnDragBack() {
+        val ds = com.example.ui.components.DragSelection
+        assertEquals(listOf(5, 4, 3), ds.range(5, 3))
+        assertEquals(listOf("a", "c", "d"), ds.apply(listOf("a"), listOf("c", "a", "d"), adding = true))
+        assertEquals(listOf("a"), ds.apply(listOf("a", "b", "c"), listOf("b", "c"), adding = false))
+        // Dragging back to the anchor leaves only the anchor crossed.
+        assertEquals(listOf("x"), ds.apply(emptyList(), listOf("x"), adding = true))
+    }
+
+    @Test
+    fun dayLabelNamesTodayAndYesterday() {
+        val now = java.util.Calendar.getInstance().apply { set(2026, 9, 26, 12, 0) }.timeInMillis
+        assertEquals("Oggi", com.example.ui.components.dayLabel(now - 3_600_000L, now))
+        assertEquals("Ieri", com.example.ui.components.dayLabel(now - 86_400_000L, now))
+        assertTrue(com.example.ui.components.dayLabel(now - 400L * 86_400_000L, now).endsWith("2025"))
+    }
 }
