@@ -2,19 +2,24 @@ package com.example.viewmodel
 
 import android.app.Application
 import android.net.Uri
-import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.HistoryKind
 import com.example.data.HistoryRepository
+import com.example.model.CropRect
 import com.example.model.PdfDocumentItem
 import com.example.model.PdfExportConfig
 import com.example.service.PdfConverterService
+import com.example.util.queryUriInfo
+import com.example.util.userMessage
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class PdfStudioViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -38,102 +43,145 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
+    /** Last deleted page, so the UI can offer "Annulla". */
+    private val _lastRemoved = MutableStateFlow<Pair<Int, PdfDocumentItem>?>(null)
+    val lastRemoved: StateFlow<Pair<Int, PdfDocumentItem>?> = _lastRemoved.asStateFlow()
+
+    private var generationJob: Job? = null
+
     fun addImages(uris: List<Uri>) {
-        val resolver = getApplication<Application>().contentResolver
-        val newItems = uris.map { uri ->
-            var name = "Image"
-            var size = 0L
-            resolver.query(uri, null, null, null, null)?.use { cursor ->
-                val nameIdx = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-                val sizeIdx = cursor.getColumnIndex(OpenableColumns.SIZE)
-                if (cursor.moveToFirst()) {
-                    if (nameIdx >= 0) name = cursor.getString(nameIdx) ?: "Image"
-                    if (sizeIdx >= 0) size = cursor.getLong(sizeIdx)
+        if (uris.isEmpty()) return
+        val app = getApplication<Application>()
+        viewModelScope.launch {
+            val newItems = withContext(Dispatchers.IO) {
+                uris.map { uri ->
+                    val info = app.queryUriInfo(uri, "Immagine")
+                    PdfDocumentItem(uri = uri, name = info.name, sizeBytes = info.sizeBytes)
                 }
             }
-            PdfDocumentItem(uri = uri, name = name, sizeBytes = size)
+            _items.update { it + newItems }
+            _lastGeneratedUri.value = null
         }
-        _items.value = _items.value + newItems
     }
 
     fun removeItem(id: String) {
-        _items.value = _items.value.filterNot { it.id == id }
+        val current = _items.value
+        val index = current.indexOfFirst { it.id == id }
+        if (index < 0) return
+        _lastRemoved.value = index to current[index]
+        _items.value = current.filterNot { it.id == id }
+    }
+
+    fun undoRemove() {
+        val (index, item) = _lastRemoved.value ?: return
+        _items.update { list -> list.toMutableList().apply { add(index.coerceIn(0, size), item) } }
+        _lastRemoved.value = null
+    }
+
+    fun dismissUndo() {
+        _lastRemoved.value = null
     }
 
     fun moveItem(fromIndex: Int, toIndex: Int) {
-        if (fromIndex in _items.value.indices && toIndex in _items.value.indices) {
-            val list = _items.value.toMutableList()
-            val item = list.removeAt(fromIndex)
-            list.add(toIndex, item)
-            _items.value = list
+        val list = _items.value
+        if (fromIndex in list.indices && toIndex in list.indices && fromIndex != toIndex) {
+            _items.value = list.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
+        }
+    }
+
+    fun reverseOrder() {
+        _items.update { it.reversed() }
+    }
+
+    fun sortByName() {
+        _items.update { list -> list.sortedWith(compareBy(NaturalOrder) { it.name }) }
+    }
+
+    fun duplicateItem(id: String) {
+        _items.update { list ->
+            val index = list.indexOfFirst { it.id == id }
+            if (index < 0) list else list.toMutableList().apply {
+                add(index + 1, list[index].copy(id = java.util.UUID.randomUUID().toString()))
+            }
         }
     }
 
     fun clearAll() {
+        generationJob?.cancel()
         _items.value = emptyList()
         _lastGeneratedUri.value = null
         _errorMessage.value = null
+        _lastRemoved.value = null
     }
 
     fun toggleSpreadSplit(id: String) {
         val current = _items.value
         val index = current.indexOfFirst { it.id == id }
-        if (index >= 0) {
-            val item = current[index]
-            if (item.isSplitSpread) {
-                // Remove the paired split and restore
-                _items.value = current.toMutableList().apply {
-                    set(index, item.copy(isSplitSpread = false, splitPart = 1))
-                }
-            } else {
-                // Split into two items: left page and right page
-                val left = item.copy(isSplitSpread = true, splitPart = 1)
-                val right = item.copy(id = java.util.UUID.randomUUID().toString(), isSplitSpread = true, splitPart = 2)
-                _items.value = current.toMutableList().apply {
-                    set(index, left)
-                    add(index + 1, right)
-                }
+        if (index < 0) return
+        val item = current[index]
+        _items.value = if (item.isSplitSpread) {
+            // Merge the two halves back into a single page.
+            val partnerIndex = when {
+                item.splitPart == 1 && index + 1 < current.size && current[index + 1].isSplitSpread && current[index + 1].uri == item.uri -> index + 1
+                item.splitPart == 2 && index > 0 && current[index - 1].isSplitSpread && current[index - 1].uri == item.uri -> index - 1
+                else -> -1
+            }
+            current.toMutableList().apply {
+                set(index, item.copy(isSplitSpread = false, splitPart = 1))
+                if (partnerIndex >= 0) removeAt(partnerIndex)
+            }
+        } else {
+            val left = item.copy(isSplitSpread = true, splitPart = 1)
+            val right = item.copy(id = java.util.UUID.randomUUID().toString(), isSplitSpread = true, splitPart = 2)
+            current.toMutableList().apply {
+                set(index, left)
+                add(index + 1, right)
             }
         }
     }
 
     fun toggleBinarization(id: String) {
-        _items.value = _items.value.map {
-            if (it.id == id) it.copy(isBinarized = !it.isBinarized) else it
-        }
+        _items.update { list -> list.map { if (it.id == id) it.copy(isBinarized = !it.isBinarized) else it } }
     }
 
     fun rotateItem(id: String) {
-        _items.value = _items.value.map {
-            if (it.id == id) it.copy(rotationDegrees = (it.rotationDegrees + 90) % 360) else it
-        }
+        _items.update { list -> list.map { if (it.id == id) it.copy(rotationDegrees = (it.rotationDegrees + 90) % 360) else it } }
+    }
+
+    fun rotateAll() {
+        _items.update { list -> list.map { it.copy(rotationDegrees = (it.rotationDegrees + 90) % 360) } }
+    }
+
+    fun setCrop(id: String, crop: CropRect?) {
+        val normalized = crop?.takeIf { !it.isFullFrame }
+        _items.update { list -> list.map { if (it.id == id) it.copy(cropRectNormalized = normalized) else it } }
     }
 
     fun updateConfig(newConfig: PdfExportConfig) {
         _config.value = newConfig
     }
 
-    private var generationJob: Job? = null
-
     fun generatePdf() {
         if (_items.value.isEmpty() || _isGenerating.value) return
-        _generationProgress.value = Pair(0, _items.value.size)
+        val items = _items.value
+        val config = _config.value
+        _generationProgress.value = Pair(0, items.size)
+        _isGenerating.value = true
+        _errorMessage.value = null
+        _lastGeneratedUri.value = null
         generationJob = viewModelScope.launch {
-            _isGenerating.value = true
-            _errorMessage.value = null
-            _lastGeneratedUri.value = null
-
-            val result = pdfService.generatePdf(_items.value, _config.value) { current, total ->
-                _generationProgress.value = Pair(current, total)
+            try {
+                pdfService.generatePdf(items, config) { current, total ->
+                    _generationProgress.value = Pair(current, total)
+                }.onSuccess { uri ->
+                    _lastGeneratedUri.value = uri
+                    HistoryRepository.record(getApplication<Application>(), uri, "Immagini in PDF", HistoryKind.PDF, "${config.title.ifBlank { "Documento" }}.pdf")
+                }.onFailure { err ->
+                    _errorMessage.value = err.userMessage("Creazione del PDF non riuscita")
+                }
+            } finally {
+                _isGenerating.value = false
             }
-
-            result.onSuccess { uri ->
-                _lastGeneratedUri.value = uri
-                HistoryRepository.record(getApplication<Application>(), uri, "Immagini in PDF", HistoryKind.PDF, "${_config.value.title.ifBlank { "Documento" }}.pdf")
-            }.onFailure { err ->
-                _errorMessage.value = err.localizedMessage ?: "PDF generation failed"
-            }
-            _isGenerating.value = false
         }
     }
 
@@ -151,5 +199,24 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun dismissError() {
         _errorMessage.value = null
+    }
+}
+
+/** "foto2.jpg" before "foto10.jpg". */
+object NaturalOrder : Comparator<String> {
+    private val chunk = Regex("(\\d+|\\D+)")
+
+    override fun compare(a: String, b: String): Int {
+        val ca = chunk.findAll(a.lowercase()).map { it.value }.toList()
+        val cb = chunk.findAll(b.lowercase()).map { it.value }.toList()
+        for (i in 0 until minOf(ca.size, cb.size)) {
+            val x = ca[i]
+            val y = cb[i]
+            val nx = x.toBigIntegerOrNull()
+            val ny = y.toBigIntegerOrNull()
+            val result = if (nx != null && ny != null) nx.compareTo(ny) else x.compareTo(y)
+            if (result != 0) return result
+        }
+        return ca.size - cb.size
     }
 }

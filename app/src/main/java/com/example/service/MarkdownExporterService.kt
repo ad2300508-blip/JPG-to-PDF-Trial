@@ -1,29 +1,44 @@
 package com.example.service
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.pdf.PdfRenderer
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import android.util.Log
+import android.util.Xml
 import com.example.model.CompiledMarkdownResult
 import com.example.model.LlmPromptWrapper
 import com.example.model.MarkdownExportSettings
 import com.example.model.MarkdownSourceItem
+import com.example.util.BitmapLoader
+import com.example.util.FileNames
+import com.example.util.OutputFolder
+import com.example.util.OutputStorage
+import com.example.util.resultOf
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
+import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
+import com.tom_roush.pdfbox.io.MemoryUsageSetting
+import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.text.PDFTextStripper
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
+import org.xmlpull.v1.XmlPullParser
 import java.io.BufferedReader
 import java.io.InputStreamReader
+import java.util.zip.ZipInputStream
+import kotlin.coroutines.coroutineContext
 
 class MarkdownExporterService(private val context: Context) {
+
+    init {
+        runCatching { PDFBoxResourceLoader.init(context) }
+    }
 
     suspend fun extractTextFromSource(
         uri: Uri,
@@ -31,152 +46,170 @@ class MarkdownExporterService(private val context: Context) {
         mimeType: String,
         sizeBytes: Long,
         parseAllPages: Boolean = false,
+        forceOcr: Boolean = false,
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem = withContext(Dispatchers.IO) {
         val lowerName = name.lowercase()
         val isPdf = mimeType == "application/pdf" || lowerName.endsWith(".pdf")
-        val isImage = mimeType.startsWith("image/") || lowerName.endsWith(".jpg") ||
-                lowerName.endsWith(".png") || lowerName.endsWith(".jpeg") || lowerName.endsWith(".webp")
+        val isDocx = mimeType == DOCX_MIME || lowerName.endsWith(".docx")
+        val isImage = mimeType.startsWith("image/") || IMAGE_EXTENSIONS.any { lowerName.endsWith(it) }
 
         try {
             when {
-                isPdf -> extractFromPdfWithRenderer(
+                isPdf -> extractFromPdf(
                     uri = uri,
                     name = name,
                     mimeType = mimeType,
                     sizeBytes = sizeBytes,
-                    maxPagesToExtract = if (parseAllPages) Int.MAX_VALUE else 15,
+                    maxPagesToExtract = if (parseAllPages) Int.MAX_VALUE else PREVIEW_PAGES,
+                    forceOcr = forceOcr,
                     onProgress = onProgress
                 )
+                isDocx -> extractFromDocx(uri, name, mimeType, sizeBytes, onProgress)
                 isImage -> extractFromImage(uri, name, mimeType, sizeBytes, onProgress)
                 else -> extractFromText(uri, name, mimeType, sizeBytes, onProgress)
             }
+        } catch (c: CancellationException) {
+            throw c
         } catch (oom: OutOfMemoryError) {
-            Log.e("MarkdownExporterService", "OOM while extracting $name", oom)
+            Log.e(TAG, "OOM while extracting $name", oom)
             System.gc()
             MarkdownSourceItem(
-                uri = uri,
-                name = name,
-                sizeBytes = sizeBytes,
-                mimeType = mimeType,
-                extractedText = "",
-                error = "Document too large for available RAM. Try downsampling or splitting the file."
+                uri = uri, name = name, sizeBytes = sizeBytes, mimeType = mimeType,
+                error = "Documento troppo grande per la memoria disponibile: prova a dividerlo"
             )
         } catch (t: Throwable) {
-            Log.e("MarkdownExporterService", "Error while extracting $name", t)
+            Log.e(TAG, "Error while extracting $name", t)
             MarkdownSourceItem(
-                uri = uri,
-                name = name,
-                sizeBytes = sizeBytes,
-                mimeType = mimeType,
-                extractedText = "",
-                error = "Extraction failed: ${t.localizedMessage ?: "Unknown format or read error"}"
+                uri = uri, name = name, sizeBytes = sizeBytes, mimeType = mimeType,
+                error = "Estrazione non riuscita: ${t.localizedMessage ?: "formato non supportato"}"
             )
         }
     }
 
     suspend fun extractRemainingPages(
         item: MarkdownSourceItem,
+        forceOcr: Boolean = false,
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem = withContext(Dispatchers.IO) {
         val uri = item.uri ?: return@withContext item
         try {
-            extractFromPdfWithRenderer(
+            extractFromPdf(
                 uri = uri,
                 name = item.name,
                 mimeType = item.mimeType,
                 sizeBytes = item.sizeBytes,
                 startPage = item.parsedPages + 1,
                 maxPagesToExtract = item.pageCount,
-                existingText = item.extractedText,
+                existingText = item.extractedText.substringBefore(PREVIEW_NOTICE_MARKER).trimEnd() + "\n\n",
+                forceOcr = forceOcr,
                 onProgress = onProgress
-            )
+            ).copy(id = item.id)
+        } catch (c: CancellationException) {
+            throw c
         } catch (oom: OutOfMemoryError) {
-            Log.e("MarkdownExporterService", "OOM while parsing remaining pages for ${item.name}", oom)
             System.gc()
-            item.copy(error = "Ran out of memory parsing remaining pages. Current pages preserved.")
+            item.copy(error = "Memoria esaurita: le pagine già estratte sono state mantenute")
         } catch (t: Throwable) {
-            item.copy(error = "Failed to parse remaining pages: ${t.localizedMessage}")
+            item.copy(error = "Impossibile estrarre le pagine rimanenti: ${t.localizedMessage}")
         }
     }
 
-    private suspend fun extractFromPdfWithRenderer(
+    /**
+     * Uses the PDF's own text layer when a page has one (fast and exact) and falls back to on-device
+     * OCR only for scanned pages.
+     */
+    private suspend fun extractFromPdf(
         uri: Uri,
         name: String,
         mimeType: String,
         sizeBytes: Long,
         startPage: Int = 1,
-        maxPagesToExtract: Int = 15,
+        maxPagesToExtract: Int = PREVIEW_PAGES,
         existingText: String = "",
+        forceOcr: Boolean,
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem {
-        onProgress(0.02f, "Opening PDF renderer descriptor...")
+        onProgress(0.02f, "Apro il PDF…")
         val resolver = context.contentResolver
-
         val pfd = resolver.openFileDescriptor(uri, "r")
-            ?: throw IllegalStateException("Could not access file descriptor for $name")
+            ?: throw IllegalStateException("Impossibile accedere a $name")
 
-        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+        val textDocument: PDDocument? = if (forceOcr) null else runCatching {
+            PDFBoxResourceLoader.init(context)
+            resolver.openInputStream(uri)?.use { PDDocument.load(it, MemoryUsageSetting.setupTempFileOnly()) }
+        }.getOrNull()
+        val stripper = textDocument?.let { PDFTextStripper().apply { sortByPosition = true } }
+
+        var recognizer: TextRecognizer? = null
         val sb = StringBuilder(existingText)
-        if (sb.isEmpty()) {
-            sb.append("# ").append(name).append("\n\n")
-        }
+        if (sb.isEmpty()) sb.append("# ").append(FileNames.baseName(name)).append("\n\n")
 
         var totalPages = 0
         var pagesParsed = startPage - 1
+        var ocrPages = 0
 
-        pfd.use { descriptor ->
-            PdfRenderer(descriptor).use { renderer ->
-                totalPages = renderer.pageCount
-                val endPage = minOf(totalPages, maxPagesToExtract)
-                val pagesToProcess = (endPage - startPage + 1).coerceAtLeast(1)
+        try {
+            pfd.use { descriptor ->
+                PdfRenderer(descriptor).use { renderer ->
+                    totalPages = renderer.pageCount
+                    val endPage = minOf(totalPages, maxPagesToExtract)
+                    val pagesToProcess = (endPage - startPage + 1).coerceAtLeast(1)
 
-                for (pageIndex in (startPage - 1) until endPage) {
-                    val displayPageNum = pageIndex + 1
-                    val currentProgress = (displayPageNum - startPage + 1).toFloat() / pagesToProcess.toFloat()
-                    onProgress(currentProgress, "Extracting page $displayPageNum of $totalPages (${(currentProgress * 100).toInt()}%)...")
+                    for (pageIndex in (startPage - 1) until endPage) {
+                        coroutineContext.ensureActive()
+                        val pageNumber = pageIndex + 1
+                        val fraction = (pageNumber - startPage + 1).toFloat() / pagesToProcess
+                        onProgress(fraction, "Pagina $pageNumber di $totalPages")
 
-                    val page = renderer.openPage(pageIndex)
+                        val embedded = stripper?.let { s ->
+                            runCatching {
+                                s.startPage = pageNumber
+                                s.endPage = pageNumber
+                                s.getText(textDocument)
+                            }.getOrNull()
+                        }?.let { cleanEmbeddedText(it) }.orEmpty()
 
-                    // Render at high resolution 2200px max dimension for sharp OCR reading
-                    val maxDim = 2200
-                    val scale = maxDim.toFloat() / maxOf(page.width, page.height).toFloat()
-                    val renderWidth = (page.width * scale).toInt().coerceAtLeast(1)
-                    val renderHeight = (page.height * scale).toInt().coerceAtLeast(1)
-
-                    val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
-                    val canvas = android.graphics.Canvas(bitmap)
-                    canvas.drawColor(android.graphics.Color.WHITE) // White background canvas for clear contrast
-                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
-                    page.close()
-
-                    try {
-                        val inputImage = InputImage.fromBitmap(bitmap, 0)
-                        val visionText = recognizer.process(inputImage).await()
-                        
-                        // Multi-column and dual-page spatial sorting with hyphenation repair
-                        val pageMarkdown = OcrUtils.processPageBlocks(visionText, renderWidth, renderHeight)
-
-                        if (pageMarkdown.isNotEmpty()) {
-                            sb.append("## Page ").append(displayPageNum).append("\n\n")
-                            sb.append(pageMarkdown).append("\n\n")
+                        val pageMarkdown = if (embedded.length >= MIN_TEXT_LAYER_CHARS) {
+                            embedded
+                        } else {
+                            ocrPages++
+                            val ocr = recognizer ?: TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS).also { recognizer = it }
+                            renderer.openPage(pageIndex).use { page ->
+                                val scale = OCR_RENDER_SIDE.toFloat() / maxOf(page.width, page.height)
+                                val width = (page.width * scale).toInt().coerceAtLeast(1)
+                                val height = (page.height * scale).toInt().coerceAtLeast(1)
+                                val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+                                bitmap.eraseColor(android.graphics.Color.WHITE)
+                                page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_DISPLAY)
+                                try {
+                                    val visionText = ocr.process(InputImage.fromBitmap(bitmap, 0)).await()
+                                    OcrUtils.processPageBlocks(visionText, width, height)
+                                } finally {
+                                    bitmap.recycle()
+                                }
+                            }
                         }
-                    } finally {
-                        // Immediately recycle bitmap before next iteration to keep RAM footprint low
-                        bitmap.recycle()
+
+                        if (pageMarkdown.isNotBlank()) {
+                            sb.append("## Pagina ").append(pageNumber).append("\n\n")
+                            sb.append(pageMarkdown.trim()).append("\n\n")
+                        }
+                        pagesParsed = pageNumber
                     }
 
-                    pagesParsed = displayPageNum
-                }
-
-                if (totalPages > endPage) {
-                    sb.append("\n> *Preview limited to first $endPage of $totalPages pages. Use 'Parse Remaining Pages' or toggle 'Full Document Extraction' to extract all.*\n")
+                    if (totalPages > endPage) {
+                        sb.append("\n").append(PREVIEW_NOTICE_MARKER)
+                            .append(" delle prime $endPage pagine su $totalPages. Usa \"Estrai tutte le pagine\" per il resto.*\n")
+                    }
                 }
             }
+        } finally {
+            runCatching { textDocument?.close() }
+            runCatching { recognizer?.close() }
         }
 
-        val hasMore = totalPages > pagesParsed
-
+        Log.d(TAG, "$name: $pagesParsed pages, $ocrPages via OCR")
         return MarkdownSourceItem(
             uri = uri,
             name = name,
@@ -185,8 +218,33 @@ class MarkdownExporterService(private val context: Context) {
             extractedText = sb.toString(),
             pageCount = totalPages,
             parsedPages = pagesParsed,
-            hasMorePages = hasMore
+            hasMorePages = totalPages > pagesParsed
         )
+    }
+
+    /** Joins hyphenated line breaks and wrapped lines of a PDF text layer into Markdown paragraphs. */
+    private fun cleanEmbeddedText(raw: String): String {
+        val lines = raw.replace("\r", "").lines().map { it.trimEnd() }
+        val out = StringBuilder()
+        for (line in lines) {
+            val trimmed = line.trim()
+            if (trimmed.isEmpty()) {
+                if (!out.endsWith("\n\n")) out.append("\n\n")
+                continue
+            }
+            val isBullet = BULLET_REGEX.matches(trimmed)
+            when {
+                out.isEmpty() || out.endsWith("\n") -> out.append(if (isBullet) "- " + trimmed.drop(1).trim() else trimmed)
+                isBullet -> out.append("\n- ").append(trimmed.drop(1).trim())
+                out.endsWith("-") && trimmed.firstOrNull()?.isLowerCase() == true -> {
+                    out.setLength(out.length - 1)
+                    out.append(trimmed)
+                }
+                out.endsWith(".") || out.endsWith(":") || out.endsWith("?") || out.endsWith("!") -> out.append("\n").append(trimmed)
+                else -> out.append(' ').append(trimmed)
+            }
+        }
+        return out.toString().replace(Regex("\n{3,}"), "\n\n").trim()
     }
 
     private suspend fun extractFromImage(
@@ -196,61 +254,153 @@ class MarkdownExporterService(private val context: Context) {
         sizeBytes: Long,
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem {
-        onProgress(0.15f, "Decoding image for OCR...")
-        val resolver = context.contentResolver
-        val inputStream = resolver.openInputStream(uri)
-            ?: throw IllegalStateException("Cannot open image")
+        onProgress(0.15f, "Preparo l'immagine…")
+        // EXIF-aware decoding: a sideways phone photo would otherwise be read as gibberish.
+        val bitmap = BitmapLoader.decode(context, uri, OCR_IMAGE_SIDE)
+            ?: throw IllegalStateException("Impossibile leggere l'immagine")
 
-        val options = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
-        BitmapFactory.decodeStream(inputStream, null, options)
-        inputStream.close()
-
-        // Downsample large images to max 1920px
-        val maxDim = 1920
-        var sampleSize = 1
-        while (options.outWidth / sampleSize > maxDim || options.outHeight / sampleSize > maxDim) {
-            sampleSize *= 2
-        }
-
-        val stream2 = resolver.openInputStream(uri)
-            ?: throw IllegalStateException("Cannot re-open image stream")
-        val decodeOpts = BitmapFactory.Options().apply {
-            inSampleSize = sampleSize
-            inPreferredConfig = Bitmap.Config.ARGB_8888
-        }
-        val bitmap = BitmapFactory.decodeStream(stream2, null, decodeOpts)
-        stream2.close()
-        if (bitmap == null) {
-            throw IllegalStateException("Failed to decode image bitmap")
-        }
-
-        onProgress(0.5f, "Running on-device OCR...")
-        val image = InputImage.fromBitmap(bitmap, 0)
+        onProgress(0.5f, "Riconoscimento del testo…")
         val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-
-        val result = recognizer.process(image).await()
-        val structuredText = OcrUtils.processPageBlocks(result, bitmap.width, bitmap.height)
-        bitmap.recycle()
-
-        val structured = if (structuredText.isEmpty()) {
-            "# $name\n\n*(No text detected in image)*"
-        } else {
-            "# $name (OCR Extracted)\n\n$structuredText\n"
+        val structured = try {
+            val result = recognizer.process(InputImage.fromBitmap(bitmap, 0)).await()
+            OcrUtils.processPageBlocks(result, bitmap.width, bitmap.height)
+        } finally {
+            bitmap.recycle()
+            recognizer.close()
         }
 
-        onProgress(1.0f, "OCR extraction complete")
+        val title = FileNames.baseName(name)
+        val text = if (structured.isEmpty()) {
+            "# $title\n\n*(Nessun testo riconosciuto nell'immagine)*"
+        } else {
+            "# $title\n\n$structured\n"
+        }
+        onProgress(1f, "Testo riconosciuto")
         return MarkdownSourceItem(
-            uri = uri,
-            name = name,
-            sizeBytes = sizeBytes,
-            mimeType = mimeType,
-            extractedText = structured,
-            pageCount = 1,
-            parsedPages = 1,
-            hasMorePages = false
+            uri = uri, name = name, sizeBytes = sizeBytes, mimeType = mimeType,
+            extractedText = text, pageCount = 1, parsedPages = 1, hasMorePages = false
         )
+    }
+
+    /** Reads word/document.xml from a .docx: headings, bullet lists, bold/italic and tables. */
+    private suspend fun extractFromDocx(
+        uri: Uri,
+        name: String,
+        mimeType: String,
+        sizeBytes: Long,
+        onProgress: (Float, String) -> Unit
+    ): MarkdownSourceItem {
+        onProgress(0.2f, "Leggo il documento Word…")
+        val markdown = context.contentResolver.openInputStream(uri)?.use { raw ->
+            ZipInputStream(raw.buffered()).use { zip ->
+                var result: String? = null
+                while (true) {
+                    val entry = zip.nextEntry ?: break
+                    if (entry.name == "word/document.xml") {
+                        result = parseDocxXml(zip)
+                        break
+                    }
+                }
+                result
+            }
+        } ?: throw IllegalStateException("File Word non valido (manca word/document.xml)")
+
+        coroutineContext.ensureActive()
+        onProgress(1f, "Documento Word letto")
+        return MarkdownSourceItem(
+            uri = uri, name = name, sizeBytes = sizeBytes, mimeType = mimeType,
+            extractedText = "# ${FileNames.baseName(name)}\n\n${markdown.trim()}\n",
+            pageCount = 1, parsedPages = 1, hasMorePages = false
+        )
+    }
+
+    private fun parseDocxXml(stream: java.io.InputStream): String {
+        val parser = Xml.newPullParser()
+        parser.setFeature(XmlPullParser.FEATURE_PROCESS_NAMESPACES, false)
+        parser.setInput(stream, "UTF-8")
+
+        val out = StringBuilder()
+        val paragraph = StringBuilder()
+        var headingLevel = 0
+        var isListItem = false
+        var bold = false
+        var italic = false
+        var inTable = false
+        var tableRow = mutableListOf<String>()
+        var tableRowsWritten = 0
+        var cellText = StringBuilder()
+        var inCell = false
+
+        fun flushParagraph() {
+            val text = paragraph.toString().trim()
+            paragraph.setLength(0)
+            if (inCell) {
+                if (text.isNotEmpty()) {
+                    if (cellText.isNotEmpty()) cellText.append(' ')
+                    cellText.append(text)
+                }
+            } else if (text.isNotEmpty()) {
+                when {
+                    headingLevel in 1..6 -> out.append("#".repeat(headingLevel + 1)).append(' ').append(text.replace("**", "")).append("\n\n")
+                    isListItem -> out.append("- ").append(text).append('\n')
+                    else -> {
+                        if (out.isNotEmpty() && out.last() == '\n' && out.length > 1 && out[out.length - 2] != '\n') out.append('\n')
+                        out.append(text).append("\n\n")
+                    }
+                }
+            }
+            headingLevel = 0
+            isListItem = false
+        }
+
+        var event = parser.eventType
+        while (event != XmlPullParser.END_DOCUMENT) {
+            val tag = parser.name
+            when (event) {
+                XmlPullParser.START_TAG -> when (tag) {
+                    "w:pStyle" -> {
+                        val value = parser.getAttributeValue(null, "w:val").orEmpty().lowercase()
+                        HEADING_REGEX.find(value)?.groupValues?.get(1)?.toIntOrNull()?.let { headingLevel = it }
+                        if (value == "title" || value == "titolo") headingLevel = 1
+                        if (value.contains("list")) isListItem = true
+                    }
+                    "w:numPr" -> isListItem = true
+                    "w:b" -> bold = parser.getAttributeValue(null, "w:val") != "0"
+                    "w:i" -> italic = parser.getAttributeValue(null, "w:val") != "0"
+                    "w:r" -> { bold = false; italic = false }
+                    "w:t" -> {
+                        val text = parser.nextText()
+                        if (text.isNotEmpty()) {
+                            val decorated = when {
+                                bold && italic && text.isNotBlank() -> "***${text}***"
+                                bold && text.isNotBlank() -> "**${text}**"
+                                italic && text.isNotBlank() -> "*${text}*"
+                                else -> text
+                            }
+                            paragraph.append(decorated)
+                        }
+                    }
+                    "w:tab" -> paragraph.append(' ')
+                    "w:br" -> paragraph.append(' ')
+                    "w:tbl" -> { inTable = true; tableRowsWritten = 0; if (out.isNotEmpty() && !out.endsWith("\n\n")) out.append('\n') }
+                    "w:tr" -> tableRow = mutableListOf()
+                    "w:tc" -> { inCell = true; cellText = StringBuilder() }
+                }
+                XmlPullParser.END_TAG -> when (tag) {
+                    "w:p" -> flushParagraph()
+                    "w:tc" -> { inCell = false; tableRow.add(cellText.toString().replace("|", "\\|")) }
+                    "w:tr" -> if (inTable && tableRow.isNotEmpty()) {
+                        out.append("| ").append(tableRow.joinToString(" | ")).append(" |\n")
+                        if (tableRowsWritten == 0) out.append("|").append(" --- |".repeat(tableRow.size)).append('\n')
+                        tableRowsWritten++
+                    }
+                    "w:tbl" -> { inTable = false; out.append('\n') }
+                }
+            }
+            event = parser.next()
+        }
+        flushParagraph()
+        return out.toString().replace(Regex("\\*\\*\\*\\*"), "").replace(Regex("\n{3,}"), "\n\n")
     }
 
     private suspend fun extractFromText(
@@ -260,39 +410,35 @@ class MarkdownExporterService(private val context: Context) {
         sizeBytes: Long,
         onProgress: (Float, String) -> Unit
     ): MarkdownSourceItem {
-        onProgress(0.2f, "Reading text stream...")
-        val resolver = context.contentResolver
-        val inputStream = resolver.openInputStream(uri)
-            ?: throw IllegalStateException("Cannot open file stream")
+        onProgress(0.2f, "Leggo il testo…")
+        val inputStream = context.contentResolver.openInputStream(uri)
+            ?: throw IllegalStateException("Impossibile aprire il file")
 
-        val reader = BufferedReader(InputStreamReader(inputStream))
         val sb = StringBuilder()
-        sb.append("# ").append(name).append("\n\n")
+        val isMarkdown = name.lowercase().endsWith(".md")
+        if (!isMarkdown) sb.append("# ").append(FileNames.baseName(name)).append("\n\n")
 
         var lineCount = 0
-        val maxLines = 15000 // Guard against infinite files
-        reader.useLines { lines ->
+        var binaryChars = 0
+        BufferedReader(InputStreamReader(inputStream, Charsets.UTF_8)).useLines { lines ->
             for (line in lines) {
+                coroutineContext.ensureActive()
                 lineCount++
-                if (lineCount <= maxLines) {
-                    sb.append(line).append("\n")
+                binaryChars += line.count { it == '\u0000' || it == '\uFFFD' }
+                if (lineCount <= MAX_TEXT_LINES) {
+                    sb.append(line).append('\n')
                 } else {
-                    sb.append("\n> *File truncated at $maxLines lines.*\n")
+                    sb.append("\n> *File troncato a $MAX_TEXT_LINES righe.*\n")
                     break
                 }
             }
         }
+        if (binaryChars > 50) throw IllegalStateException("Formato non supportato: usa PDF, DOCX, TXT, MD o immagini")
 
-        onProgress(1.0f, "Read $lineCount lines")
+        onProgress(1f, "$lineCount righe lette")
         return MarkdownSourceItem(
-            uri = uri,
-            name = name,
-            sizeBytes = sizeBytes,
-            mimeType = mimeType,
-            extractedText = sb.toString(),
-            pageCount = 1,
-            parsedPages = 1,
-            hasMorePages = false
+            uri = uri, name = name, sizeBytes = sizeBytes, mimeType = mimeType,
+            extractedText = sb.toString(), pageCount = 1, parsedPages = 1, hasMorePages = false
         )
     }
 
@@ -305,16 +451,16 @@ class MarkdownExporterService(private val context: Context) {
 
         if (settings.includeMetadataHeader) {
             rawBuilder.append("<!--\n")
-            rawBuilder.append("OmniConvert Studio - Compiled AI Markdown Context\n")
-            rawBuilder.append("Export Date: ").append(java.util.Date()).append("\n")
-            rawBuilder.append("Total Documents: ").append(validItems.size).append("\n")
+            rawBuilder.append("OmniConvert Studio - Contesto Markdown per AI\n")
+            rawBuilder.append("Data di esportazione: ").append(java.util.Date()).append("\n")
+            rawBuilder.append("Documenti: ").append(validItems.size).append("\n")
             rawBuilder.append("-->\n\n")
         }
 
         if (settings.includeTableOfContents && validItems.size > 1) {
-            rawBuilder.append("## Table of Documents\n\n")
+            rawBuilder.append("## Indice dei documenti\n\n")
             validItems.forEachIndexed { idx, itm ->
-                rawBuilder.append("${idx + 1}. **${itm.name}** (~${itm.estimatedTokens} tokens)\n")
+                rawBuilder.append("${idx + 1}. **${itm.name}** (~${itm.estimatedTokens} token)\n")
             }
             rawBuilder.append("\n---\n\n")
         }
@@ -390,27 +536,25 @@ class MarkdownExporterService(private val context: Context) {
     }
 
     suspend fun saveMarkdownFile(content: String, title: String): Result<Uri> = withContext(Dispatchers.IO) {
-        try {
-            val filename = "${title.ifBlank { "OmniMarkdown" }}_${System.currentTimeMillis()}.md"
-            val resolver = context.contentResolver
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-                put(MediaStore.MediaColumns.MIME_TYPE, "text/markdown")
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/Markdown")
-                }
-            }
-
-            val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                ?: return@withContext Result.failure(Exception("Cannot create markdown MediaStore entry"))
-
-            resolver.openOutputStream(uri)?.use { out ->
+        resultOf {
+            val fileName = FileNames.stamped(title, "Markdown", "md")
+            OutputStorage.save(context, fileName, "text/markdown", OutputFolder.MARKDOWN) { out ->
                 out.write(content.toByteArray(Charsets.UTF_8))
             }
-
-            Result.success(uri)
-        } catch (t: Throwable) {
-            Result.failure(t)
         }
+    }
+
+    private companion object {
+        const val TAG = "MarkdownExporter"
+        const val DOCX_MIME = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        const val PREVIEW_PAGES = 15
+        const val PREVIEW_NOTICE_MARKER = "> *Anteprima"
+        const val MIN_TEXT_LAYER_CHARS = 40
+        const val OCR_RENDER_SIDE = 2200
+        const val OCR_IMAGE_SIDE = 2400
+        const val MAX_TEXT_LINES = 15000
+        val IMAGE_EXTENSIONS = listOf(".jpg", ".jpeg", ".png", ".webp", ".heic", ".heif", ".bmp")
+        val HEADING_REGEX = Regex("(?:heading|titolo|berschrift)\\s*(\\d)")
+        val BULLET_REGEX = Regex("^[•●▪◦‣∙·]\\s*.+")
     }
 }

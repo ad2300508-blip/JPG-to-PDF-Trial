@@ -1,34 +1,41 @@
 package com.example.service
 
-import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
-import android.graphics.Canvas
 import android.graphics.ColorMatrix
 import android.graphics.ColorMatrixColorFilter
 import android.graphics.Paint
-import android.graphics.pdf.PdfDocument
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import com.example.model.PdfDocumentItem
 import com.example.model.PdfExportConfig
+import com.example.util.BitmapLoader
+import com.example.util.FileNames
+import com.example.util.OutputFolder
+import com.example.util.OutputStorage
+import com.example.util.resultOf
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
+import com.tom_roush.pdfbox.pdmodel.PDPage
+import com.tom_roush.pdfbox.pdmodel.PDPageContentStream
+import com.tom_roush.pdfbox.pdmodel.common.PDRectangle
+import com.tom_roush.pdfbox.pdmodel.encryption.AccessPermission
+import com.tom_roush.pdfbox.pdmodel.encryption.StandardProtectionPolicy
+import com.tom_roush.pdfbox.pdmodel.font.PDType1Font
+import com.tom_roush.pdfbox.pdmodel.graphics.image.JPEGFactory
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.io.OutputStream
+import java.util.Calendar
+import kotlin.coroutines.coroutineContext
 
+/**
+ * Builds a PDF from images with PDFBox: every page image is JPEG-compressed with the chosen quality,
+ * so the output weight really follows the "Qualità" option.
+ */
 class PdfConverterService(private val context: Context) {
 
     init {
-        try {
-            PDFBoxResourceLoader.init(context)
-        } catch (_: Throwable) {}
+        runCatching { PDFBoxResourceLoader.init(context) }
     }
 
     suspend fun generatePdf(
@@ -36,228 +43,179 @@ class PdfConverterService(private val context: Context) {
         config: PdfExportConfig,
         onProgress: (Int, Int) -> Unit
     ): Result<Uri> = withContext(Dispatchers.IO) {
-        try {
-            val pdfDocument = PdfDocument()
-            var pageIndex = 1
-            val totalPages = items.size
+        resultOf {
+            PDFBoxResourceLoader.init(context)
+            val total = items.size
+            var skipped = 0
 
-            for ((index, item) in items.withIndex()) {
-                onProgress(index + 1, totalPages)
-                val bitmap = loadProcessedBitmap(item, config) ?: continue
+            PDDocument().use { document ->
+                for ((index, item) in items.withIndex()) {
+                    coroutineContext.ensureActive()
+                    onProgress(index + 1, total)
 
-                val isLandscape = bitmap.width > bitmap.height
-
-                val (pageWidth, pageHeight) = when (config.pageSize) {
-                    "Original" -> {
-                        // Keep exact aspect ratio and dimensions of image in standard PDF viewport
-                        val maxDimension = 1190f // ~A3 dimension
-                        val factor = if (maxOf(bitmap.width, bitmap.height) > maxDimension) {
-                            maxDimension / maxOf(bitmap.width, bitmap.height).toFloat()
-                        } else 1.0f
-                        Pair(
-                            (bitmap.width * factor).toInt().coerceAtLeast(150),
-                            (bitmap.height * factor).toInt().coerceAtLeast(150)
-                        )
+                    val bitmap = loadProcessedBitmap(item, config)
+                    if (bitmap == null) {
+                        skipped++
+                        continue
                     }
-                    "Letter" -> {
-                        val shortSide = 612
-                        val longSide = 792
-                        val useLandscape = when (config.orientation) {
-                            "Landscape" -> true
-                            "Portrait" -> false
-                            else -> isLandscape // "Auto" smart orientation for horizontal images
+                    val image = JPEGFactory.createFromImage(document, bitmap, config.quality.jpegQuality / 100f)
+                    val imageWidth = bitmap.width.toFloat()
+                    val imageHeight = bitmap.height.toFloat()
+                    bitmap.recycle()
+
+                    val (pageWidth, pageHeight) = pageSizeFor(config, imageWidth, imageHeight)
+                    val page = PDPage(PDRectangle(pageWidth, pageHeight))
+                    document.addPage(page)
+
+                    val margin = if (config.pageSize == "Original") 0f else config.marginMm * MM_TO_PT
+                    val footer = if (config.pageNumbers && config.pageSize != "Original") 14f else 0f
+                    val availableWidth = (pageWidth - margin * 2).coerceAtLeast(1f)
+                    val availableHeight = (pageHeight - margin * 2 - footer).coerceAtLeast(1f)
+                    val scale = minOf(availableWidth / imageWidth, availableHeight / imageHeight)
+                    val drawWidth = imageWidth * scale
+                    val drawHeight = imageHeight * scale
+                    val x = margin + (availableWidth - drawWidth) / 2f
+                    val y = margin + footer + (availableHeight - drawHeight) / 2f
+
+                    PDPageContentStream(document, page).use { stream ->
+                        stream.drawImage(image, x, y, drawWidth, drawHeight)
+                        if (config.pageNumbers) {
+                            drawPageNumber(stream, document.numberOfPages, pageWidth, margin)
                         }
-                        if (useLandscape) Pair(longSide, shortSide) else Pair(shortSide, longSide)
-                    }
-                    else -> { // A4 default
-                        val shortSide = 595
-                        val longSide = 842
-                        val useLandscape = when (config.orientation) {
-                            "Landscape" -> true
-                            "Portrait" -> false
-                            else -> isLandscape // "Auto" smart orientation for horizontal images
-                        }
-                        if (useLandscape) Pair(longSide, shortSide) else Pair(shortSide, longSide)
                     }
                 }
 
-                val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIndex++).create()
-                val page = pdfDocument.startPage(pageInfo)
-                val canvas = page.canvas
-
-                val margin = if (config.pageSize == "Original") 0 else (config.marginMm * 2.83465f).toInt() // mm to points
-                val availableWidth = (pageWidth - (margin * 2)).coerceAtLeast(1)
-                val availableHeight = (pageHeight - (margin * 2)).coerceAtLeast(1)
-
-                val scale = minOf(
-                    availableWidth.toFloat() / bitmap.width.toFloat(),
-                    availableHeight.toFloat() / bitmap.height.toFloat()
-                )
-
-                val scaledWidth = bitmap.width * scale
-                val scaledHeight = bitmap.height * scale
-                val left = margin + (availableWidth - scaledWidth) / 2f
-                val top = margin + (availableHeight - scaledHeight) / 2f
-
-                val paint = Paint(Paint.FILTER_BITMAP_FLAG)
-                canvas.drawBitmap(
-                    bitmap,
-                    null,
-                    android.graphics.RectF(left, top, left + scaledWidth, top + scaledHeight),
-                    paint
-                )
-
-                pdfDocument.finishPage(page)
-                bitmap.recycle()
-            }
-
-            val tempFile = File(context.cacheDir, "pdf_render_${System.currentTimeMillis()}.pdf")
-            FileOutputStream(tempFile).use { fos ->
-                pdfDocument.writeTo(fos)
-            }
-            pdfDocument.close()
-
-            val sanitizedTitle = config.title.ifBlank { "OmniConvert_Doc" }.replace(Regex("[^a-zA-Z0-9._-]"), "_")
-            val filename = "${sanitizedTitle}_${System.currentTimeMillis()}.pdf"
-
-            val outputUri = try {
-                PDFBoxResourceLoader.init(context)
-                val pdDoc = PDDocument.load(tempFile)
-                val info = pdDoc.documentInformation
-
-                // Embed Document Metadata (Title, Author, Subject, Keywords, Creation Date, Creator)
-                info.title = config.title.ifBlank { "OmniConvert Document" }
-                if (config.author.isNotBlank()) info.author = config.author
-                if (config.subject.isNotBlank()) info.subject = config.subject
-                if (config.keywords.isNotBlank()) info.keywords = config.keywords
-                info.creator = config.creator.ifBlank { "OmniConvert Studio" }
-
-                if (config.creationDate.isNotBlank()) {
-                    try {
-                        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT)
-                        val parsed = sdf.parse(config.creationDate)
-                        if (parsed != null) {
-                            val cal = java.util.Calendar.getInstance()
-                            cal.time = parsed
-                            info.creationDate = cal
-                            info.modificationDate = cal
-                        }
-                    } catch (_: Throwable) {
-                        info.creationDate = java.util.Calendar.getInstance()
-                    }
-                } else {
-                    info.creationDate = java.util.Calendar.getInstance()
+                if (document.numberOfPages == 0) {
+                    throw IllegalStateException("Nessuna immagine leggibile: controlla che i file siano JPG, PNG o WebP")
                 }
 
-                val savedUri = savePdDocumentToDownloads(filename, pdDoc)
-                pdDoc.close()
-                savedUri
-            } catch (_: Throwable) {
-                saveRawFileToDownloads(filename, tempFile)
-            } finally {
-                if (tempFile.exists()) tempFile.delete()
-            }
+                applyMetadata(document, config)
+                if (config.password.isNotBlank()) {
+                    val policy = StandardProtectionPolicy(config.password, config.password, AccessPermission())
+                    policy.encryptionKeyLength = 128
+                    document.protect(policy)
+                }
 
-            Result.success(outputUri)
-        } catch (t: Throwable) {
-            Result.failure(t)
+                val fileName = FileNames.stamped(config.title, "Documento", "pdf")
+                OutputStorage.save(context, fileName, "application/pdf", OutputFolder.PDFS) { out ->
+                    document.save(out)
+                }
+            }
         }
     }
 
+    private fun pageSizeFor(config: PdfExportConfig, imageWidth: Float, imageHeight: Float): Pair<Float, Float> {
+        val imageIsLandscape = imageWidth > imageHeight
+        val landscape = when (config.orientation) {
+            "Landscape" -> true
+            "Portrait" -> false
+            else -> imageIsLandscape
+        }
+        return when (config.pageSize) {
+            "Original" -> {
+                // Same proportions as the image, longest side as long as an A4 page.
+                val longSide = 842f
+                if (imageIsLandscape) longSide to (longSide * imageHeight / imageWidth).coerceAtLeast(72f)
+                else (longSide * imageWidth / imageHeight).coerceAtLeast(72f) to longSide
+            }
+            "Letter" -> if (landscape) 792f to 612f else 612f to 792f
+            else -> if (landscape) 842f to 595f else 595f to 842f
+        }
+    }
+
+    private fun drawPageNumber(stream: PDPageContentStream, number: Int, pageWidth: Float, margin: Float) {
+        val text = number.toString()
+        val font = PDType1Font.HELVETICA
+        val fontSize = 9f
+        val textWidth = font.getStringWidth(text) / 1000f * fontSize
+        stream.beginText()
+        stream.setFont(font, fontSize)
+        stream.setNonStrokingColor(0.45f, 0.45f, 0.45f)
+        stream.newLineAtOffset((pageWidth - textWidth) / 2f, (margin / 2f).coerceAtLeast(10f))
+        stream.showText(text)
+        stream.endText()
+    }
+
+    private fun applyMetadata(document: PDDocument, config: PdfExportConfig) {
+        val info = document.documentInformation
+        info.title = config.title.ifBlank { "Documento" }
+        if (config.author.isNotBlank()) info.author = config.author
+        if (config.subject.isNotBlank()) info.subject = config.subject
+        if (config.keywords.isNotBlank()) info.keywords = config.keywords
+        info.creator = config.creator.ifBlank { "OmniConvert Studio" }
+        info.producer = "OmniConvert Studio"
+        val created = parseDate(config.creationDate) ?: Calendar.getInstance()
+        info.creationDate = created
+        info.modificationDate = created
+    }
+
+    private fun parseDate(raw: String): Calendar? {
+        if (raw.isBlank()) return null
+        return runCatching {
+            val parsed = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.ROOT).parse(raw) ?: return null
+            Calendar.getInstance().apply { time = parsed }
+        }.getOrNull()
+    }
+
+    /** Decode → rotate → crop → split spread → colour cleanup, always ending on an opaque bitmap. */
     private fun loadProcessedBitmap(item: PdfDocumentItem, config: PdfExportConfig): Bitmap? {
         val uri = item.uri ?: return null
-        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
-        var original = BitmapFactory.decodeStream(inputStream)
-        inputStream.close()
-        if (original == null) return null
+        var bitmap = BitmapLoader.decode(context, uri, config.quality.maxDimension) ?: return null
 
-        // Apply page rotation if requested
-        if (item.rotationDegrees != 0) {
-            val matrix = android.graphics.Matrix().apply {
-                postRotate(item.rotationDegrees.toFloat())
-            }
-            val rotated = Bitmap.createBitmap(original, 0, 0, original.width, original.height, matrix, true)
-            if (rotated != original) original.recycle()
-            original = rotated
+        bitmap = BitmapLoader.rotate(bitmap, item.rotationDegrees)
+
+        item.cropRectNormalized?.takeIf { !it.isFullFrame }?.let { crop ->
+            bitmap = BitmapLoader.cropFraction(bitmap, crop.left, crop.top, crop.right, crop.bottom)
         }
 
-        // Spread splitting (Book mode)
         if (item.isSplitSpread) {
-            val halfWidth = (original.width / 2).coerceAtLeast(1)
-            val cropped = if (item.splitPart == 1) {
-                Bitmap.createBitmap(original, 0, 0, halfWidth, original.height)
+            bitmap = if (item.splitPart == 1) {
+                BitmapLoader.cropFraction(bitmap, 0f, 0f, 0.5f, 1f)
             } else {
-                Bitmap.createBitmap(original, halfWidth, 0, original.width - halfWidth, original.height)
+                BitmapLoader.cropFraction(bitmap, 0.5f, 0f, 1f, 1f)
             }
-            if (cropped != original) original.recycle()
-            original = cropped
         }
 
-        // Binarization & contrast boost for book screenshot cleanup
-        if (config.autoContrastClean || item.isBinarized) {
-            val processed = Bitmap.createBitmap(original.width, original.height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(processed)
-            val paint = Paint()
+        val filter = colorFilterFor(item, config)
+        return BitmapLoader.flattenOnWhite(bitmap, filter?.let { Paint(Paint.FILTER_BITMAP_FLAG).apply { colorFilter = it } })
+    }
 
-            val cm = ColorMatrix()
-            cm.setSaturation(0f) // Grayscale
-            if (item.contrastBoost > 1.0f || config.autoContrastClean) {
-                val contrast = if (item.contrastBoost > 1.0f) item.contrastBoost else 1.4f
-                val t = (1.0f - contrast) / 2.0f * 255.0f
-                val matrix = floatArrayOf(
-                    contrast, 0f, 0f, 0f, t,
-                    0f, contrast, 0f, 0f, t,
-                    0f, 0f, contrast, 0f, t,
-                    0f, 0f, 0f, 1f, 0f
+    private fun colorFilterFor(item: PdfDocumentItem, config: PdfExportConfig): ColorMatrixColorFilter? {
+        val strongClean = item.isBinarized
+        val clean = config.autoContrastClean || strongClean
+        val gray = config.grayscale || strongClean
+        if (!clean && !gray && item.contrastBoost <= 1f) return null
+
+        val matrix = ColorMatrix()
+        when {
+            gray -> matrix.setSaturation(0f)
+            clean -> matrix.setSaturation(0.85f) // tones down the yellow cast of paper under lamps
+        }
+        val contrast = when {
+            strongClean -> 1.8f
+            item.contrastBoost > 1f -> item.contrastBoost
+            clean -> 1.3f
+            else -> 1f
+        }
+        if (contrast != 1f) {
+            // Contrast around mid grey plus a small lift so the paper turns white instead of grey.
+            val lift = if (clean) 18f else 0f
+            val t = (1f - contrast) * 128f + lift
+            matrix.postConcat(
+                ColorMatrix(
+                    floatArrayOf(
+                        contrast, 0f, 0f, 0f, t,
+                        0f, contrast, 0f, 0f, t,
+                        0f, 0f, contrast, 0f, t,
+                        0f, 0f, 0f, 1f, 0f
+                    )
                 )
-                cm.postConcat(ColorMatrix(matrix))
-            }
-            paint.colorFilter = ColorMatrixColorFilter(cm)
-            canvas.drawBitmap(original, 0f, 0f, paint)
-            original.recycle()
-            original = processed
+            )
         }
-
-        return original
+        return ColorMatrixColorFilter(matrix)
     }
 
-    private fun savePdDocumentToDownloads(filename: String, document: PDDocument): Uri {
-        val resolver = context.contentResolver
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/PDFs")
-            }
-        }
-
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-            ?: throw IllegalStateException("Failed to create MediaStore entry")
-
-        resolver.openOutputStream(uri)?.use { out ->
-            document.save(out)
-        }
-
-        return uri
-    }
-
-    private fun saveRawFileToDownloads(filename: String, file: File): Uri {
-        val resolver = context.contentResolver
-        val contentValues = ContentValues().apply {
-            put(MediaStore.MediaColumns.DISPLAY_NAME, filename)
-            put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/PDFs")
-            }
-        }
-
-        val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-            ?: throw IllegalStateException("Failed to create MediaStore entry")
-
-        resolver.openOutputStream(uri)?.use { out ->
-            file.inputStream().use { input -> input.copyTo(out) }
-        }
-
-        return uri
+    private companion object {
+        const val MM_TO_PT = 2.83465f
     }
 }

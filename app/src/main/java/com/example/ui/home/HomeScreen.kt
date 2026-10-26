@@ -1,6 +1,35 @@
 package com.example.ui.home
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.runtime.remember
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import com.example.ui.components.MorphBadge
+import com.example.ui.components.formatBytes
+import com.example.ui.components.formatRelativeTime
+import com.example.ui.components.icon
+import com.example.ui.components.tint
+import com.example.ui.theme.Haptic
+import com.example.ui.theme.LocalReduceMotion
+import com.example.ui.theme.enterAnimation
+import com.example.ui.theme.pressScale
+import com.example.ui.theme.rememberHaptics
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
@@ -147,14 +176,25 @@ fun HomeScreen(
                             SearchField(query, { query = it }, Modifier.fillMaxWidth())
                         }
                         Spacer(modifier = Modifier.height(20.dp))
-                        if (normalizedQuery.isEmpty()) {
-                            FeaturedHero(
-                                tool = OmniTool.IMAGES_TO_PDF,
-                                horizontal = isTablet,
-                                onChooseFiles = { imagePicker.launch("image/*") },
-                                onCamera = launchCamera
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
+                        AnimatedVisibility(
+                            visible = normalizedQuery.isEmpty(),
+                            enter = expandVertically() + fadeIn(),
+                            exit = shrinkVertically() + fadeOut()
+                        ) {
+                            Column {
+                                FeaturedHero(
+                                    tool = OmniTool.IMAGES_TO_PDF,
+                                    horizontal = isTablet,
+                                    onChooseFiles = { imagePicker.launch("image/*") },
+                                    onCamera = launchCamera,
+                                    modifier = Modifier.enterAnimation(1)
+                                )
+                                if (!isWide && recents.isNotEmpty()) {
+                                    Spacer(modifier = Modifier.height(24.dp))
+                                    RecentsStrip(recents = recents, onOpenHistory = onOpenHistory)
+                                }
+                                Spacer(modifier = Modifier.height(24.dp))
+                            }
                         }
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
@@ -174,11 +214,14 @@ fun HomeScreen(
                     }
                 }
 
-                items(tools, key = { it.name }) { tool ->
+                itemsIndexed(tools, key = { _, tool -> tool.name }) { index, tool ->
                     ToolCard(
                         tool = tool,
                         highlighted = tool == OmniTool.IMAGES_TO_PDF,
-                        onClick = { onOpenTool(tool) }
+                        onClick = { onOpenTool(tool) },
+                        modifier = Modifier
+                            .animateItem(placementSpec = spring(dampingRatio = 0.8f, stiffness = 400f))
+                            .enterAnimation(index + 2, key = tool.name)
                     )
                 }
 
@@ -257,6 +300,21 @@ fun BrandLogo(size: Int, modifier: Modifier = Modifier) {
 
 @Composable
 private fun HomeTitle() {
+    val hour = remember { java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY) }
+    val greeting = when (hour) {
+        in 5..12 -> "Buongiorno"
+        in 13..17 -> "Buon pomeriggio"
+        else -> "Buonasera"
+    }
+    Text(
+        text = greeting.uppercase(),
+        fontSize = 13.sp,
+        fontWeight = FontWeight.Bold,
+        letterSpacing = 1.sp,
+        color = OmniAccent,
+        modifier = Modifier.enterAnimation(0)
+    )
+    Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = "Cosa vuoi convertire?",
         style = MaterialTheme.typography.displayLarge,
@@ -313,14 +371,37 @@ private fun FeaturedHero(
     tool: OmniTool,
     horizontal: Boolean,
     onChooseFiles: () -> Unit,
-    onCamera: () -> Unit
+    onCamera: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val dash = OmniAccent.copy(alpha = 0.35f)
+    val reduce = LocalReduceMotion.current
+    val transition = rememberInfiniteTransition(label = "hero")
+    val shift by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (reduce) 0f else 1f,
+        animationSpec = infiniteRepeatable(tween(5000, easing = LinearEasing), RepeatMode.Reverse),
+        label = "hero_gradient"
+    )
+    val soft = OmniAccentSoft
+    val accent = OmniAccent
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(RadiusCard + 8.dp))
-            .background(OmniAccentSoft)
+            .drawBehind {
+                drawRect(soft)
+                // Slow drifting glow behind the hero.
+                drawCircle(
+                    brush = Brush.radialGradient(
+                        listOf(accent.copy(alpha = 0.18f), Color.Transparent),
+                        center = Offset(size.width * (0.2f + 0.6f * shift), size.height * 0.2f),
+                        radius = size.maxDimension * 0.6f
+                    ),
+                    radius = size.maxDimension,
+                    center = Offset(size.width * (0.2f + 0.6f * shift), size.height * 0.2f)
+                )
+            }
             .then(
                 if (horizontal) Modifier.drawBehind {
                     drawRoundRect(
@@ -427,19 +508,30 @@ private fun CameraButton(onClick: () -> Unit, withLabel: Boolean) {
 }
 
 @Composable
-private fun ToolCard(tool: OmniTool, highlighted: Boolean, onClick: () -> Unit) {
+private fun ToolCard(tool: OmniTool, highlighted: Boolean, onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val interaction = remember { MutableInteractionSource() }
+    val haptics = rememberHaptics()
     Surface(
-        onClick = onClick,
+        onClick = {
+            haptics(Haptic.TAP)
+            onClick()
+        },
+        interactionSource = interaction,
         shape = RoundedCornerShape(RadiusCard),
         color = if (highlighted) OmniAccentSoft.copy(alpha = 0.55f) else OmniSurface,
         border = BorderStroke(if (highlighted) 1.5.dp else 1.dp, if (highlighted) OmniAccent else OmniBorder),
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .heightIn(min = 150.dp)
+            .pressScale(interaction, 0.95f)
             .testTag("tool_card_${tool.name.lowercase()}")
     ) {
         Column(modifier = Modifier.padding(18.dp)) {
-            IconTile(icon = tool.icon, tint = if (highlighted) OmniAccent else tool.tint, size = 48.dp, filled = highlighted)
+            Row(verticalAlignment = Alignment.Top) {
+                IconTile(icon = tool.icon, tint = if (highlighted) OmniAccent else tool.tint, size = 48.dp, filled = highlighted)
+                Spacer(modifier = Modifier.weight(1f))
+                if (tool.isNew) MorphBadge("Nuovo")
+            }
             Spacer(modifier = Modifier.height(28.dp))
             Text(
                 text = tool.title,
@@ -457,6 +549,50 @@ private fun ToolCard(tool: OmniTool, highlighted: Boolean, onClick: () -> Unit) 
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+        }
+    }
+}
+
+/** Phone-only horizontal strip with the last converted files. */
+@Composable
+private fun RecentsStrip(recents: List<HistoryEntry>, onOpenHistory: () -> Unit) {
+    val context = LocalContext.current
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("Recenti", style = MaterialTheme.typography.titleLarge, color = OmniText, modifier = Modifier.weight(1f))
+            TextButton(onClick = onOpenHistory) {
+                Text("Vedi tutti", color = OmniAccent, fontWeight = FontWeight.Bold)
+            }
+        }
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            itemsIndexed(recents.take(6), key = { _, e -> e.id }) { index, entry ->
+                val interaction = remember { MutableInteractionSource() }
+                Surface(
+                    onClick = { openFile(context, Uri.parse(entry.uri), mimeForKind(entry.kind)) },
+                    interactionSource = interaction,
+                    shape = RoundedCornerShape(RadiusMd + 2.dp),
+                    color = OmniSurface,
+                    border = BorderStroke(1.dp, OmniBorder),
+                    modifier = Modifier
+                        .width(210.dp)
+                        .enterAnimation(index, key = entry.id)
+                        .pressScale(interaction)
+                ) {
+                    Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        IconTile(icon = entry.kind.icon(), tint = entry.kind.tint(), size = 40.dp)
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(entry.name, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = OmniText, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            Text(
+                                listOf(formatBytes(entry.sizeBytes), formatRelativeTime(entry.timestamp)).filter { it.isNotBlank() }.joinToString(" · "),
+                                fontSize = 12.sp,
+                                color = OmniTextMuted,
+                                maxLines = 1
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }
@@ -495,6 +631,7 @@ private fun RecentsPanel(
                 LazyColumn(modifier = Modifier.weight(1f)) {
                     items(recents.take(8), key = { it.id }) { entry ->
                         HistoryRow(
+                            modifier = Modifier.animateItem(),
                             entry = entry,
                             framed = false,
                             onOpen = { openFile(context, Uri.parse(entry.uri), mimeForKind(entry.kind)) },

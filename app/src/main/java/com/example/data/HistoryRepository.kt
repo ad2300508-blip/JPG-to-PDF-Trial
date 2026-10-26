@@ -16,7 +16,18 @@ enum class HistoryKind(val label: String) {
     MARKDOWN("Markdown"),
     ZIP("ZIP"),
     IMAGE("Immagini"),
-    AUDIO("Audio")
+    AUDIO("Audio"),
+    OTHER("Altro")
+}
+
+/** Best-guess history category from a file name (used for files extracted from ZIPs). */
+fun kindForFileName(name: String): HistoryKind = when (name.substringAfterLast('.', "").lowercase()) {
+    "pdf" -> HistoryKind.PDF
+    "md", "markdown", "txt" -> HistoryKind.MARKDOWN
+    "zip" -> HistoryKind.ZIP
+    "jpg", "jpeg", "png", "webp", "gif", "heic", "heif", "bmp" -> HistoryKind.IMAGE
+    "mp3", "m4a", "aac", "wav", "ogg", "opus", "flac" -> HistoryKind.AUDIO
+    else -> HistoryKind.OTHER
 }
 
 data class HistoryEntry(
@@ -54,6 +65,7 @@ object HistoryRepository {
     /**
      * Records a produced file. Name and size are read from the content resolver when available.
      */
+    @Synchronized
     fun record(
         context: Context,
         uri: Uri,
@@ -87,8 +99,31 @@ object HistoryRepository {
         update((listOf(entry) + _entries.value).take(MAX_ENTRIES))
     }
 
+    @Synchronized
     fun remove(id: String) {
         update(_entries.value.filterNot { it.id == id })
+    }
+
+    /** Puts back an entry removed by mistake (undo), at its original position when possible. */
+    @Synchronized
+    fun restore(entry: HistoryEntry, index: Int) {
+        if (_entries.value.any { it.id == entry.id }) return
+        val list = _entries.value.toMutableList()
+        list.add(index.coerceIn(0, list.size), entry)
+        update(list.take(MAX_ENTRIES))
+    }
+
+    /** Drops entries whose file no longer exists (deleted from the file manager). Returns how many were removed. */
+    @Synchronized
+    fun pruneMissing(context: Context): Int {
+        val alive = _entries.value.filter { entry ->
+            runCatching {
+                context.contentResolver.openFileDescriptor(Uri.parse(entry.uri), "r")?.use { true } ?: false
+            }.getOrDefault(false)
+        }
+        val removed = _entries.value.size - alive.size
+        if (removed > 0) update(alive)
+        return removed
     }
 
     /** Removes the entry and tries to delete the underlying file (works for files created by this app). */
@@ -101,6 +136,7 @@ object HistoryRepository {
         return deleted
     }
 
+    @Synchronized
     fun clear() {
         update(emptyList())
     }

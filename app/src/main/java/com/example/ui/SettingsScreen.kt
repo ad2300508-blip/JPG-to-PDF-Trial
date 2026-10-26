@@ -1,5 +1,33 @@
 package com.example.ui
 
+import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.icons.filled.CleaningServices
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
+import com.example.ui.components.AnimatedText
+import com.example.ui.components.OptionRow
+import com.example.ui.components.formatBytes
+import com.example.ui.theme.Haptic
+import com.example.ui.theme.Motion
+import com.example.ui.theme.motionSpec
+import com.example.ui.theme.pressScale
+import com.example.ui.theme.rememberHaptics
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -74,7 +102,13 @@ fun SettingsScreen(
     modifier: Modifier = Modifier
 ) {
     val themeMode by AppPreferences.themeMode.collectAsState()
+    val reduceMotion by AppPreferences.reduceMotion.collectAsState()
+    val haptics by AppPreferences.haptics.collectAsState()
     val historyCount = HistoryRepository.entries.collectAsState().value.size
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    var cacheBytes by remember { mutableLongStateOf(-1L) }
+    LaunchedEffect(Unit) { cacheBytes = withContext(Dispatchers.IO) { dirSize(context.cacheDir) } }
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -107,7 +141,25 @@ fun SettingsScreen(
                 }
             }
             Spacer(modifier = Modifier.height(8.dp))
-            Text(themeMode.description, fontSize = 13.sp, color = OmniTextMuted)
+            AnimatedText(themeMode.description, fontSize = 13.sp, color = OmniTextMuted)
+
+            Spacer(modifier = Modifier.height(16.dp))
+            SettingsGroup {
+                Column(modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+                    OptionRow(
+                        label = "Riduci animazioni",
+                        description = "Transizioni istantanee, utile su telefoni lenti o se le animazioni danno fastidio",
+                        checked = reduceMotion,
+                        onCheckedChange = { AppPreferences.setReduceMotion(it) }
+                    )
+                    OptionRow(
+                        label = "Vibrazione",
+                        description = "Leggera risposta tattile su tocchi e conversioni completate",
+                        checked = haptics,
+                        onCheckedChange = { AppPreferences.setHaptics(it) }
+                    )
+                }
+            }
 
             Spacer(modifier = Modifier.height(28.dp))
             SectionLabel("Generale")
@@ -133,7 +185,7 @@ fun SettingsScreen(
                     icon = Icons.Default.Folder,
                     tint = TintZip,
                     title = "Cartella di salvataggio",
-                    subtitle = "Download/OmniConvert (PDFs, Images, Audio, Archives, Markdown)",
+                    subtitle = "Download/OmniConvert · PDFs, Images, Audio, Archives, Markdown",
                     onClick = null
                 )
             }
@@ -148,6 +200,24 @@ fun SettingsScreen(
                     title = "Svuota cronologia",
                     subtitle = if (historyCount == 0) "La cronologia è vuota" else "$historyCount elementi · i file restano in Download",
                     onClick = if (historyCount == 0) null else ({ HistoryRepository.clear() })
+                )
+                SettingsDivider()
+                SettingsRow(
+                    icon = Icons.Default.CleaningServices,
+                    tint = TintZip,
+                    title = "Svuota cache",
+                    subtitle = when {
+                        cacheBytes < 0 -> "Calcolo…"
+                        cacheBytes == 0L -> "Nessun file temporaneo"
+                        else -> "${formatBytes(cacheBytes)} di foto scattate e file temporanei"
+                    },
+                    onClick = if (cacheBytes <= 0) null else ({
+                        scope.launch {
+                            withContext(Dispatchers.IO) { context.cacheDir.listFiles()?.forEach { it.deleteRecursively() } }
+                            cacheBytes = withContext(Dispatchers.IO) { dirSize(context.cacheDir) }
+                            Toast.makeText(context, "Cache svuotata", Toast.LENGTH_SHORT).show()
+                        }
+                    })
                 )
             }
 
@@ -180,12 +250,26 @@ private fun ThemeOptionCard(
         ThemeMode.LIGHT -> Icons.Default.LightMode
         ThemeMode.DARK -> Icons.Default.DarkMode
     }
+    val interaction = remember { MutableInteractionSource() }
+    val borderColor by animateColorAsState(if (selected) OmniAccent else OmniBorder, label = "theme_border")
+    val lift by animateFloatAsState(if (selected) 1.03f else 1f, motionSpec(Motion.bouncy()), label = "theme_lift")
+    val hapticsFn = rememberHaptics()
     Surface(
-        onClick = onClick,
+        onClick = {
+            if (!selected) hapticsFn(Haptic.TICK)
+            onClick()
+        },
+        interactionSource = interaction,
         shape = RoundedCornerShape(RadiusCard),
         color = OmniSurface,
-        border = BorderStroke(if (selected) 2.dp else 1.dp, if (selected) OmniAccent else OmniBorder),
-        modifier = modifier.testTag("theme_option_${mode.name.lowercase()}")
+        border = BorderStroke(if (selected) 2.dp else 1.dp, borderColor),
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = lift
+                scaleY = lift
+            }
+            .pressScale(interaction, 0.95f)
+            .testTag("theme_option_${mode.name.lowercase()}")
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             ThemePreview(mode)
@@ -200,7 +284,11 @@ private fun ThemeOptionCard(
                     color = OmniText,
                     modifier = Modifier.weight(1f)
                 )
-                if (selected) {
+                AnimatedVisibility(
+                    visible = selected,
+                    enter = scaleIn(motionSpec(Motion.bouncy())) + fadeIn(),
+                    exit = scaleOut() + fadeOut()
+                ) {
                     Box(
                         modifier = Modifier
                             .size(18.dp)
@@ -326,8 +414,18 @@ private fun SettingsRow(
         }
     }
     if (onClick != null) {
-        Surface(onClick = onClick, color = Color.Transparent, shape = RoundedCornerShape(RadiusMd)) { content() }
+        val interaction = remember { MutableInteractionSource() }
+        Surface(
+            onClick = onClick,
+            interactionSource = interaction,
+            color = Color.Transparent,
+            shape = RoundedCornerShape(RadiusMd),
+            modifier = Modifier.pressScale(interaction, 0.98f)
+        ) { content() }
     } else {
         content()
     }
 }
+
+private fun dirSize(dir: java.io.File): Long =
+    dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }

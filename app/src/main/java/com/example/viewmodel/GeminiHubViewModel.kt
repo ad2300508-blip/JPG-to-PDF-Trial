@@ -3,19 +3,18 @@ package com.example.viewmodel
 import android.app.Application
 import android.content.ClipData
 import android.content.ClipboardManager
-import android.content.ContentValues
 import android.content.Context
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
-import android.graphics.Typeface
-import android.graphics.pdf.PdfDocument
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.HistoryKind
+import com.example.data.HistoryRepository
+import com.example.util.FileNames
+import com.example.util.OutputFolder
+import com.example.util.OutputStorage
+import com.example.util.TextPdfWriter
+import com.example.util.resultOf
+import com.example.util.userMessage
 import com.example.model.GeminiGenerationState
 import com.example.model.GeminiPromptPreset
 import com.example.model.GeminiTargetModel
@@ -28,12 +27,6 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
-import java.io.OutputStream
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 class GeminiHubViewModel(application: Application) : AndroidViewModel(application) {
 
@@ -229,10 +222,10 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun generateCurrent() {
         val prompt = _inputText.value.ifBlank {
-            _contextDocument.value ?: if (_imageAttachmentUri.value != null) "Please inspect and explain this image in detail." else return
+            _contextDocument.value ?: if (_imageAttachmentUri.value != null) "Analizza e spiega questa immagine nel dettaglio." else return
         }
         val fullPrompt = if (_contextDocument.value != null && _inputText.value.isNotBlank()) {
-            "${_inputText.value}\n\n=== REFERENCE CONTEXT ===\n${_contextDocument.value}"
+            "${_inputText.value}\n\n=== CONTESTO DI RIFERIMENTO ===\n${_contextDocument.value}"
         } else {
             prompt
         }
@@ -265,9 +258,14 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
                 inlineImageUri = _imageAttachmentUri.value,
                 smartRouting = _smartRouting.value,
                 onFallbackEvent = { from, to, _ ->
+                    // Text streamed by the model that failed is discarded so the answer is not duplicated.
+                    outputSb.setLength(0)
+                    thinkingSb.setLength(0)
                     _generationState.value = _generationState.value.copy(
                         modelUsed = to,
-                        fallbackNotice = "Switched to ${to.displayName} (Auto-fallback from ${from.displayName})"
+                        outputText = "",
+                        thinkingTrace = "",
+                        fallbackNotice = "Passato a ${to.displayName} (riserva automatica di ${from.displayName})"
                     )
                 },
                 onThinkingChunk = { chunk ->
@@ -298,7 +296,7 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
             }.onFailure { err ->
                 _generationState.value = _generationState.value.copy(
                     isGenerating = false,
-                    error = err.localizedMessage ?: "Generation failed"
+                    error = err.localizedMessage ?: "Generazione non riuscita"
                 )
             }
         }
@@ -366,7 +364,7 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         val clipboard = getApplication<Application>().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
         val clip = ClipData.newPlainText("Gemini Output", text)
         clipboard.setPrimaryClip(clip)
-        _copiedNotice.value = "Generated text copied to clipboard (~${_generationState.value.estimatedTokens} tokens)"
+        _copiedNotice.value = "Testo copiato negli appunti (~${_generationState.value.estimatedTokens} token)"
     }
 
     fun exportMarkdownFile() {
@@ -374,35 +372,17 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         if (text.isEmpty()) return
 
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val fileName = "AI_Study_Guide_$timestamp.md"
-                val app = getApplication<Application>()
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val contentValues = ContentValues().apply {
-                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                        put(MediaStore.MediaColumns.MIME_TYPE, "text/markdown")
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/StudyGuides")
-                    }
-                    val resolver = app.contentResolver
-                    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                    if (uri != null) {
-                        resolver.openOutputStream(uri)?.use { os ->
-                            os.write(text.toByteArray(Charsets.UTF_8))
-                        }
-                    }
-                } else {
-                    val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "OmniConvert/StudyGuides")
-                    dir.mkdirs()
-                    val file = File(dir, fileName)
-                    FileOutputStream(file).use { os ->
-                        os.write(text.toByteArray(Charsets.UTF_8))
-                    }
+            val app = getApplication<Application>()
+            resultOf {
+                val fileName = "Guida_di_studio_${FileNames.timestamp()}.md"
+                OutputStorage.save(app, fileName, "text/markdown", OutputFolder.STUDY_GUIDES) { os ->
+                    os.write(text.toByteArray(Charsets.UTF_8))
                 }
-                _copiedNotice.value = "Saved study guide to Downloads/OmniConvert/StudyGuides/$fileName"
-            } catch (e: Exception) {
-                _copiedNotice.value = "Export failed: ${e.message}"
+            }.onSuccess { uri ->
+                HistoryRepository.record(app, uri, "Gemini", HistoryKind.MARKDOWN, "Guida_di_studio.md")
+                _copiedNotice.value = "Guida salvata in ${OutputStorage.displayPath(OutputFolder.STUDY_GUIDES)}"
+            }.onFailure { e ->
+                _copiedNotice.value = "Esportazione non riuscita: ${e.userMessage("errore sconosciuto")}"
             }
         }
     }
@@ -412,118 +392,17 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         if (text.isEmpty()) return
 
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.US).format(Date())
-                val fileName = "AI_Study_Guide_$timestamp.pdf"
-                val app = getApplication<Application>()
-
-                val pdfDocument = PdfDocument()
-                val pageWidth = 595
-                val pageHeight = 842
-                val margin = 40
-                val usableWidth = pageWidth - (margin * 2)
-
-                val paint = Paint().apply {
-                    color = Color.DKGRAY
-                    textSize = 10.5f
-                    isAntiAlias = true
-                    typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+            val app = getApplication<Application>()
+            resultOf {
+                val fileName = "Guida_di_studio_${FileNames.timestamp()}.pdf"
+                OutputStorage.save(app, fileName, "application/pdf", OutputFolder.PDFS) { os ->
+                    TextPdfWriter.write(text, "Guida di studio · OmniConvert", os)
                 }
-
-                val titlePaint = Paint().apply {
-                    color = Color.BLACK
-                    textSize = 15f
-                    isAntiAlias = true
-                    typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-                }
-
-                val subPaint = Paint().apply {
-                    color = Color.GRAY
-                    textSize = 8.5f
-                    isAntiAlias = true
-                }
-
-                // Word wrap text into lines
-                val lines = mutableListOf<String>()
-                text.lines().forEach { rawLine ->
-                    if (rawLine.isBlank()) {
-                        lines.add("")
-                    } else {
-                        val words = rawLine.split(" ")
-                        var curLine = ""
-                        for (w in words) {
-                            val candidate = if (curLine.isEmpty()) w else "$curLine $w"
-                            if (paint.measureText(candidate) <= usableWidth) {
-                                curLine = candidate
-                            } else {
-                                if (curLine.isNotEmpty()) lines.add(curLine)
-                                curLine = w
-                            }
-                        }
-                        if (curLine.isNotEmpty()) lines.add(curLine)
-                    }
-                }
-
-                val linesPerPage = 48
-                val totalPages = Math.max(1, (lines.size + linesPerPage - 1) / linesPerPage)
-
-                for (pageIdx in 0 until totalPages) {
-                    val pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, pageIdx + 1).create()
-                    val page = pdfDocument.startPage(pageInfo)
-                    val canvas: Canvas = page.canvas
-
-                    // Header
-                    canvas.drawText("OmniConvert AI Studio • Study Guide & Analysis", margin.toFloat(), 32f, subPaint)
-                    canvas.drawLine(margin.toFloat(), 38f, (pageWidth - margin).toFloat(), 38f, subPaint)
-
-                    var y = 60f
-                    val startLine = pageIdx * linesPerPage
-                    val endLine = Math.min(lines.size, startLine + linesPerPage)
-
-                    for (l in startLine until endLine) {
-                        val lineStr = lines[l]
-                        if (lineStr.startsWith("#")) {
-                            canvas.drawText(lineStr.replace("#", "").trim(), margin.toFloat(), y, titlePaint)
-                            y += 20f
-                        } else {
-                            canvas.drawText(lineStr, margin.toFloat(), y, paint)
-                            y += 15f
-                        }
-                    }
-
-                    // Footer
-                    canvas.drawLine(margin.toFloat(), (pageHeight - 30).toFloat(), (pageWidth - margin).toFloat(), (pageHeight - 30).toFloat(), subPaint)
-                    canvas.drawText("Page ${pageIdx + 1} of $totalPages", (pageWidth - margin - 60).toFloat(), (pageHeight - 16).toFloat(), subPaint)
-
-                    pdfDocument.finishPage(page)
-                }
-
-                // Save PDF to Downloads/OmniConvert/PDFs
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    val contentValues = ContentValues().apply {
-                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                        put(MediaStore.MediaColumns.MIME_TYPE, "application/pdf")
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, "${Environment.DIRECTORY_DOWNLOADS}/OmniConvert/PDFs")
-                    }
-                    val resolver = app.contentResolver
-                    val uri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, contentValues)
-                    if (uri != null) {
-                        resolver.openOutputStream(uri)?.use { os ->
-                            pdfDocument.writeTo(os)
-                        }
-                    }
-                } else {
-                    val dir = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS), "OmniConvert/PDFs")
-                    dir.mkdirs()
-                    val file = File(dir, fileName)
-                    FileOutputStream(file).use { os ->
-                        pdfDocument.writeTo(os)
-                    }
-                }
-                pdfDocument.close()
-                _copiedNotice.value = "Converted to PDF: Downloads/OmniConvert/PDFs/$fileName"
-            } catch (e: Exception) {
-                _copiedNotice.value = "PDF generation failed: ${e.message}"
+            }.onSuccess { uri ->
+                HistoryRepository.record(app, uri, "Gemini", HistoryKind.PDF, "Guida_di_studio.pdf")
+                _copiedNotice.value = "PDF salvato in ${OutputStorage.displayPath(OutputFolder.PDFS)}"
+            }.onFailure { e ->
+                _copiedNotice.value = "Creazione del PDF non riuscita: ${e.userMessage("errore sconosciuto")}"
             }
         }
     }

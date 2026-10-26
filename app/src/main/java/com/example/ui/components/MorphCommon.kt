@@ -8,6 +8,37 @@ import android.provider.OpenableColumns
 import android.text.format.DateUtils
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathMeasure
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import com.example.ui.theme.Haptic
+import com.example.ui.theme.LocalReduceMotion
+import com.example.ui.theme.Motion
+import com.example.ui.theme.enterAnimation
+import com.example.ui.theme.motionSpec
+import com.example.ui.theme.pressScale
+import com.example.ui.theme.rememberHaptics
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -35,6 +66,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.OpenInNew
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TextSnippet
@@ -42,7 +74,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -134,11 +165,38 @@ fun mimeForKind(kind: HistoryKind): String = when (kind) {
     HistoryKind.ZIP -> "application/zip"
     HistoryKind.IMAGE -> "image/*"
     HistoryKind.AUDIO -> "audio/*"
+    HistoryKind.OTHER -> "*/*"
+}
+
+/** Prefers the real type of the file over a generic "image/*" so viewers pick the right app. */
+private fun resolveMime(context: Context, uri: Uri, fallback: String?): String {
+    val actual = runCatching { context.contentResolver.getType(uri) }.getOrNull()
+    return when {
+        actual != null && actual != "application/octet-stream" -> actual
+        fallback != null -> fallback
+        else -> "*/*"
+    }
+}
+
+/** Shares several files at once (e.g. all the pages exported as images). */
+fun shareFiles(context: Context, uris: List<Uri>, mimeType: String) {
+    if (uris.isEmpty()) return
+    if (uris.size == 1) return shareFile(context, uris.first(), mimeType)
+    val send = Intent(Intent.ACTION_SEND_MULTIPLE).apply {
+        type = mimeType
+        putParcelableArrayListExtra(Intent.EXTRA_STREAM, ArrayList(uris))
+        addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+    }
+    try {
+        context.startActivity(Intent.createChooser(send, "Condividi file"))
+    } catch (e: ActivityNotFoundException) {
+        Toast.makeText(context, "Nessuna app disponibile per condividere", Toast.LENGTH_SHORT).show()
+    }
 }
 
 fun shareFile(context: Context, uri: Uri, mimeType: String?) {
     val send = Intent(Intent.ACTION_SEND).apply {
-        type = mimeType ?: context.contentResolver.getType(uri) ?: "*/*"
+        type = resolveMime(context, uri, mimeType)
         putExtra(Intent.EXTRA_STREAM, uri)
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
     }
@@ -151,7 +209,7 @@ fun shareFile(context: Context, uri: Uri, mimeType: String?) {
 
 fun openFile(context: Context, uri: Uri, mimeType: String?) {
     val view = Intent(Intent.ACTION_VIEW).apply {
-        setDataAndType(uri, mimeType ?: context.contentResolver.getType(uri) ?: "*/*")
+        setDataAndType(uri, resolveMime(context, uri, mimeType))
         addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
     }
     try {
@@ -167,6 +225,7 @@ fun HistoryKind.icon(): ImageVector = when (this) {
     HistoryKind.ZIP -> Icons.Default.Archive
     HistoryKind.IMAGE -> Icons.Default.Image
     HistoryKind.AUDIO -> Icons.Default.Audiotrack
+    HistoryKind.OTHER -> Icons.Default.InsertDriveFile
 }
 
 fun HistoryKind.tint(): Color = when (this) {
@@ -175,6 +234,7 @@ fun HistoryKind.tint(): Color = when (this) {
     HistoryKind.ZIP -> TintZip
     HistoryKind.IMAGE -> TintMerge
     HistoryKind.AUDIO -> TintAudio
+    HistoryKind.OTHER -> TintZip
 }
 
 // ---------------------------------------------------------------------------
@@ -206,7 +266,7 @@ fun IconTile(
     }
 }
 
-/** Horizontal row of Morph filter chips (selected = solid dark pill). */
+/** Horizontal row of Morph filter chips (selected = solid dark pill, colour animated). */
 @Composable
 fun MorphChipRow(
     options: List<String>,
@@ -214,18 +274,28 @@ fun MorphChipRow(
     onSelected: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val haptics = rememberHaptics()
     Row(
         modifier = modifier.horizontalScroll(rememberScrollState()),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         options.forEach { option ->
             val isSelected = option == selected
+            val container by animateColorAsState(if (isSelected) OmniText else OmniSurface, label = "chip_bg")
+            val content by animateColorAsState(if (isSelected) OmniSurface else OmniText, label = "chip_fg")
+            val interaction = remember { MutableInteractionSource() }
             Surface(
-                onClick = { onSelected(option) },
+                onClick = {
+                    if (!isSelected) haptics(Haptic.TICK)
+                    onSelected(option)
+                },
+                interactionSource = interaction,
                 shape = RoundedCornerShape(RadiusPill),
-                color = if (isSelected) OmniText else OmniSurface,
+                color = container,
                 border = if (isSelected) null else BorderStroke(1.dp, OmniBorder),
-                modifier = Modifier.height(44.dp)
+                modifier = Modifier
+                    .height(44.dp)
+                    .pressScale(interaction, 0.94f)
             ) {
                 Box(
                     modifier = Modifier.padding(horizontal = 18.dp),
@@ -235,7 +305,7 @@ fun MorphChipRow(
                         text = option,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isSelected) OmniSurface else OmniText,
+                        color = content,
                         maxLines = 1
                     )
                 }
@@ -267,12 +337,16 @@ fun HistoryRow(
     modifier: Modifier = Modifier,
     framed: Boolean = true
 ) {
+    val interaction = remember { MutableInteractionSource() }
     Surface(
         onClick = onOpen,
+        interactionSource = interaction,
         shape = RoundedCornerShape(RadiusMd + 2.dp),
         color = if (framed) OmniSurface else Color.Transparent,
         border = if (framed) BorderStroke(1.dp, OmniBorder) else null,
-        modifier = modifier.fillMaxWidth()
+        modifier = modifier
+            .fillMaxWidth()
+            .pressScale(interaction, 0.98f)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = if (framed) 12.dp else 0.dp, vertical = 10.dp),
@@ -319,8 +393,8 @@ data class ContinueAction(
 )
 
 /**
- * Morph "Il tuo file è pronto" screen: success badge, output card with size comparison,
- * share/open buttons, follow-up tools and a "new conversion" link.
+ * Morph "Il tuo file è pronto" screen: animated success badge, output card with an animated size
+ * comparison, share/open buttons, follow-up tools and a "new conversion" link.
  */
 @Composable
 fun ConversionResultView(
@@ -334,14 +408,19 @@ fun ConversionResultView(
     onNewConversion: () -> Unit,
     modifier: Modifier = Modifier,
     originalBytes: Long = 0L,
+    outputBytesOverride: Long? = null,
     detailPrefix: String? = null,
-    continueActions: List<ContinueAction> = emptyList()
+    continueActions: List<ContinueAction> = emptyList(),
+    savedIn: String = "Salvato in Download/OmniConvert",
+    shareUris: List<Uri> = emptyList()
 ) {
     val context = LocalContext.current
+    val haptics = rememberHaptics()
     val info by produceState<OutputFileInfo?>(initialValue = null, outputUri) {
         value = queryOutputFile(context, outputUri)
     }
-    val outputBytes = info?.sizeBytes ?: 0L
+    val outputBytes = outputBytesOverride ?: info?.sizeBytes ?: 0L
+    LaunchedEffect(outputUri) { haptics(Haptic.CONFIRM) }
 
     Box(modifier = modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
         Column(
@@ -358,23 +437,7 @@ fun ConversionResultView(
                 }
             }
 
-            Box(
-                modifier = Modifier
-                    .size(104.dp)
-                    .clip(CircleShape)
-                    .background(OmniSuccessSoft),
-                contentAlignment = Alignment.Center
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(68.dp)
-                        .clip(CircleShape)
-                        .background(OmniSuccess),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Default.Check, contentDescription = null, tint = Color.White, modifier = Modifier.size(36.dp))
-                }
-            }
+            SuccessBadge()
 
             Spacer(modifier = Modifier.height(20.dp))
             Text(
@@ -383,10 +446,17 @@ fun ConversionResultView(
                 fontWeight = FontWeight.Bold,
                 letterSpacing = (-0.8).sp,
                 color = OmniText,
-                textAlign = TextAlign.Center
+                textAlign = TextAlign.Center,
+                modifier = Modifier.enterAnimation(2, key = outputUri)
             )
             Spacer(modifier = Modifier.height(6.dp))
-            Text(text = subtitle, fontSize = 15.sp, color = OmniTextMuted, textAlign = TextAlign.Center)
+            Text(
+                text = subtitle,
+                fontSize = 15.sp,
+                color = OmniTextMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.enterAnimation(3, key = outputUri)
+            )
             Spacer(modifier = Modifier.height(22.dp))
 
             // Output card
@@ -394,7 +464,10 @@ fun ConversionResultView(
                 shape = RoundedCornerShape(RadiusCard),
                 color = OmniSurface,
                 border = BorderStroke(1.dp, OmniBorder),
-                modifier = Modifier.fillMaxWidth()
+                shadowElevation = 2.dp,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .enterAnimation(4, key = outputUri)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -410,72 +483,77 @@ fun ConversionResultView(
                                 overflow = TextOverflow.Ellipsis
                             )
                             Text(
-                                text = listOfNotNull(detailPrefix, formatBytes(outputBytes)).joinToString(" · "),
+                                text = listOfNotNull(detailPrefix, formatBytes(outputBytes).takeIf { outputBytes > 0 }).joinToString(" · "),
                                 fontSize = 13.sp,
                                 color = OmniTextMuted
                             )
                             if (originalBytes > 0 && outputBytes > 0) {
                                 val delta = ((outputBytes - originalBytes) * 100.0 / originalBytes).toInt()
                                 Spacer(modifier = Modifier.height(6.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(RadiusPill))
-                                        .background(if (delta <= 0) OmniSuccessSoft else OmniSurface2)
-                                        .padding(horizontal = 10.dp, vertical = 4.dp)
-                                ) {
-                                    Text(
-                                        text = if (delta <= 0) "−${-delta}% di peso" else "+$delta% di peso",
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = if (delta <= 0) OmniSuccess else OmniTextMuted
-                                    )
-                                }
+                                MorphBadge(
+                                    text = if (delta <= 0) "−${-delta}% di peso" else "+$delta% di peso",
+                                    color = if (delta <= 0) OmniSuccess else OmniTextMuted,
+                                    container = if (delta <= 0) OmniSuccessSoft else OmniSurface2
+                                )
                             }
                         }
                     }
                     if (originalBytes > 0 && outputBytes > 0) {
                         Spacer(modifier = Modifier.height(14.dp))
                         val maxBytes = maxOf(originalBytes, outputBytes).toFloat()
-                        SizeBar("Originali", originalBytes, originalBytes / maxBytes, OmniTextMuted)
+                        SizeBar("Originali", originalBytes, originalBytes / maxBytes, OmniTextMuted, delayMillis = 350)
                         Spacer(modifier = Modifier.height(6.dp))
-                        SizeBar("Risultato", outputBytes, outputBytes / maxBytes, OmniSuccess)
+                        SizeBar("Risultato", outputBytes, outputBytes / maxBytes, OmniSuccess, delayMillis = 550)
                     }
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
+            val shareInteraction = remember { MutableInteractionSource() }
             Button(
-                onClick = { shareFile(context, outputUri, mimeType) },
+                onClick = {
+                    haptics(Haptic.TAP)
+                    if (shareUris.size > 1) shareFiles(context, shareUris, mimeType) else shareFile(context, outputUri, mimeType)
+                },
+                interactionSource = shareInteraction,
                 colors = ButtonDefaults.buttonColors(containerColor = OmniAccent, contentColor = OmniOnAccent),
                 shape = RoundedCornerShape(RadiusMd),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
+                    .enterAnimation(5, key = outputUri)
+                    .pressScale(shareInteraction)
             ) {
                 Icon(Icons.Default.Share, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(10.dp))
-                Text("Condividi", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                Text(if (shareUris.size > 1) "Condividi tutti (${shareUris.size})" else "Condividi", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(modifier = Modifier.height(10.dp))
+            val openInteraction = remember { MutableInteractionSource() }
             OutlinedButton(
                 onClick = { openFile(context, outputUri, mimeType) },
+                interactionSource = openInteraction,
                 shape = RoundedCornerShape(RadiusMd),
                 border = BorderStroke(1.dp, OmniBorder),
                 colors = ButtonDefaults.outlinedButtonColors(containerColor = OmniSurface, contentColor = OmniText),
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(56.dp)
+                    .enterAnimation(6, key = outputUri)
+                    .pressScale(openInteraction)
             ) {
                 Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(10.dp))
                 Text("Apri", fontSize = 16.sp, fontWeight = FontWeight.Bold)
             }
             Text(
-                text = "Salvato in Download/OmniConvert",
+                text = savedIn,
                 fontSize = 12.sp,
                 color = OmniTextMuted,
-                modifier = Modifier.padding(top = 8.dp)
+                modifier = Modifier
+                    .padding(top = 8.dp)
+                    .enterAnimation(6, key = outputUri)
             )
 
             if (continueActions.isNotEmpty()) {
@@ -485,18 +563,24 @@ fun ConversionResultView(
                     fontSize = 17.sp,
                     fontWeight = FontWeight.Bold,
                     color = OmniText,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .enterAnimation(7, key = outputUri)
                 )
                 Spacer(modifier = Modifier.height(10.dp))
-                continueActions.forEach { action ->
+                continueActions.forEachIndexed { index, action ->
+                    val interaction = remember { MutableInteractionSource() }
                     Surface(
                         onClick = action.onClick,
+                        interactionSource = interaction,
                         shape = RoundedCornerShape(RadiusMd + 2.dp),
                         color = OmniSurface,
                         border = BorderStroke(1.dp, OmniBorder),
                         modifier = Modifier
                             .fillMaxWidth()
                             .padding(bottom = 10.dp)
+                            .enterAnimation(8 + index, key = outputUri)
+                            .pressScale(interaction, 0.98f)
                     ) {
                         Row(
                             modifier = Modifier.padding(12.dp),
@@ -524,20 +608,110 @@ fun ConversionResultView(
     }
 }
 
+/**
+ * Animated "done" badge: the halo pops in with a bounce, a ring ripples outward and the
+ * check mark draws itself.
+ */
 @Composable
-private fun SizeBar(label: String, bytes: Long, fraction: Float, color: Color) {
+fun SuccessBadge(modifier: Modifier = Modifier, size: Dp = 104.dp) {
+    val reduce = LocalReduceMotion.current
+    val pop = remember { Animatable(if (reduce) 1f else 0f) }
+    val inner = remember { Animatable(if (reduce) 1f else 0f) }
+    val check = remember { Animatable(if (reduce) 1f else 0f) }
+    val ripple = remember { Animatable(if (reduce) 1f else 0f) }
+    LaunchedEffect(Unit) {
+        if (reduce) return@LaunchedEffect
+        launch { pop.animateTo(1f, spring(dampingRatio = 0.45f, stiffness = 300f)) }
+        delay(120)
+        launch { inner.animateTo(1f, spring(dampingRatio = 0.5f, stiffness = 350f)) }
+        launch { ripple.animateTo(1f, tween(900, easing = Motion.EmphasizedDecelerate)) }
+        delay(220)
+        check.animateTo(1f, tween(380, easing = Motion.EmphasizedDecelerate))
+    }
+    val successSoft = OmniSuccessSoft
+    val success = OmniSuccess
+    Box(
+        modifier = modifier.size(size * 1.5f),
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val r = ripple.value
+            if (r in 0.01f..0.99f) {
+                drawCircle(
+                    color = success.copy(alpha = (1f - r) * 0.35f),
+                    radius = (size.toPx() / 2f) * (1f + 0.45f * r),
+                    style = Stroke(width = 3.dp.toPx())
+                )
+            }
+        }
+        Box(
+            modifier = Modifier
+                .size(size)
+                .graphicsLayer {
+                    scaleX = pop.value
+                    scaleY = pop.value
+                }
+                .clip(CircleShape)
+                .background(successSoft),
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(size * 0.65f)
+                    .graphicsLayer {
+                        scaleX = inner.value
+                        scaleY = inner.value
+                    }
+                    .clip(CircleShape)
+                    .background(success),
+                contentAlignment = Alignment.Center
+            ) {
+                Canvas(modifier = Modifier.size(size * 0.34f)) {
+                    val path = Path().apply {
+                        moveTo(this@Canvas.size.width * 0.08f, this@Canvas.size.height * 0.52f)
+                        lineTo(this@Canvas.size.width * 0.40f, this@Canvas.size.height * 0.82f)
+                        lineTo(this@Canvas.size.width * 0.94f, this@Canvas.size.height * 0.22f)
+                    }
+                    val measure = PathMeasure().apply { setPath(path, false) }
+                    val partial = Path()
+                    measure.getSegment(0f, measure.length * check.value, partial, true)
+                    drawPath(
+                        path = partial,
+                        color = Color.White,
+                        style = Stroke(width = 4.5.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SizeBar(label: String, bytes: Long, fraction: Float, color: Color, delayMillis: Int) {
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { started = true }
+    val animatedFraction by animateFloatAsState(
+        targetValue = if (started) fraction.coerceIn(0.02f, 1f) else 0.02f,
+        animationSpec = motionSpec(tween(700, delayMillis = delayMillis, easing = Motion.EmphasizedDecelerate)),
+        label = "size_bar"
+    )
     Row(verticalAlignment = Alignment.CenterVertically) {
         Text(label, fontSize = 12.sp, color = OmniTextMuted, modifier = Modifier.width(72.dp))
-        LinearProgressIndicator(
-            progress = { fraction.coerceIn(0.02f, 1f) },
+        Box(
             modifier = Modifier
                 .weight(1f)
                 .height(8.dp)
-                .clip(CircleShape),
-            color = color,
-            trackColor = OmniSurface2,
-            drawStopIndicator = {}
-        )
+                .clip(CircleShape)
+                .background(OmniSurface2)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .fillMaxWidth(animatedFraction)
+                    .clip(CircleShape)
+                    .background(color)
+            )
+        }
         Spacer(modifier = Modifier.width(10.dp))
         Text(
             text = formatBytes(bytes),
@@ -547,5 +721,37 @@ private fun SizeBar(label: String, bytes: Long, fraction: Float, color: Color) {
             modifier = Modifier.widthIn(min = 56.dp),
             textAlign = TextAlign.End
         )
+    }
+}
+
+/** Big empty-state block: icon tile, title and hint. */
+@Composable
+fun EmptyState(icon: ImageVector, title: String, message: String, tint: Color = OmniAccent, modifier: Modifier = Modifier) {
+    val reduce = LocalReduceMotion.current
+    val transition = rememberInfiniteTransition(label = "empty_state")
+    val bob by transition.animateFloat(
+        initialValue = 0f,
+        targetValue = if (reduce) 0f else 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = Motion.Standard), RepeatMode.Reverse),
+        label = "empty_bob"
+    )
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        IconTile(
+            icon = icon,
+            tint = tint,
+            size = 72.dp,
+            modifier = Modifier
+                .enterAnimation(0)
+                .graphicsLayer { translationY = -5.dp.toPx() * bob }
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(title, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = OmniText, modifier = Modifier.enterAnimation(1))
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(message, fontSize = 14.sp, color = OmniTextMuted, textAlign = TextAlign.Center, modifier = Modifier.enterAnimation(2))
     }
 }

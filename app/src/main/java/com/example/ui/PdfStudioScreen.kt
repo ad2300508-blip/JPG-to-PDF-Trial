@@ -1,6 +1,55 @@
 package com.example.ui
 
 import android.net.Uri
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ContentTransform
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.LocalIndication
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.material.icons.filled.Compress
+import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.filled.Crop
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.SortByAlpha
+import androidx.compose.material.icons.filled.SwapVert
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.IconButton
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
+import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
+import com.example.model.PdfQuality
+import com.example.ui.components.AnimatedText
+import com.example.ui.components.CropDialog
+import com.example.ui.components.MorphTextField
+import com.example.ui.components.OptionSection
+import com.example.ui.components.RevealVertically
+import com.example.ui.theme.Haptic
+import com.example.ui.theme.LocalReduceMotion
+import com.example.ui.theme.Motion
+import com.example.ui.theme.enterAnimation
+import com.example.ui.theme.motionSpec
+import com.example.ui.theme.pressScale
+import com.example.ui.theme.rememberHaptics
+import com.example.util.OutputFolder
+import com.example.util.OutputStorage
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
@@ -75,7 +124,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
@@ -129,7 +177,8 @@ fun PdfStudioScreen(
     viewModel: PdfStudioViewModel,
     modifier: Modifier = Modifier,
     onContinueWithMerge: (Uri) -> Unit = {},
-    onContinueWithMarkdown: (Uri) -> Unit = {}
+    onContinueWithMarkdown: (Uri) -> Unit = {},
+    onContinueWithCompress: (Uri) -> Unit = {}
 ) {
     val items by viewModel.items.collectAsState()
     val config by viewModel.config.collectAsState()
@@ -138,51 +187,74 @@ fun PdfStudioScreen(
     val lastGeneratedUri by viewModel.lastGeneratedUri.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
 
-    val resultUri = lastGeneratedUri
-    when {
-        resultUri != null -> {
-            ConversionResultView(
-                title = "Il tuo PDF è pronto",
-                subtitle = if (items.size == 1) "1 immagine trasformata in PDF." else "${items.size} immagini unite in un unico file.",
-                outputUri = resultUri,
-                mimeType = "application/pdf",
-                previewIcon = Icons.Default.Description,
-                previewTint = TintImage,
-                originalBytes = items.sumOf { it.sizeBytes },
-                detailPrefix = if (items.size == 1) "1 pagina" else "${items.size} pagine",
-                onClose = { viewModel.backToEditor() },
-                onNewConversion = { viewModel.clearAll() },
-                continueActions = listOf(
-                    ContinueAction("Unisci con altri PDF", Icons.AutoMirrored.Filled.MergeType, TintMerge) {
-                        onContinueWithMerge(resultUri)
-                    },
-                    ContinueAction("PDF in Markdown", Icons.Default.TextSnippet, TintPdf) {
-                        onContinueWithMarkdown(resultUri)
-                    }
-                ),
-                modifier = modifier
-            )
-        }
-        isGenerating -> {
-            GenerationProgressView(
+    val stage = when {
+        lastGeneratedUri != null -> StudioStage.RESULT
+        isGenerating -> StudioStage.PROGRESS
+        else -> StudioStage.EDITOR
+    }
+    AnimatedContent(
+        targetState = stage,
+        transitionSpec = { stageTransition(initialState.ordinal, targetState.ordinal) },
+        modifier = modifier,
+        label = "pdf_studio_stage"
+    ) { target ->
+        when (target) {
+            StudioStage.RESULT -> {
+                val resultUri = lastGeneratedUri
+                if (resultUri != null) {
+                    ConversionResultView(
+                        title = "Il tuo PDF è pronto",
+                        subtitle = if (items.size == 1) "1 immagine trasformata in PDF." else "${items.size} immagini unite in un unico file.",
+                        outputUri = resultUri,
+                        mimeType = "application/pdf",
+                        previewIcon = Icons.Default.Description,
+                        previewTint = TintImage,
+                        originalBytes = items.sumOf { it.sizeBytes },
+                        detailPrefix = if (items.size == 1) "1 pagina" else "${items.size} pagine",
+                        onClose = { viewModel.backToEditor() },
+                        onNewConversion = { viewModel.clearAll() },
+                        savedIn = "Salvato in ${OutputStorage.displayPath(OutputFolder.PDFS)}",
+                        continueActions = listOf(
+                            ContinueAction("Unisci con altri PDF", Icons.AutoMirrored.Filled.MergeType, TintMerge) {
+                                onContinueWithMerge(resultUri)
+                            },
+                            ContinueAction("Comprimi ancora", Icons.Default.Compress, TintPdf) {
+                                onContinueWithCompress(resultUri)
+                            },
+                            ContinueAction("Estrai il testo (Markdown)", Icons.Default.TextSnippet, TintPdf) {
+                                onContinueWithMarkdown(resultUri)
+                            }
+                        )
+                    )
+                }
+            }
+            StudioStage.PROGRESS -> GenerationProgressView(
                 items = items,
                 config = config,
                 current = progress.first,
                 total = progress.second.coerceAtLeast(items.size),
-                onCancel = { viewModel.cancelGeneration() },
-                modifier = modifier
+                onCancel = { viewModel.cancelGeneration() }
             )
-        }
-        else -> {
-            PdfEditor(
+            StudioStage.EDITOR -> PdfEditor(
                 viewModel = viewModel,
                 items = items,
                 config = config,
-                errorMessage = errorMessage,
-                modifier = modifier
+                errorMessage = errorMessage
             )
         }
     }
+}
+
+private enum class StudioStage { EDITOR, PROGRESS, RESULT }
+
+/** Forward stages slide/scale in, going back fades the previous stage away. */
+internal fun stageTransition(from: Int, to: Int): ContentTransform {
+    val forward = to > from
+    val enter = fadeIn(tween(Motion.MEDIUM, delayMillis = 60)) +
+        scaleIn(initialScale = if (forward) 0.94f else 1.04f, animationSpec = tween(Motion.LONG, easing = Motion.EmphasizedDecelerate))
+    val exit = fadeOut(tween(Motion.SHORT)) +
+        scaleOut(targetScale = if (forward) 1.04f else 0.96f, animationSpec = tween(Motion.MEDIUM))
+    return (enter togetherWith exit).using(SizeTransform(clip = false))
 }
 
 @Composable
@@ -194,8 +266,12 @@ private fun PdfEditor(
     modifier: Modifier = Modifier
 ) {
     var showMetadataModal by rememberSaveable { mutableStateOf(false) }
+    var showMenu by remember { mutableStateOf(false) }
     var selectedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var cropTargetId by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedIndex = items.indexOfFirst { it.id == selectedId }
+    val lastRemoved by viewModel.lastRemoved.collectAsState()
+    val haptics = rememberHaptics()
 
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -216,8 +292,7 @@ private fun PdfEditor(
     val marginValues = listOf(0, 10, 20)
     val selectedMarginIndex = marginValues.indexOf(config.marginMm).let { if (it >= 0) it else 1 }
 
-    val totalBytes = items.sumOf { it.sizeBytes }
-    val estimatedBytes = (totalBytes * if (config.autoContrastClean) 0.7 else 0.85).toLong()
+    val estimatedBytes = estimatePdfBytes(items, config)
     val pageSizeLabel = pageSizeLabels[selectedPageSizeIndex]
 
     Column(
@@ -225,12 +300,25 @@ private fun PdfEditor(
             .fillMaxSize()
             .testTag("pdf_studio_screen")
     ) {
-        if (errorMessage != null) {
+        RevealVertically(visible = errorMessage != null) {
             OmniToast(
-                message = errorMessage,
+                message = errorMessage.orEmpty(),
                 isError = true,
                 actionLabel = "Chiudi",
                 onAction = { viewModel.dismissError() },
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
+            )
+        }
+        RevealVertically(visible = lastRemoved != null) {
+            OmniToast(
+                message = "Pagina eliminata",
+                actionLabel = "Annulla",
+                onAction = {
+                    haptics(Haptic.TAP)
+                    viewModel.undoRemove()
+                },
+                onDismiss = { viewModel.dismissUndo() },
+                autoDismissMillis = 5000,
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
@@ -240,6 +328,32 @@ private fun PdfEditor(
             description = "Scansioni e foto in un PDF pulito",
             isEmpty = items.isEmpty(),
             phoneTabTitles = listOf("Pagine · ${items.size}", "Opzioni"),
+            headerActions = {
+                if (items.size > 1) {
+                    Box {
+                        IconButton(onClick = { showMenu = true }) {
+                            Icon(Icons.Default.MoreVert, contentDescription = "Altre azioni", tint = OmniText)
+                        }
+                        DropdownMenu(expanded = showMenu, onDismissRequest = { showMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text("Ordina per nome") },
+                                leadingIcon = { Icon(Icons.Default.SortByAlpha, contentDescription = null) },
+                                onClick = { showMenu = false; viewModel.sortByName() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Inverti ordine") },
+                                leadingIcon = { Icon(Icons.Default.SwapVert, contentDescription = null) },
+                                onClick = { showMenu = false; viewModel.reverseOrder() }
+                            )
+                            DropdownMenuItem(
+                                text = { Text("Ruota tutte le pagine") },
+                                leadingIcon = { Icon(Icons.AutoMirrored.Filled.RotateRight, contentDescription = null) },
+                                onClick = { showMenu = false; viewModel.rotateAll() }
+                            )
+                        }
+                    }
+                }
+            },
             emptyDropzone = {
                 Dropzone(
                     icon = Icons.Default.AddPhotoAlternate,
@@ -290,34 +404,56 @@ private fun PdfEditor(
                                 item = item,
                                 pageNumber = index + 1,
                                 selected = item.id == selectedId,
-                                onClick = { selectedId = if (selectedId == item.id) null else item.id }
+                                onClick = {
+                                    haptics(Haptic.TICK)
+                                    selectedId = if (selectedId == item.id) null else item.id
+                                },
+                                modifier = Modifier
+                                    .animateItem(
+                                        fadeInSpec = tween(Motion.MEDIUM),
+                                        placementSpec = spring(dampingRatio = 0.8f, stiffness = 380f),
+                                        fadeOutSpec = tween(Motion.SHORT)
+                                    )
+                                    .enterAnimation(index, key = item.id)
                             )
                         }
                         item(key = "add_tile") {
                             AddPageTile(
+                                modifier = Modifier.animateItem(),
                                 onAdd = { pickerLauncher.launch("image/*") },
                                 onCamera = launchCamera
                             )
                         }
                     }
 
-                    if (selectedIndex >= 0) {
-                        val selected = items[selectedIndex]
-                        Spacer(modifier = Modifier.height(10.dp))
-                        PageToolbar(
-                            item = selected,
-                            canMoveLeft = selectedIndex > 0,
-                            canMoveRight = selectedIndex < items.size - 1,
-                            onRotate = { viewModel.rotateItem(selected.id) },
-                            onSplit = { viewModel.toggleSpreadSplit(selected.id) },
-                            onClean = { viewModel.toggleBinarization(selected.id) },
-                            onMoveLeft = { viewModel.moveItem(selectedIndex, selectedIndex - 1) },
-                            onMoveRight = { viewModel.moveItem(selectedIndex, selectedIndex + 1) },
-                            onDelete = {
-                                viewModel.removeItem(selected.id)
-                                selectedId = null
+                    AnimatedVisibility(
+                        visible = selectedIndex >= 0,
+                        enter = slideInVertically(motionSpec(Motion.gentle())) { it } + fadeIn(),
+                        exit = slideOutVertically(tween(Motion.SHORT)) { it } + fadeOut(tween(Motion.SHORT))
+                    ) {
+                        val selected = items.getOrNull(selectedIndex)
+                        if (selected != null) {
+                            Column {
+                                Spacer(modifier = Modifier.height(10.dp))
+                                PageToolbar(
+                                    item = selected,
+                                    canMoveLeft = selectedIndex > 0,
+                                    canMoveRight = selectedIndex < items.size - 1,
+                                    onRotate = { viewModel.rotateItem(selected.id) },
+                                    onCrop = { cropTargetId = selected.id },
+                                    onSplit = { viewModel.toggleSpreadSplit(selected.id) },
+                                    onClean = { viewModel.toggleBinarization(selected.id) },
+                                    onDuplicate = { viewModel.duplicateItem(selected.id) },
+                                    onMoveLeft = { viewModel.moveItem(selectedIndex, selectedIndex - 1) },
+                                    onMoveRight = { viewModel.moveItem(selectedIndex, selectedIndex + 1) },
+                                    onDelete = {
+                                        haptics(Haptic.REJECT)
+                                        viewModel.removeItem(selected.id)
+                                        selectedId = null
+                                    }
+                                )
                             }
-                        )
+                        }
                     }
                 }
             },
@@ -335,26 +471,22 @@ private fun PdfEditor(
                     )
 
                     Column {
-                        OptionLabel("Nome del PDF")
-                        OutlinedTextField(
+                        MorphTextField(
                             value = config.title,
                             onValueChange = { viewModel.updateConfig(config.copy(title = it)) },
-                            placeholder = { Text("Documento", color = OmniTextMuted, fontSize = 14.sp) },
-                            singleLine = true,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .testTag("pdf_title_input"),
-                            shape = RoundedCornerShape(RadiusSm),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedContainerColor = OmniSurface2,
-                                unfocusedContainerColor = OmniSurface2,
-                                focusedBorderColor = OmniAccent,
-                                unfocusedBorderColor = OmniBorder,
-                                focusedTextColor = OmniText,
-                                unfocusedTextColor = OmniText
-                            )
+                            label = "Nome del PDF",
+                            placeholder = "Documento",
+                            testTag = "pdf_title_input"
                         )
                         OptionHint("Usato come nome del file e titolo nei metadati")
+                    }
+
+                    OptionSection(title = "Qualità", hint = config.quality.description) {
+                        SegmentedControl(
+                            options = PdfQuality.entries.map { it.label },
+                            selectedIndex = config.quality.ordinal,
+                            onOptionSelected = { idx -> viewModel.updateConfig(config.copy(quality = PdfQuality.entries[idx])) }
+                        )
                     }
 
                     Column {
@@ -414,6 +546,51 @@ private fun PdfEditor(
                         onCheckedChange = { viewModel.updateConfig(config.copy(autoContrastClean = it)) }
                     )
 
+                    OptionRow(
+                        label = "Bianco e nero",
+                        description = "Pagine in scala di grigi: file più leggero, ideale per appunti",
+                        checked = config.grayscale,
+                        onCheckedChange = { viewModel.updateConfig(config.copy(grayscale = it)) }
+                    )
+
+                    OptionRow(
+                        label = "Numeri di pagina",
+                        description = "Aggiunge il numero in fondo a ogni pagina",
+                        checked = config.pageNumbers,
+                        onCheckedChange = { viewModel.updateConfig(config.copy(pageNumbers = it)) }
+                    )
+
+                    var protect by rememberSaveable { mutableStateOf(config.password.isNotEmpty()) }
+                    OptionRow(
+                        label = "Proteggi con password",
+                        description = "Serve la password per aprire il PDF",
+                        checked = protect,
+                        onCheckedChange = {
+                            protect = it
+                            if (!it) viewModel.updateConfig(config.copy(password = ""))
+                        }
+                    )
+                    AnimatedVisibility(visible = protect) {
+                        var visiblePassword by remember { mutableStateOf(false) }
+                        MorphTextField(
+                            value = config.password,
+                            onValueChange = { viewModel.updateConfig(config.copy(password = it)) },
+                            placeholder = "Password",
+                            visualTransformation = if (visiblePassword) VisualTransformation.None else PasswordVisualTransformation(),
+                            trailingIcon = {
+                                IconButton(onClick = { visiblePassword = !visiblePassword }) {
+                                    Icon(
+                                        if (visiblePassword) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                                        contentDescription = if (visiblePassword) "Nascondi" else "Mostra",
+                                        tint = OmniTextMuted
+                                    )
+                                }
+                            },
+                            isError = config.password.isEmpty(),
+                            supportingText = if (config.password.isEmpty()) "Scrivi una password o disattiva la protezione" else "Non dimenticarla: non si può recuperare"
+                        )
+                    }
+
                     Surface(
                         onClick = { showMetadataModal = true },
                         shape = RoundedCornerShape(RadiusMd),
@@ -454,7 +631,7 @@ private fun PdfEditor(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text("Dimensione stimata", fontSize = 14.sp, color = OmniTextMuted, modifier = Modifier.weight(1f))
-                            Text("~${formatBytes(estimatedBytes)}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = OmniText)
+                            AnimatedText("~${formatBytes(estimatedBytes)}", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = OmniText)
                         }
                     }
                 }
@@ -462,7 +639,7 @@ private fun PdfEditor(
             actionBar = {
                 OmniActionBar(
                     summaryText = if (items.size == 1) "1 pagina" else "${items.size} pagine",
-                    detailText = "$pageSizeLabel · ~${formatBytes(estimatedBytes)}",
+                    detailText = "$pageSizeLabel · ${config.quality.label} · ~${formatBytes(estimatedBytes)}",
                     primaryButtonLabel = "Crea PDF",
                     isEnabled = items.isNotEmpty(),
                     disabledHelperText = "Aggiungi almeno un'immagine",
@@ -472,6 +649,21 @@ private fun PdfEditor(
                     },
                     testTag = "generate_pdf_button"
                 )
+            }
+        )
+    }
+
+    val cropTarget = items.firstOrNull { it.id == cropTargetId }
+    if (cropTarget?.uri != null) {
+        CropDialog(
+            uri = cropTarget.uri,
+            rotationDegrees = cropTarget.rotationDegrees,
+            initial = cropTarget.cropRectNormalized,
+            onDismiss = { cropTargetId = null },
+            onConfirm = { rect ->
+                haptics(Haptic.CONFIRM)
+                viewModel.setCrop(cropTarget.id, rect)
+                cropTargetId = null
             }
         )
     }
@@ -486,6 +678,14 @@ private fun PdfEditor(
             }
         )
     }
+}
+
+/** Rough output weight: per-page cap of the chosen quality, lighter when converted to grey. */
+private fun estimatePdfBytes(items: List<PdfDocumentItem>, config: PdfExportConfig): Long {
+    val cap = config.quality.bytesPerPageCap
+    val perPage = items.sumOf { item -> if (item.sizeBytes > 0) minOf(item.sizeBytes, cap) else cap / 2 }
+    val factor = (if (config.grayscale) 0.7 else 1.0) * (if (config.autoContrastClean) 0.9 else 1.0)
+    return (perPage * factor).toLong()
 }
 
 @Composable
@@ -514,29 +714,55 @@ private fun PageTile(
     item: PdfDocumentItem,
     pageNumber: Int,
     selected: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(RadiusLg)
+    val interaction = remember { MutableInteractionSource() }
+    val lift by animateFloatAsState(if (selected) 1.04f else 1f, motionSpec(Motion.bouncy()), label = "tile_lift")
+    val borderColor by animateColorAsState(if (selected) OmniAccent else OmniBorder, label = "tile_border")
+    // Always turn clockwise (270° -> 360°) instead of spinning back to 0°.
+    val reduce = LocalReduceMotion.current
+    val rotationAnim = remember { Animatable(item.rotationDegrees.toFloat()) }
+    LaunchedEffect(item.rotationDegrees) {
+        val delta = ((item.rotationDegrees - rotationAnim.value % 360f) + 360f) % 360f
+        if (delta == 0f) return@LaunchedEffect
+        if (reduce) rotationAnim.snapTo(rotationAnim.value + delta)
+        else rotationAnim.animateTo(rotationAnim.value + delta, spring(dampingRatio = 0.7f, stiffness = 300f))
+    }
+    val displayRotation = rotationAnim.value
+
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(0.78f)
+            .graphicsLayer {
+                scaleX = lift
+                scaleY = lift
+            }
+            .pressScale(interaction, 0.94f)
+            .shadow(if (selected) 10.dp else 0.dp, shape, ambientColor = OmniAccent, spotColor = OmniAccent)
             .clip(shape)
             .background(OmniSurface)
-            .border(if (selected) 2.dp else 1.dp, if (selected) OmniAccent else OmniBorder, shape)
-            .clickable(onClick = onClick)
+            .border(if (selected) 2.dp else 1.dp, borderColor, shape)
+            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onClick)
             .testTag("pdf_page_tile_$pageNumber")
     ) {
         AsyncImage(
             model = item.uri,
             contentDescription = "Pagina $pageNumber",
             contentScale = ContentScale.Crop,
+            alignment = when {
+                item.isSplitSpread && item.splitPart == 1 -> Alignment.CenterStart
+                item.isSplitSpread -> Alignment.CenterEnd
+                else -> Alignment.Center
+            },
             modifier = Modifier
                 .fillMaxSize()
                 .padding(6.dp)
                 .clip(RoundedCornerShape(RadiusSm))
                 .background(OmniSurface2)
-                .rotate(item.rotationDegrees.toFloat())
+                .graphicsLayer { rotationZ = displayRotation }
         )
 
         Box(
@@ -548,34 +774,44 @@ private fun PageTile(
                 .background(Color(0xFF111827)),
             contentAlignment = Alignment.Center
         ) {
-            Text("$pageNumber", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            AnimatedText("$pageNumber", color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.Bold)
         }
 
         val badges = buildList {
             if (item.isSplitSpread) add(if (item.splitPart == 1) "Sx" else "Dx")
-            if (item.isBinarized) add("Pulita")
-            if (item.rotationDegrees > 0) add("${item.rotationDegrees}°")
+            if (item.isCropped) add("Ritaglio")
+            if (item.isBinarized) add("B/N")
         }
-        if (badges.isNotEmpty()) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = badges.isNotEmpty(),
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(10.dp),
+            enter = scaleIn(motionSpec(Motion.bouncy())) + fadeIn(),
+            exit = scaleOut() + fadeOut()
+        ) {
             Text(
                 text = badges.joinToString(" · "),
                 fontSize = 10.sp,
                 fontWeight = FontWeight.Bold,
                 color = OmniOnAccent,
                 modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(10.dp)
                     .clip(RoundedCornerShape(RadiusPill))
                     .background(OmniAccent)
                     .padding(horizontal = 6.dp, vertical = 2.dp)
             )
         }
 
-        if (selected) {
+        androidx.compose.animation.AnimatedVisibility(
+            visible = selected,
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(8.dp),
+            enter = scaleIn(motionSpec(Motion.bouncy())) + fadeIn(),
+            exit = scaleOut(tween(Motion.SHORT)) + fadeOut(tween(Motion.SHORT))
+        ) {
             Box(
                 modifier = Modifier
-                    .align(Alignment.TopEnd)
-                    .padding(8.dp)
                     .size(24.dp)
                     .clip(CircleShape)
                     .background(OmniAccent),
@@ -588,12 +824,14 @@ private fun PageTile(
 }
 
 @Composable
-private fun AddPageTile(onAdd: () -> Unit, onCamera: () -> Unit) {
+private fun AddPageTile(onAdd: () -> Unit, onCamera: () -> Unit, modifier: Modifier = Modifier) {
     val dash = OmniBorder
+    val interaction = remember { MutableInteractionSource() }
     Column(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(0.78f)
+            .pressScale(interaction, 0.95f)
             .clip(RoundedCornerShape(RadiusLg))
             .drawBehind {
                 drawRoundRect(
@@ -602,7 +840,7 @@ private fun AddPageTile(onAdd: () -> Unit, onCamera: () -> Unit) {
                     style = Stroke(width = 1.5.dp.toPx(), pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f)))
                 )
             }
-            .clickable(onClick = onAdd)
+            .clickable(interactionSource = interaction, indication = LocalIndication.current, onClick = onAdd)
             .testTag("pdf_add_more_button"),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
@@ -630,8 +868,10 @@ private fun PageToolbar(
     canMoveLeft: Boolean,
     canMoveRight: Boolean,
     onRotate: () -> Unit,
+    onCrop: () -> Unit,
     onSplit: () -> Unit,
     onClean: () -> Unit,
+    onDuplicate: () -> Unit,
     onMoveLeft: () -> Unit,
     onMoveRight: () -> Unit,
     onDelete: () -> Unit
@@ -640,6 +880,7 @@ private fun PageToolbar(
         shape = RoundedCornerShape(RadiusCard),
         color = OmniSurface,
         border = BorderStroke(1.dp, OmniBorder),
+        shadowElevation = 6.dp,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -648,11 +889,13 @@ private fun PageToolbar(
                 .padding(horizontal = 6.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ToolbarAction(Icons.AutoMirrored.Filled.ArrowBack, "Sposta", enabled = canMoveLeft, onClick = onMoveLeft, iconOnly = true)
-            ToolbarAction(Icons.AutoMirrored.Filled.ArrowForward, "Sposta", enabled = canMoveRight, onClick = onMoveRight, iconOnly = true)
+            ToolbarAction(Icons.AutoMirrored.Filled.ArrowBack, "Sposta a sinistra", enabled = canMoveLeft, onClick = onMoveLeft, iconOnly = true)
+            ToolbarAction(Icons.AutoMirrored.Filled.ArrowForward, "Sposta a destra", enabled = canMoveRight, onClick = onMoveRight, iconOnly = true)
             ToolbarAction(Icons.AutoMirrored.Filled.RotateRight, "Ruota", onClick = onRotate)
+            ToolbarAction(Icons.Default.Crop, "Ritaglia", active = item.isCropped, onClick = onCrop)
             ToolbarAction(Icons.Default.MenuBook, "Dividi", active = item.isSplitSpread, onClick = onSplit)
-            ToolbarAction(Icons.Default.AutoFixHigh, "Pulisci", active = item.isBinarized, onClick = onClean)
+            ToolbarAction(Icons.Default.AutoFixHigh, "B/N", active = item.isBinarized, onClick = onClean)
+            ToolbarAction(Icons.Default.ContentCopy, "Duplica", onClick = onDuplicate)
             ToolbarAction(Icons.Default.DeleteOutline, "Elimina", tint = OmniDanger, onClick = onDelete)
         }
     }
@@ -673,12 +916,17 @@ private fun ToolbarAction(
         active -> OmniAccent
         else -> tint
     }
+    val interaction = remember { MutableInteractionSource() }
+    val container by animateColorAsState(if (active) OmniAccentSoft else Color.Transparent, label = "toolbar_bg")
     Surface(
         onClick = onClick,
         enabled = enabled,
+        interactionSource = interaction,
         shape = RoundedCornerShape(RadiusMd),
-        color = if (active) OmniAccentSoft else Color.Transparent,
-        modifier = Modifier.height(48.dp)
+        color = container,
+        modifier = Modifier
+            .height(48.dp)
+            .pressScale(interaction, 0.9f)
     ) {
         Row(
             modifier = Modifier.padding(horizontal = if (iconOnly) 10.dp else 12.dp),

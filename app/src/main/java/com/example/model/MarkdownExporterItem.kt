@@ -5,7 +5,7 @@ import android.net.Uri
 enum class LlmPromptWrapper(val displayName: String, val description: String) {
     CLAUDE_XML(
         displayName = "Tag XML per Claude",
-        description = "Wraps context in <documents><document index=\"n\"><source>...</source><document_content> tags."
+        description = "Racchiude il contesto nei tag <documents><document> con sorgente e contenuto."
     ),
     CHATGPT_SYSTEM(
         displayName = "Blocco di sistema ChatGPT",
@@ -13,7 +13,7 @@ enum class LlmPromptWrapper(val displayName: String, val description: String) {
     ),
     GEMINI_BRIEF(
         displayName = "Brief di contesto per Gemini",
-        description = "Optimized with hierarchical delimiters (=== DOCUMENT: [NAME] ===) and executive summary prefix."
+        description = "Delimitatori gerarchici (=== DOCUMENTO ===) ottimizzati per Gemini."
     ),
     RAW_MARKDOWN(
         displayName = "Markdown puro",
@@ -51,7 +51,9 @@ data class MarkdownExportSettings(
     val includeMetadataHeader: Boolean = true,
     val includeTableOfContents: Boolean = true,
     val maxPagesPerDoc: Int = 250,
-    val parseAllPages: Boolean = false
+    val parseAllPages: Boolean = false,
+    /** Ignore the PDF text layer and always run OCR (for PDFs with broken embedded text). */
+    val forceOcr: Boolean = false
 )
 
 data class CompiledMarkdownResult(
