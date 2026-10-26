@@ -1,5 +1,9 @@
 package com.example.ui
 
+import com.example.ui.components.RevealVertically
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.AnimatedContent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -222,7 +226,11 @@ fun GeminiHubScreen(
             }
 
             // Right utility actions: Usage popover + Smart Routing toggle + Key Vault
+            Spacer(modifier = Modifier.width(8.dp))
             Row(
+                modifier = Modifier
+                    .weight(1f, fill = false)
+                    .horizontalScroll(rememberScrollState()),
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -242,11 +250,13 @@ fun GeminiHubScreen(
                 }
 
                 // Smart Router Toggle
+                val routingBg by animateColorAsState(if (smartRouting) OmniAccentSoft else OmniSurface2, label = "routing_bg")
+                val routingBorder by animateColorAsState(if (smartRouting) OmniAccent else OmniBorder, label = "routing_border")
                 Surface(
                     onClick = { viewModel.toggleSmartRouting(!smartRouting) },
                     shape = RoundedCornerShape(RadiusSm),
-                    color = if (smartRouting) OmniAccentSoft else OmniSurface2,
-                    border = BorderStroke(1.dp, if (smartRouting) OmniAccent else OmniBorder),
+                    color = routingBg,
+                    border = BorderStroke(1.dp, routingBorder),
                     modifier = Modifier
                         .height(44.dp)
                         .testTag("smart_router_toggle")
@@ -304,33 +314,33 @@ fun GeminiHubScreen(
         }
 
         // Banners
-        if (genState.error != null) {
+        RevealVertically(visible = genState.error != null) {
             OmniToast(
-                message = genState.error!!,
+                message = genState.error.orEmpty(),
                 isError = true,
                 actionLabel = "Chiudi",
-                onAction = { viewModel.clearOutput() },
+                onAction = { viewModel.dismissError() },
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
-
-        if (genState.fallbackNotice != null) {
+        RevealVertically(visible = genState.fallbackNotice != null) {
             OmniToast(
-                message = genState.fallbackNotice!!,
+                message = genState.fallbackNotice.orEmpty(),
                 isError = false,
-                actionLabel = "Chiudi",
-                onAction = { viewModel.clearOutput() },
-                modifier = Modifier.padding(bottom = 8.dp)
+                actionLabel = "OK",
+                onAction = { viewModel.dismissFallbackNotice() },
+                modifier = Modifier.padding(bottom = 8.dp),
+                autoDismissMillis = 6000L
             )
         }
-
-        if (copyNotice != null) {
+        RevealVertically(visible = copyNotice != null) {
             OmniToast(
-                message = copyNotice!!,
+                message = copyNotice.orEmpty(),
                 isError = false,
                 actionLabel = "OK",
                 onAction = { viewModel.dismissCopiedNotice() },
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(bottom = 8.dp),
+                autoDismissMillis = 4000L
             )
         }
 
@@ -401,12 +411,15 @@ fun GeminiHubScreen(
                         modifier = Modifier.padding(bottom = 10.dp)
                     )
 
-                    Box(
+                    AnimatedContent(
+                        targetState = phoneTab,
+                        transitionSpec = { stageTransition(initialState, targetState) },
                         modifier = Modifier
                             .fillMaxWidth()
-                            .weight(1f)
-                    ) {
-                        if (phoneTab == 0) {
+                            .weight(1f),
+                        label = "gemini_phone_tab"
+                    ) { tabIndex ->
+                        if (tabIndex == 0) {
                             GeminiInputAndPipelinesPane(
                                 pipelines = viewModel.studyPipelines,
                                 inputText = inputText,

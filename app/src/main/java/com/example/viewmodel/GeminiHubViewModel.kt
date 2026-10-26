@@ -308,6 +308,14 @@ class GeminiHubViewModel(application: Application) : AndroidViewModel(applicatio
         refreshQuotaUsages()
     }
 
+    fun dismissError() {
+        _generationState.value = _generationState.value.copy(error = null)
+    }
+
+    fun dismissFallbackNotice() {
+        _generationState.value = _generationState.value.copy(fallbackNotice = null)
+    }
+
     fun clearOutput() {
         activeJob?.cancel()
         _generationState.value = GeminiGenerationState(modelUsed = _selectedModel.value)

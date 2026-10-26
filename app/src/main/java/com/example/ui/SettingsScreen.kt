@@ -65,6 +65,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -83,6 +84,7 @@ import com.example.ui.components.SectionLabel
 import com.example.ui.theme.MorphDarkColors
 import com.example.ui.theme.MorphLightColors
 import com.example.ui.theme.OmniAccent
+import com.example.ui.theme.OmniAccentSoft
 import com.example.ui.theme.OmniBorder
 import com.example.ui.theme.OmniDanger
 import com.example.ui.theme.OmniOnAccent
@@ -104,7 +106,8 @@ fun SettingsScreen(
     val themeMode by AppPreferences.themeMode.collectAsState()
     val reduceMotion by AppPreferences.reduceMotion.collectAsState()
     val haptics by AppPreferences.haptics.collectAsState()
-    val historyCount = HistoryRepository.entries.collectAsState().value.size
+    val historyEntries by HistoryRepository.entries.collectAsState()
+    val historyCount = historyEntries.size
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var cacheBytes by remember { mutableLongStateOf(-1L) }
@@ -122,6 +125,11 @@ fun SettingsScreen(
             Text("Impostazioni", style = MaterialTheme.typography.displayLarge, color = OmniText)
             Spacer(modifier = Modifier.height(4.dp))
             Text("Personalizza l'aspetto e il comportamento dell'app.", fontSize = 16.sp, color = OmniTextMuted)
+
+            if (historyEntries.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(20.dp))
+                UsageStats(historyEntries)
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
             SectionLabel("Aspetto")
@@ -429,3 +437,49 @@ private fun SettingsRow(
 
 private fun dirSize(dir: java.io.File): Long =
     dir.walkBottomUp().filter { it.isFile }.sumOf { it.length() }
+
+/** Three animated counters computed from the history: files made, total size, favourite tool. */
+@Composable
+private fun UsageStats(entries: List<com.example.data.HistoryEntry>) {
+    val weekAgo = remember { System.currentTimeMillis() - 7L * 24 * 60 * 60 * 1000 }
+    val thisWeek = entries.count { it.timestamp >= weekAgo }
+    val totalBytes = entries.sumOf { it.sizeBytes.coerceAtLeast(0L) }
+    val topTool = entries.groupingBy { it.toolLabel }.eachCount().maxByOrNull { it.value }?.key ?: "—"
+
+    var started by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) { started = true }
+    val files by androidx.compose.animation.core.animateIntAsState(
+        if (started) entries.size else 0,
+        animationSpec = com.example.ui.theme.motionSpec(androidx.compose.animation.core.tween(900, easing = com.example.ui.theme.Motion.EmphasizedDecelerate)),
+        label = "stats_files"
+    )
+    val week by androidx.compose.animation.core.animateIntAsState(
+        if (started) thisWeek else 0,
+        animationSpec = com.example.ui.theme.motionSpec(androidx.compose.animation.core.tween(900, delayMillis = 120, easing = com.example.ui.theme.Motion.EmphasizedDecelerate)),
+        label = "stats_week"
+    )
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        StatTile(value = "$files", label = if (files == 1) "file creato" else "file creati", modifier = Modifier.weight(1f))
+        StatTile(value = "$week", label = "questa settimana", modifier = Modifier.weight(1f))
+        StatTile(value = formatBytes(totalBytes), label = "in totale", modifier = Modifier.weight(1f))
+    }
+    Spacer(modifier = Modifier.height(8.dp))
+    AnimatedText("Strumento preferito: $topTool", fontSize = 13.sp, color = OmniTextMuted)
+}
+
+@Composable
+private fun StatTile(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(RadiusMd))
+            .background(OmniAccentSoft)
+            .padding(horizontal = 12.dp, vertical = 14.dp)
+    ) {
+        Text(value, fontSize = 22.sp, fontWeight = FontWeight.Bold, color = OmniAccent, maxLines = 1)
+        Text(label, fontSize = 12.sp, color = OmniTextMuted, maxLines = 1)
+    }
+}
