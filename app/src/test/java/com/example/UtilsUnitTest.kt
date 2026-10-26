@@ -116,4 +116,25 @@ class UtilsUnitTest {
         assertEquals(com.example.ui.theme.AccentChoice.ORANGE.darkOn, darkOrange.onAccent)
         assertEquals(5, com.example.ui.theme.AccentChoice.entries.map { it.light }.toSet().size.coerceAtLeast(4) + 1)
     }
+
+    @Test
+    fun signPagesAndPlacementStayOnThePage() {
+        assertEquals(listOf(4), com.example.service.SignPages.LAST.indices(5))
+        assertEquals(listOf(0, 1, 2), com.example.service.SignPages.ALL.indices(3))
+        assertTrue(com.example.service.SignPages.FIRST.indices(0).isEmpty())
+        // Bottom-right corner request on an A4 page: the 200pt-wide signature is pushed back inside.
+        val r = com.example.service.SignPlacement(centerX = 1f, centerY = 1f, widthFraction = 200f / 595f).rectOn(595f, 842f, aspect = 4f)
+        assertEquals(395f, r[0], 0.5f)
+        assertEquals(0f, r[1], 0.5f)
+        assertEquals(50f, r[3], 0.5f)
+    }
+
+    @Test
+    fun signatureInkBoundsAndAspect() {
+        val ink = com.example.util.SignatureInk
+        val strokes = listOf(listOf(com.example.util.InkPoint(10f, 20f), com.example.util.InkPoint(110f, 40f)))
+        assertEquals(listOf(10f, 20f, 110f, 40f), ink.bounds(strokes)!!.toList())
+        assertEquals((100f + 4f) / (20f + 4f), ink.aspect(strokes, 2f), 0.01f)
+        assertEquals(null, ink.bounds(emptyList()))
+    }
 }
