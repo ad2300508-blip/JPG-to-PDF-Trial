@@ -675,9 +675,10 @@ private fun ToolPeekSheet(
                         .weight(1f)
                         .height(52.dp)
                 ) {
+                    val starPop = motionSpec<Float>(Motion.bouncy())
                     AnimatedContent(
                         targetState = isFavorite,
-                        transitionSpec = { (scaleIn(motionSpec(Motion.bouncy())) + fadeIn()) togetherWith (scaleOut() + fadeOut()) },
+                        transitionSpec = { (scaleIn(starPop) + fadeIn()) togetherWith (scaleOut() + fadeOut()) },
                         label = "peek_star"
                     ) { fav ->
                         Icon(
@@ -911,9 +912,10 @@ private fun SearchField(value: String, onValueChange: (String) -> Unit, onVoice:
                         .testTag("home_search_field")
                 )
             }
+            val trailingPop = motionSpec<Float>(Motion.bouncy())
             AnimatedContent(
                 targetState = value.isNotEmpty(),
-                transitionSpec = { (scaleIn(motionSpec(Motion.bouncy())) + fadeIn()) togetherWith (scaleOut() + fadeOut()) },
+                transitionSpec = { (scaleIn(trailingPop) + fadeIn()) togetherWith (scaleOut() + fadeOut()) },
                 label = "search_trailing"
             ) { hasText ->
                 when {
