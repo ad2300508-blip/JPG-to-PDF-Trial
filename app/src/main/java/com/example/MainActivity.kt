@@ -13,7 +13,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import com.example.data.AppPreferences
 import com.example.data.HistoryRepository
+import com.example.ui.components.CrashReportDialog
 import com.example.ui.theme.OmniConvertTheme
+import com.example.util.CrashReporter
 import com.example.viewmodel.PdfStudioViewModel
 
 class MainActivity : ComponentActivity() {
@@ -23,11 +25,16 @@ class MainActivity : ComponentActivity() {
     /** Files shared to the app from another app; the UI asks which tool should receive them. */
     private val sharedFiles = mutableStateOf<SharedFiles?>(null)
 
+    /** Report of a crash from the previous run, shown once so the user can send it. */
+    private val crashReport = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        CrashReporter.install(this)
         AppPreferences.init(this)
         HistoryRepository.init(this)
         enableEdgeToEdge()
+        if (savedInstanceState == null) crashReport.value = CrashReporter.pending(this)
 
         if (savedInstanceState == null) handleShareIntent(intent)
 
@@ -41,6 +48,15 @@ class MainActivity : ComponentActivity() {
                     sharedFiles = sharedFiles.value,
                     onSharedFilesConsumed = { sharedFiles.value = null }
                 )
+                crashReport.value?.let { report ->
+                    CrashReportDialog(
+                        report = report,
+                        onDismiss = {
+                            CrashReporter.clear(this)
+                            crashReport.value = null
+                        }
+                    )
+                }
             }
         }
     }
