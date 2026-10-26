@@ -1,0 +1,50 @@
+name: Auto-merge green PRs
+
+# When the APK build of a pull request finishes green, merge that PR into main and start the
+# main build that publishes the release (merges made with GITHUB_TOKEN don't trigger `push`
+# workflows on their own, so the build is dispatched explicitly).
+# Skipped for drafts, PRs from forks and PRs labelled "no-automerge".
+on:
+  workflow_run:
+    workflows: ["Build Downloadable Android APK"]
+    types: [completed]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: auto-merge
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: Merge PR
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Merge the PR whose build passed
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          OWNER: ${{ github.repository_owner }}
+          BRANCH: ${{ github.event.workflow_run.head_branch }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          pr=$(gh api "repos/$REPO/pulls?state=open&base=main&head=$OWNER:$BRANCH" --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then echo "No open PR for $BRANCH"; exit 0; fi
+          info=$(gh api "repos/$REPO/pulls/$pr")
+          if [ "$(jq -r .head.sha <<<"$info")" != "$SHA" ]; then echo "PR #$pr has newer commits; waiting for their build"; exit 0; fi
+          if [ "$(jq -r .draft <<<"$info")" = "true" ]; then echo "PR #$pr is a draft"; exit 0; fi
+          if jq -e '.labels[].name | select(. == "no-automerge")' <<<"$info" >/dev/null; then echo "PR #$pr is labelled no-automerge"; exit 0; fi
+          if gh api -X PUT "repos/$REPO/pulls/$pr/merge" -f merge_method=merge -f sha="$SHA" >/dev/null; then
+            echo "Merged PR #$pr"
+            gh workflow run build-apk.yml --repo "$REPO" --ref main
+          else
+            echo "PR #$pr could not be merged (conflict or branch protection)"
+            exit 1
+          fi
