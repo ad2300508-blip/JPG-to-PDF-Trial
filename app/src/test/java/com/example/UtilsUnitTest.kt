@@ -116,4 +116,18 @@ class UtilsUnitTest {
         assertEquals(com.example.ui.theme.AccentChoice.ORANGE.darkOn, darkOrange.onAccent)
         assertEquals(5, com.example.ui.theme.AccentChoice.entries.map { it.light }.toSet().size.coerceAtLeast(4) + 1)
     }
+
+    @Test
+    fun pageGridPlacesPhotosInReadingOrder() {
+        val g = com.example.util.PageGrid
+        assertEquals(3, g.pageCount(5, 2))
+        assertEquals(2, g.pageCount(5, 4))
+        assertEquals(0, g.pageCount(0, 4))
+        val two = g.cells(2, left = 0f, bottom = 0f, width = 100f, height = 210f, gap = 10f)
+        assertEquals(110f, two[0].y, 0.01f) // first photo on top
+        assertEquals(100f, two[1].height, 0.01f)
+        val four = g.cells(4, left = 0f, bottom = 0f, width = 210f, height = 210f, gap = 10f)
+        assertEquals(listOf(0f, 110f, 0f, 110f), four.map { it.x })
+        assertEquals(listOf(110f, 110f, 0f, 0f), four.map { it.y })
+    }
 }

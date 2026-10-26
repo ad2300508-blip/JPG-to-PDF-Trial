@@ -1,5 +1,6 @@
 package com.example.ui
 
+import com.example.util.PageGrid
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.EnterTransition
 import com.example.data.AppPreferences
@@ -577,6 +578,27 @@ private fun PdfEditor(
                         }
                     }
 
+                    RevealVertically(visible = config.pageSize != "Original") {
+                        OptionSection(
+                            title = "Foto per pagina",
+                            hint = when (config.imagesPerPage) {
+                                2 -> "Due foto una sopra l'altra: ideale per fronte e retro"
+                                4 -> "Quattro foto in griglia: schede, ricevute, fototessere"
+                                else -> "Una foto per pagina, il più grande possibile"
+                            }
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(14.dp)) {
+                                PerPagePreview(perPage = config.imagesPerPage)
+                                SegmentedControl(
+                                    options = PageGrid.options.map { "$it" },
+                                    selectedIndex = PageGrid.options.indexOf(config.imagesPerPage).coerceAtLeast(0),
+                                    onOptionSelected = { idx -> viewModel.updateConfig(config.copy(imagesPerPage = PageGrid.options[idx])) },
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                        }
+                    }
+
                     OptionRow(
                         label = "Pulizia automatica",
                         description = "Sbianca lo sfondo, toglie ombre e dominanti gialle, rende il testo più nitido",
@@ -676,7 +698,8 @@ private fun PdfEditor(
             },
             actionBar = {
                 OmniActionBar(
-                    summaryText = if (items.size == 1) "1 pagina" else "${items.size} pagine",
+                    summaryText = PageGrid.pageCount(items.size, if (config.pageSize == "Original") 1 else config.imagesPerPage)
+                        .let { if (it == 1) "1 pagina" else "$it pagine" },
                     detailText = "$pageSizeLabel · ${config.quality.label} · ~${formatBytes(estimatedBytes)}",
                     primaryButtonLabel = "Crea PDF",
                     isEnabled = items.isNotEmpty(),
@@ -724,6 +747,48 @@ private fun estimatePdfBytes(items: List<PdfDocumentItem>, config: PdfExportConf
     val perPage = items.sumOf { item -> if (item.sizeBytes > 0) minOf(item.sizeBytes, cap) else cap / 2 }
     val factor = (if (config.grayscale) 0.7 else 1.0) * (if (config.autoContrastClean) 0.9 else 1.0)
     return (perPage * factor).toLong()
+}
+
+/** Tiny page sketch for "Foto per pagina": the photo blocks spring into their slots. */
+@Composable
+private fun PerPagePreview(perPage: Int) {
+    val twoUp by animateFloatAsState(if (perPage >= 2) 1f else 0f, motionSpec(Motion.bouncy()), label = "nup_rows")
+    val fourUp by animateFloatAsState(if (perPage >= 4) 1f else 0f, motionSpec(Motion.bouncy()), label = "nup_cols")
+    val accent = OmniAccent
+    val paper = OmniSurface
+    val line = OmniBorder
+    Canvas(
+        modifier = Modifier
+            .size(width = 40.dp, height = 54.dp)
+            .clip(RoundedCornerShape(6.dp))
+            .background(paper)
+            .border(1.dp, line, RoundedCornerShape(6.dp))
+    ) {
+        val pad = 5.dp.toPx()
+        val gap = 3.dp.toPx()
+        val w = size.width - pad * 2
+        val h = size.height - pad * 2
+        // Interpolates between 1 block, 2 stacked rows and a 2×2 grid.
+        val rowH = h - (h + gap) / 2f * twoUp
+        val colW = w - (w + gap) / 2f * fourUp
+        val radius = androidx.compose.ui.geometry.CornerRadius(2.dp.toPx())
+        listOf(0f to 0f, 1f to 0f, 0f to 1f, 1f to 1f).forEachIndexed { i, (cx, cy) ->
+            val alpha = when (i) {
+                0 -> 1f
+                1 -> fourUp
+                2 -> twoUp
+                else -> fourUp
+            }
+            if (alpha <= 0.01f) return@forEachIndexed
+            drawRoundRect(
+                color = if (i == 0) accent else accent.copy(alpha = 0.55f),
+                topLeft = androidx.compose.ui.geometry.Offset(pad + cx * (colW + gap), pad + cy * (rowH + gap)),
+                size = androidx.compose.ui.geometry.Size(colW, rowH),
+                cornerRadius = radius,
+                alpha = alpha.coerceIn(0f, 1f)
+            )
+        }
+    }
 }
 
 @Composable

@@ -12,6 +12,7 @@ import com.example.util.BitmapLoader
 import com.example.util.FileNames
 import com.example.util.OutputFolder
 import com.example.util.OutputStorage
+import com.example.util.PageGrid
 import com.example.util.resultOf
 import com.tom_roush.pdfbox.android.PDFBoxResourceLoader
 import com.tom_roush.pdfbox.pdmodel.PDDocument
@@ -49,7 +50,12 @@ class PdfConverterService(private val context: Context) {
             var skipped = 0
 
             PDDocument().use { document ->
+                val perPage = if (config.pageSize == "Original") 1 else config.imagesPerPage.coerceIn(1, 4)
+                if (perPage > 1) {
+                    skipped += drawSeveralPerPage(document, items, config, perPage, onProgress)
+                }
                 for ((index, item) in items.withIndex()) {
+                    if (perPage > 1) break
                     coroutineContext.ensureActive()
                     onProgress(index + 1, total)
 
@@ -102,6 +108,60 @@ class PdfConverterService(private val context: Context) {
                 }
             }
         }
+    }
+
+    /** "Foto per pagina": [perPage] photos fitted into the cells of each page; returns how many were unreadable. */
+    private suspend fun drawSeveralPerPage(
+        document: PDDocument,
+        items: List<PdfDocumentItem>,
+        config: PdfExportConfig,
+        perPage: Int,
+        onProgress: (Int, Int) -> Unit
+    ): Int {
+        var skipped = 0
+        var done = 0
+        // Stacked or 2×2 photos read best on an upright page unless the user asked for landscape.
+        val (pageWidth, pageHeight) = pageSizeFor(config.copy(orientation = if (config.orientation == "Landscape") "Landscape" else "Portrait"), 1f, 2f)
+        val margin = config.marginMm * MM_TO_PT
+        val footer = if (config.pageNumbers) 14f else 0f
+        val gap = 8f
+        for (group in items.chunked(perPage)) {
+            val page = PDPage(PDRectangle(pageWidth, pageHeight))
+            val cells = PageGrid.cells(
+                perPage,
+                left = margin,
+                bottom = margin + footer,
+                width = (pageWidth - margin * 2).coerceAtLeast(1f),
+                height = (pageHeight - margin * 2 - footer).coerceAtLeast(1f),
+                gap = gap
+            )
+            document.addPage(page)
+            var drawn = 0
+            PDPageContentStream(document, page).use { stream ->
+                group.forEachIndexed { i, item ->
+                    coroutineContext.ensureActive()
+                    onProgress(++done, items.size)
+                    val bitmap = loadProcessedBitmap(item, config)
+                    if (bitmap == null) {
+                        skipped++
+                        return@forEachIndexed
+                    }
+                    val image = JPEGFactory.createFromImage(document, bitmap, config.quality.jpegQuality / 100f)
+                    val w = bitmap.width.toFloat()
+                    val h = bitmap.height.toFloat()
+                    bitmap.recycle()
+                    val cell = cells[i]
+                    val scale = minOf(cell.width / w, cell.height / h)
+                    val dw = w * scale
+                    val dh = h * scale
+                    stream.drawImage(image, cell.x + (cell.width - dw) / 2f, cell.y + (cell.height - dh) / 2f, dw, dh)
+                    drawn++
+                }
+                if (drawn > 0 && config.pageNumbers) drawPageNumber(stream, document.numberOfPages, pageWidth, margin)
+            }
+            if (drawn == 0) document.removePage(page)
+        }
+        return skipped
     }
 
     private fun pageSizeFor(config: PdfExportConfig, imageWidth: Float, imageHeight: Float): Pair<Float, Float> {
