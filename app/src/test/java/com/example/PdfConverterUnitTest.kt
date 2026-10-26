@@ -103,7 +103,7 @@ class PdfConverterUnitTest {
     fun testPdfExportConfigMetadata() {
         val defaultConfig = PdfExportConfig()
         assertFalse(defaultConfig.hasCustomMetadata)
-        assertEquals("Document", defaultConfig.title)
+        assertEquals("Documento", defaultConfig.title)
         assertEquals("", defaultConfig.author)
         assertEquals("", defaultConfig.keywords)
         assertEquals("", defaultConfig.creationDate)

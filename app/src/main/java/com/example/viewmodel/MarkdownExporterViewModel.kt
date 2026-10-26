@@ -8,6 +8,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.HistoryKind
+import com.example.data.HistoryRepository
 import com.example.model.CompiledMarkdownResult
 import com.example.model.MarkdownExportSettings
 import com.example.model.MarkdownSourceItem
@@ -218,6 +220,7 @@ class MarkdownExporterViewModel(application: Application) : AndroidViewModel(app
             val res = markdownService.saveMarkdownFile(content, title)
             res.onSuccess { uri ->
                 _savedUri.value = uri
+                HistoryRepository.record(getApplication<Application>(), uri, "PDF in Markdown", HistoryKind.MARKDOWN, "$title.md")
             }.onFailure { err ->
                 _errorNotice.value = "Failed to save: ${err.localizedMessage}"
             }

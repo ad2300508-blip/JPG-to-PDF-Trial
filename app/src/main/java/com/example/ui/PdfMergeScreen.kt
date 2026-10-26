@@ -22,6 +22,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.TextSnippet
 import androidx.compose.material.icons.automirrored.filled.MergeType
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.PictureAsPdf
@@ -51,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.PdfDocumentItem
 import com.example.model.PdfMergeSettings
+import com.example.ui.components.ContinueAction
+import com.example.ui.components.ConversionResultView
 import com.example.ui.components.Dropzone
 import com.example.ui.components.OmniActionBar
 import com.example.ui.components.OmniProgressBanner
@@ -71,7 +74,8 @@ import com.example.viewmodel.PdfMergeViewModel
 @Composable
 fun PdfMergeScreen(
     viewModel: PdfMergeViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onContinueWithMarkdown: (android.net.Uri) -> Unit = {}
 ) {
     val documents by viewModel.documents.collectAsState()
     val settings by viewModel.settings.collectAsState()
@@ -79,6 +83,29 @@ fun PdfMergeScreen(
     val progress by viewModel.progress.collectAsState()
     val lastMergedUri by viewModel.lastMergedUri.collectAsState()
     val errorMessage by viewModel.errorMessage.collectAsState()
+
+    val mergedUri = lastMergedUri
+    if (mergedUri != null) {
+        ConversionResultView(
+            title = "Il tuo PDF è pronto",
+            subtitle = "${documents.size} documenti uniti in un unico file.",
+            outputUri = mergedUri,
+            mimeType = "application/pdf",
+            previewIcon = Icons.AutoMirrored.Filled.MergeType,
+            previewTint = com.example.ui.theme.TintMerge,
+            originalBytes = viewModel.getTotalFileSizeBytes(),
+            detailPrefix = documents.sumOf { it.pageCount }.takeIf { it > 0 }?.let { "$it pagine" },
+            onClose = { viewModel.dismissSuccess() },
+            onNewConversion = { viewModel.clearAll() },
+            continueActions = listOf(
+                ContinueAction("PDF in Markdown", Icons.Default.TextSnippet, com.example.ui.theme.TintPdf) {
+                    onContinueWithMarkdown(mergedUri)
+                }
+            ),
+            modifier = modifier
+        )
+        return
+    }
 
     val filePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -99,18 +126,8 @@ fun PdfMergeScreen(
             OmniToast(
                 message = errorMessage!!,
                 isError = true,
-                actionLabel = "Dismiss",
+                actionLabel = "Chiudi",
                 onAction = { viewModel.dismissError() },
-                modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
-            )
-        }
-
-        if (lastMergedUri != null) {
-            OmniToast(
-                message = "PDF documents merged and saved to Downloads/OmniConvert/PDFs",
-                isError = false,
-                actionLabel = "Clear",
-                onAction = { viewModel.dismissSuccess() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
@@ -119,23 +136,23 @@ fun PdfMergeScreen(
             val p = if (progress.second > 0) progress.first.toFloat() / progress.second.toFloat() else 0f
             OmniProgressBanner(
                 progress = p,
-                statusText = "Merging document ${progress.first} of ${progress.second}...",
+                statusText = "Unisco il documento ${progress.first} di ${progress.second}…",
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
 
         ToolLayout(
-            title = "Merge PDF",
-            description = "Combine multiple PDF files into one ordered, secure document.",
+            title = "Unisci PDF",
+            description = "Combina più PDF in un unico documento ordinato",
             isEmpty = documents.isEmpty(),
-            phoneTabTitles = listOf("Files (${documents.size})", "Settings"),
+            phoneTabTitles = listOf("File · ${documents.size}", "Impostazioni"),
             emptyDropzone = {
                 Dropzone(
                     icon = Icons.AutoMirrored.Filled.MergeType,
-                    headline = "No PDFs loaded yet",
-                    helpText = "Select multiple PDF files to combine, reorder, or password-protect",
-                    supportedFormats = "PDF documents",
-                    actionLabel = "Add PDFs",
+                    headline = "Aggiungi i tuoi PDF",
+                    helpText = "Scegli più PDF da unire, riordinare o proteggere con password",
+                    supportedFormats = "Documenti PDF",
+                    actionLabel = "Scegli file",
                     tintColor = com.example.ui.theme.TintMerge,
                     onAction = { filePicker.launch("application/pdf") },
                     testTag = "pdf_add_docs_button"
@@ -168,13 +185,13 @@ fun PdfMergeScreen(
                             ) {
                                 Icon(Icons.Default.UploadFile, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add More", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Aggiungi", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                             TextButton(
                                 onClick = { viewModel.clearAll() },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Clear", color = OmniTextMuted, fontSize = 13.sp)
+                                Text("Svuota", color = OmniTextMuted, fontSize = 13.sp)
                             }
                         }
                     }
@@ -205,7 +222,7 @@ fun PdfMergeScreen(
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     Text(
-                        text = "Merge Options",
+                        text = "Opzioni di unione",
                         style = MaterialTheme.typography.titleMedium,
                         color = OmniText
                     )
@@ -213,7 +230,7 @@ fun PdfMergeScreen(
                     // Output file name
                     Column {
                         Text(
-                            text = "Output file name",
+                            text = "Nome del file",
                             fontSize = 14.sp,
                             color = OmniTextMuted,
                             modifier = Modifier.padding(bottom = 6.dp)
@@ -241,8 +258,8 @@ fun PdfMergeScreen(
 
                     // Password protection switch
                     OptionRow(
-                        label = "Password protection",
-                        description = "Encrypt with 128-bit security password",
+                        label = "Protezione con password",
+                        description = "Proteggi con password a 128 bit",
                         checked = settings.enableEncryption,
                         onCheckedChange = { viewModel.updateSettings(settings.copy(enableEncryption = it)) }
                     )
@@ -251,7 +268,7 @@ fun PdfMergeScreen(
                     if (settings.enableEncryption) {
                         Column {
                             Text(
-                                text = "Document password",
+                                text = "Password del documento",
                                 fontSize = 14.sp,
                                 color = OmniTextMuted,
                                 modifier = Modifier.padding(bottom = 6.dp)
@@ -259,7 +276,7 @@ fun PdfMergeScreen(
                             OutlinedTextField(
                                 value = settings.userPassword,
                                 onValueChange = { viewModel.updateSettings(settings.copy(userPassword = it)) },
-                                placeholder = { Text("Enter secret password", color = OmniTextMuted, fontSize = 14.sp) },
+                                placeholder = { Text("Inserisci la password", color = OmniTextMuted, fontSize = 14.sp) },
                                 singleLine = true,
                                 visualTransformation = PasswordVisualTransformation(),
                                 modifier = Modifier
@@ -283,9 +300,9 @@ fun PdfMergeScreen(
             actionBar = {
                 OmniActionBar(
                     summaryText = "${documents.size} files · $totalPages pages",
-                    primaryButtonLabel = if (isMerging) "Merging PDFs..." else "Merge PDFs",
+                    primaryButtonLabel = if (isMerging) "Unisco i PDF…" else "Unisci PDF",
                     isEnabled = documents.size >= 2 && !isMerging,
-                    disabledHelperText = if (documents.size < 2) "Add at least two PDF documents" else null,
+                    disabledHelperText = if (documents.size < 2) "Aggiungi almeno due PDF" else null,
                     onPrimaryAction = { viewModel.mergeDocuments() },
                     testTag = "merge_action_button"
                 )
@@ -376,7 +393,7 @@ private fun PdfMergeFileCard(
                 IconButton(onClick = onRemove, modifier = Modifier.size(36.dp)) {
                     Icon(
                         Icons.Default.Close,
-                        contentDescription = "Remove file",
+                        contentDescription = "Rimuovi file",
                         tint = OmniTextMuted,
                         modifier = Modifier.size(18.dp)
                     )

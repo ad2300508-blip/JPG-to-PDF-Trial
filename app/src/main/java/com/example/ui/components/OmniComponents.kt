@@ -167,7 +167,7 @@ fun OmniLinearProgress(
                 if (onCancel != null) {
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "CANCEL",
+                        text = "ANNULLA",
                         fontSize = 11.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.Bold,
@@ -218,7 +218,7 @@ fun OmniErrorBanner(
             ) {
                 Icon(
                     imageVector = Icons.Default.ErrorOutline,
-                    contentDescription = "Error",
+                    contentDescription = "Errore",
                     tint = RoseAccent,
                     modifier = Modifier.size(20.dp)
                 )
@@ -237,7 +237,7 @@ fun OmniErrorBanner(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Dismiss",
+                    contentDescription = "Chiudi",
                     tint = RoseAccent,
                     modifier = Modifier.size(16.dp)
                 )
@@ -271,7 +271,7 @@ fun OmniSuccessBanner(
             ) {
                 Icon(
                     imageVector = Icons.Default.TaskAlt,
-                    contentDescription = "Success",
+                    contentDescription = "Fatto",
                     tint = EmeraldAccent,
                     modifier = Modifier.size(20.dp)
                 )
@@ -290,7 +290,7 @@ fun OmniSuccessBanner(
             ) {
                 Icon(
                     imageVector = Icons.Default.Close,
-                    contentDescription = "Dismiss",
+                    contentDescription = "Chiudi",
                     tint = EmeraldAccent,
                     modifier = Modifier.size(16.dp)
                 )

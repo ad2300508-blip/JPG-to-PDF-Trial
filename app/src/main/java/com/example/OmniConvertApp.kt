@@ -1,44 +1,48 @@
+@file:OptIn(ExperimentalLayoutApi::class)
+
 package com.example
 
+import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Archive
-import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Image
-import androidx.compose.material.icons.automirrored.filled.MergeType
-import androidx.compose.material.icons.filled.PictureAsPdf
-import androidx.compose.material.icons.filled.SmartToy
-import androidx.compose.material.icons.filled.TipsAndUpdates
+import androidx.compose.material.icons.filled.GridView
+import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationRail
-import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.NavigationRailItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -47,28 +51,34 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.data.HistoryRepository
 import com.example.ui.ArchiveScreen
 import com.example.ui.AudioLabScreen
 import com.example.ui.GeminiHubScreen
+import com.example.ui.HistoryScreen
 import com.example.ui.ImageLabScreen
 import com.example.ui.MarkdownExporterScreen
 import com.example.ui.PdfMergeScreen
 import com.example.ui.PdfStudioScreen
+import com.example.ui.SettingsScreen
+import com.example.ui.components.LocalToolBack
 import com.example.ui.components.OmniTutorialDialog
-import com.example.ui.theme.AmberAccent
-import com.example.ui.theme.BorderSubtle
-import com.example.ui.theme.CyanAccent
-import com.example.ui.theme.EmeraldAccent
-import com.example.ui.theme.IndigoAccent
-import com.example.ui.theme.PdfPurple
-import com.example.ui.theme.Slate400
-import com.example.ui.theme.Slate800
-import com.example.ui.theme.SurfaceCard
+import com.example.ui.home.BrandLogo
+import com.example.ui.home.HomeScreen
+import com.example.ui.home.OmniTool
+import com.example.ui.home.ToolScreen
+import com.example.ui.theme.OmniAccent
+import com.example.ui.theme.OmniAccentSoft
+import com.example.ui.theme.OmniBg
+import com.example.ui.theme.OmniBorder
+import com.example.ui.theme.OmniSurface
+import com.example.ui.theme.OmniText
+import com.example.ui.theme.OmniTextMuted
 import com.example.viewmodel.ArchiveViewModel
 import com.example.viewmodel.AudioLabViewModel
 import com.example.viewmodel.GeminiHubViewModel
@@ -77,32 +87,15 @@ import com.example.viewmodel.MarkdownExporterViewModel
 import com.example.viewmodel.PdfMergeViewModel
 import com.example.viewmodel.PdfStudioViewModel
 
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.BoxWithConstraints
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.Surface
-import androidx.compose.ui.text.style.TextOverflow
-
-enum class WorkspaceDestination(
-    val title: String,
-    val icon: ImageVector,
-    val tintColor: Color
-) {
-    PDF_STUDIO("Images to PDF", Icons.Default.PictureAsPdf, com.example.ui.theme.TintPdf),
-    PDF_MERGE("Merge PDF", Icons.AutoMirrored.Filled.MergeType, com.example.ui.theme.TintMerge),
-    IMAGE_LAB("Images", Icons.Default.Image, com.example.ui.theme.TintImage),
-    AUDIO_LAB("Audio", Icons.Default.Audiotrack, com.example.ui.theme.TintAudio),
-    ARCHIVE_ZIP("ZIP", Icons.Default.Archive, com.example.ui.theme.TintZip),
-    AI_MARKDOWN("Markdown for AI", Icons.Default.SmartToy, com.example.ui.theme.TintAi),
-    GEMINI_HUB("Gemini", Icons.Default.AutoAwesome, com.example.ui.theme.TintAi)
+enum class MainTab(val label: String, val icon: ImageVector) {
+    TOOLS("Strumenti", Icons.Default.GridView),
+    GEMINI("Gemini", Icons.Default.AutoAwesome),
+    HISTORY("Cronologia", Icons.Default.History),
+    SETTINGS("Impostazioni", Icons.Default.Tune)
 }
+
+/** What is on screen: a main tab, or a tool opened on top of the "Strumenti" tab. */
+private data class AppDestination(val tab: MainTab, val tool: OmniTool?)
 
 @Composable
 fun OmniConvertApp(
@@ -112,282 +105,127 @@ fun OmniConvertApp(
     audioViewModel: AudioLabViewModel = viewModel(),
     archiveViewModel: ArchiveViewModel = viewModel(),
     markdownViewModel: MarkdownExporterViewModel = viewModel(),
-    geminiViewModel: GeminiHubViewModel = viewModel()
+    geminiViewModel: GeminiHubViewModel = viewModel(),
+    openPdfToolSignal: Int = 0
 ) {
-    var currentWorkspace by remember { mutableStateOf(WorkspaceDestination.PDF_STUDIO) }
+    var tabName by rememberSaveable { mutableStateOf(MainTab.TOOLS.name) }
+    var toolName by rememberSaveable { mutableStateOf<String?>(null) }
     var showTutorial by rememberSaveable { mutableStateOf(false) }
 
-    BackHandler(enabled = currentWorkspace != WorkspaceDestination.PDF_STUDIO) {
-        currentWorkspace = WorkspaceDestination.PDF_STUDIO
+    val tab = MainTab.valueOf(tabName)
+    val activeTool = toolName?.let { name -> OmniTool.entries.firstOrNull { it.name == name } }
+    val recents by HistoryRepository.entries.collectAsState()
+
+    fun openTool(tool: OmniTool) {
+        tabName = MainTab.TOOLS.name
+        toolName = tool.name
     }
 
-    BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-        val isCompact = maxWidth < 600.dp
+    fun selectTab(newTab: MainTab) {
+        toolName = null
+        tabName = newTab.name
+    }
 
-        if (isCompact) {
-            // Phone Handheld Layout: Full-Width Workspace with Bottom Navigation Bar
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = MaterialTheme.colorScheme.background,
-                bottomBar = {
-                    Surface(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .navigationBarsPadding(),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.95f),
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                        tonalElevation = 8.dp
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .horizontalScroll(rememberScrollState())
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // Quick Guide Chip
-                            Surface(
-                                onClick = { showTutorial = true },
-                                shape = RoundedCornerShape(24.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-                                modifier = Modifier
-                                    .height(48.dp)
-                                    .testTag("phone_open_guide_button")
-                            ) {
-                                Row(
-                                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.TipsAndUpdates,
-                                        contentDescription = "Quick Guide",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = "Guide",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+    // Images shared from other apps open the "Immagini in PDF" tool directly.
+    LaunchedEffect(openPdfToolSignal) {
+        if (openPdfToolSignal > 0) openTool(OmniTool.IMAGES_TO_PDF)
+    }
 
-                            WorkspaceDestination.values().forEach { destination ->
-                                val isSelected = currentWorkspace == destination
-                                Surface(
-                                    onClick = { currentWorkspace = destination },
-                                    shape = RoundedCornerShape(24.dp),
-                                    color = if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-                                    border = BorderStroke(
-                                        width = 1.dp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outlineVariant
-                                    ),
-                                    modifier = Modifier
-                                        .height(48.dp)
-                                        .testTag("phone_nav_${destination.name.lowercase()}")
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.Center
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(6.dp))
-                                                .background(destination.tintColor.copy(alpha = 0.14f)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = destination.icon,
-                                                contentDescription = destination.title,
-                                                tint = destination.tintColor,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = destination.title,
-                                            fontSize = 13.sp,
-                                            fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                            color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            maxLines = 1,
-                                            softWrap = false,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
-                                    }
-                                }
-                            }
-                        }
+    BackHandler(enabled = activeTool != null) { toolName = null }
+    BackHandler(enabled = activeTool == null && tab != MainTab.TOOLS) { tabName = MainTab.TOOLS.name }
+
+    val destination = AppDestination(tab, activeTool)
+
+    val content: @Composable (AppDestination) -> Unit = { target ->
+        if (target.tool != null) {
+            CompositionLocalProvider(LocalToolBack provides { toolName = null }) {
+                ToolContent(
+                    tool = target.tool,
+                    pdfViewModel = pdfViewModel,
+                    pdfMergeViewModel = pdfMergeViewModel,
+                    imageViewModel = imageViewModel,
+                    audioViewModel = audioViewModel,
+                    archiveViewModel = archiveViewModel,
+                    markdownViewModel = markdownViewModel,
+                    onOpenTool = ::openTool,
+                    onSendToGemini = { docText ->
+                        geminiViewModel.setContextDocument(docText)
+                        selectTab(MainTab.GEMINI)
+                    },
+                    onTranscribeAudio = { uri ->
+                        geminiViewModel.attachAudio(uri)
+                        selectTab(MainTab.GEMINI)
                     }
-                }
-            ) { innerPadding ->
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .padding(innerPadding)
-                ) {
-                    AnimatedContent(
-                        targetState = currentWorkspace,
-                        transitionSpec = {
-                            fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
-                        },
-                        label = "phone_workspace_transition"
-                    ) { targetWorkspace ->
-                        WorkspaceContent(
-                            workspace = targetWorkspace,
-                            pdfViewModel = pdfViewModel,
-                            pdfMergeViewModel = pdfMergeViewModel,
-                            imageViewModel = imageViewModel,
-                            audioViewModel = audioViewModel,
-                            archiveViewModel = archiveViewModel,
-                            markdownViewModel = markdownViewModel,
-                            geminiViewModel = geminiViewModel,
-                            onNavigate = { currentWorkspace = it }
-                        )
-                    }
-                }
+                )
             }
         } else {
-            // Tablet Landscape Layout: 88dp wide Navigation Rail + Right Content
-            Scaffold(
-                modifier = Modifier.fillMaxSize(),
-                containerColor = MaterialTheme.colorScheme.background
-            ) { innerPadding ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .statusBarsPadding()
-                        .padding(innerPadding)
-                ) {
-                    NavigationRail(
-                        modifier = Modifier
-                            .fillMaxHeight()
-                            .width(88.dp)
-                            .border(
-                                width = 1.dp,
-                                color = MaterialTheme.colorScheme.outlineVariant,
-                                shape = RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
-                            )
-                            .testTag("tablet_navigation_rail"),
-                        containerColor = MaterialTheme.colorScheme.surface,
-                        header = {
-                            Column(
-                                modifier = Modifier.padding(top = 16.dp, bottom = 12.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(44.dp)
-                                        .clip(CircleShape)
-                                        .background(MaterialTheme.colorScheme.primaryContainer),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.AutoAwesome,
-                                        contentDescription = "OmniConvert",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(24.dp)
-                                    )
-                                }
-                                Spacer(modifier = Modifier.height(8.dp))
-                                IconButton(
-                                    onClick = { showTutorial = true },
-                                    modifier = Modifier
-                                        .size(36.dp)
-                                        .testTag("tablet_open_guide_button")
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.TipsAndUpdates,
-                                        contentDescription = "Quick Guide",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-                    ) {
-                        WorkspaceDestination.values().forEach { destination ->
-                            val isSelected = currentWorkspace == destination
-                            NavigationRailItem(
-                                selected = isSelected,
-                                onClick = { currentWorkspace = destination },
-                                icon = {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(36.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(destination.tintColor.copy(alpha = 0.14f)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = destination.icon,
-                                            contentDescription = destination.title,
-                                            tint = destination.tintColor,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                },
-                                label = {
-                                    Text(
-                                        text = destination.title,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
-                                        maxLines = 1,
-                                        softWrap = false,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                },
-                                colors = NavigationRailItemDefaults.colors(
-                                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                    unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
-                                ),
-                                modifier = Modifier
-                                    .padding(vertical = 4.dp)
-                                    .testTag("nav_item_${destination.name.lowercase()}")
-                            )
-                        }
-                    }
+            when (target.tab) {
+                MainTab.TOOLS -> HomeScreen(
+                    recents = recents,
+                    onOpenTool = ::openTool,
+                    onImagesForPdf = { uris ->
+                        pdfViewModel.addImages(uris)
+                        openTool(OmniTool.IMAGES_TO_PDF)
+                    },
+                    onOpenHistory = { selectTab(MainTab.HISTORY) }
+                )
+                MainTab.GEMINI -> GeminiHubScreen(
+                    viewModel = geminiViewModel,
+                    onNavigateToMarkdown = { openTool(OmniTool.PDF_TO_MARKDOWN) }
+                )
+                MainTab.HISTORY -> HistoryScreen()
+                MainTab.SETTINGS -> SettingsScreen(
+                    onOpenGuide = { showTutorial = true },
+                    onOpenGemini = { selectTab(MainTab.GEMINI) }
+                )
+            }
+        }
+    }
 
-                    // Main Content Area with Smooth Crossfade Animation
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                    ) {
-                        AnimatedContent(
-                            targetState = currentWorkspace,
-                            transitionSpec = {
-                                fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(180))
-                            },
-                            label = "tablet_workspace_transition"
-                        ) { targetWorkspace ->
-                            WorkspaceContent(
-                                workspace = targetWorkspace,
-                                pdfViewModel = pdfViewModel,
-                                pdfMergeViewModel = pdfMergeViewModel,
-                                imageViewModel = imageViewModel,
-                                audioViewModel = audioViewModel,
-                                archiveViewModel = archiveViewModel,
-                                markdownViewModel = markdownViewModel,
-                                geminiViewModel = geminiViewModel,
-                                onNavigate = { currentWorkspace = it }
-                            )
-                        }
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(OmniBg)
+    ) {
+        val isCompact = maxWidth < 600.dp
+
+        Scaffold(
+            modifier = Modifier.fillMaxSize(),
+            containerColor = OmniBg,
+            bottomBar = {
+                if (isCompact && activeTool == null) {
+                    MorphBottomBar(selected = tab, onSelect = ::selectTab)
+                }
+            }
+        ) { innerPadding ->
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .consumeWindowInsets(innerPadding)
+                    .imePadding()
+            ) {
+                if (!isCompact) {
+                    MorphRail(selected = tab, onSelect = ::selectTab)
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxHeight()
+                ) {
+                    AnimatedContent(
+                        targetState = destination,
+                        transitionSpec = {
+                            fadeIn(animationSpec = tween(220)) togetherWith fadeOut(animationSpec = tween(160))
+                        },
+                        label = "workspace_transition"
+                    ) { target ->
+                        content(target)
                     }
                 }
             }
         }
 
-        // Feature Tutorial Guide Dialog Overlay
         if (showTutorial) {
             OmniTutorialDialog(onDismiss = { showTutorial = false })
         }
@@ -395,41 +233,154 @@ fun OmniConvertApp(
 }
 
 @Composable
-private fun WorkspaceContent(
-    workspace: WorkspaceDestination,
+private fun ToolContent(
+    tool: OmniTool,
     pdfViewModel: PdfStudioViewModel,
     pdfMergeViewModel: PdfMergeViewModel,
     imageViewModel: ImageLabViewModel,
     audioViewModel: AudioLabViewModel,
     archiveViewModel: ArchiveViewModel,
     markdownViewModel: MarkdownExporterViewModel,
-    geminiViewModel: GeminiHubViewModel,
-    onNavigate: (WorkspaceDestination) -> Unit
+    onOpenTool: (OmniTool) -> Unit,
+    onSendToGemini: (String) -> Unit,
+    onTranscribeAudio: (Uri) -> Unit
 ) {
-    when (workspace) {
-        WorkspaceDestination.PDF_STUDIO -> PdfStudioScreen(viewModel = pdfViewModel)
-        WorkspaceDestination.PDF_MERGE -> PdfMergeScreen(viewModel = pdfMergeViewModel)
-        WorkspaceDestination.IMAGE_LAB -> ImageLabScreen(viewModel = imageViewModel)
-        WorkspaceDestination.AUDIO_LAB -> AudioLabScreen(
-            viewModel = audioViewModel,
-            onTranscribeAudio = { uri, _ ->
-                geminiViewModel.attachAudio(uri)
-                onNavigate(WorkspaceDestination.GEMINI_HUB)
-            }
+    val continueWithMerge: (Uri) -> Unit = { uri ->
+        pdfMergeViewModel.addPdfDocuments(listOf(uri))
+        onOpenTool(OmniTool.MERGE_PDF)
+    }
+    val continueWithMarkdown: (Uri) -> Unit = { uri ->
+        markdownViewModel.addFiles(listOf(uri))
+        onOpenTool(OmniTool.PDF_TO_MARKDOWN)
+    }
+
+    when (tool.screen) {
+        ToolScreen.IMAGES_TO_PDF -> PdfStudioScreen(
+            viewModel = pdfViewModel,
+            onContinueWithMerge = continueWithMerge,
+            onContinueWithMarkdown = continueWithMarkdown
         )
-        WorkspaceDestination.ARCHIVE_ZIP -> ArchiveScreen(viewModel = archiveViewModel)
-        WorkspaceDestination.AI_MARKDOWN -> MarkdownExporterScreen(
+        ToolScreen.MERGE_PDF -> PdfMergeScreen(
+            viewModel = pdfMergeViewModel,
+            onContinueWithMarkdown = continueWithMarkdown
+        )
+        ToolScreen.MARKDOWN -> MarkdownExporterScreen(
             viewModel = markdownViewModel,
-            onSendToGemini = { docText ->
-                geminiViewModel.setContextDocument(docText)
-                onNavigate(WorkspaceDestination.GEMINI_HUB)
-            }
+            onSendToGemini = onSendToGemini
         )
-        WorkspaceDestination.GEMINI_HUB -> GeminiHubScreen(
-            viewModel = geminiViewModel,
-            onNavigateToMarkdown = {
-                onNavigate(WorkspaceDestination.AI_MARKDOWN)
-            }
+        ToolScreen.IMAGE_LAB -> ImageLabScreen(viewModel = imageViewModel)
+        ToolScreen.AUDIO_LAB -> AudioLabScreen(
+            viewModel = audioViewModel,
+            onTranscribeAudio = { uri, _ -> onTranscribeAudio(uri) }
         )
+        ToolScreen.ARCHIVE -> ArchiveScreen(viewModel = archiveViewModel)
+    }
+}
+
+@Composable
+private fun MorphBottomBar(selected: MainTab, onSelect: (MainTab) -> Unit) {
+    Surface(color = OmniSurface, modifier = Modifier.fillMaxWidth()) {
+        Column {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(OmniBorder)
+            )
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding()
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                MainTab.entries.forEach { item ->
+                    NavItem(
+                        tab = item,
+                        selected = item == selected,
+                        onClick = { onSelect(item) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun MorphRail(selected: MainTab, onSelect: (MainTab) -> Unit) {
+    Surface(
+        color = OmniSurface,
+        modifier = Modifier
+            .width(100.dp)
+            .fillMaxHeight()
+            .testTag("tablet_navigation_rail")
+    ) {
+        Row {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxHeight()
+                    .padding(vertical = 20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(18.dp)
+            ) {
+                BrandLogo(size = 52)
+                Spacer(modifier = Modifier.height(18.dp))
+                MainTab.entries.forEach { item ->
+                    NavItem(tab = item, selected = item == selected, onClick = { onSelect(item) })
+                }
+            }
+            Box(
+                modifier = Modifier
+                    .width(1.dp)
+                    .fillMaxHeight()
+                    .background(OmniBorder)
+            )
+        }
+    }
+}
+
+@Composable
+private fun NavItem(
+    tab: MainTab,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        onClick = onClick,
+        color = Color.Transparent,
+        shape = RoundedCornerShape(16.dp),
+        modifier = modifier.testTag("nav_item_${tab.name.lowercase()}")
+    ) {
+        Column(
+            modifier = Modifier.padding(vertical = 4.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(width = 60.dp, height = 34.dp)
+                    .clip(RoundedCornerShape(17.dp))
+                    .background(if (selected) OmniAccentSoft else Color.Transparent),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = tab.icon,
+                    contentDescription = tab.label,
+                    tint = if (selected) OmniAccent else OmniTextMuted,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = tab.label,
+                fontSize = 12.sp,
+                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                color = if (selected) OmniText else OmniTextMuted,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }

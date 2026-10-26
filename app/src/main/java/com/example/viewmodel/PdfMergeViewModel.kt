@@ -7,6 +7,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.HistoryKind
+import com.example.data.HistoryRepository
 import com.example.model.PdfDocumentItem
 import com.example.model.PdfMergeSettings
 import com.example.service.PdfMergeService
@@ -161,6 +163,7 @@ class PdfMergeViewModel(application: Application) : AndroidViewModel(application
 
             result.onSuccess { uri ->
                 _lastMergedUri.value = uri
+                HistoryRepository.record(getApplication<Application>(), uri, "Unisci PDF", HistoryKind.PDF, "Documento_unito.pdf")
             }.onFailure { err ->
                 _errorMessage.value = err.localizedMessage ?: "Merging failed"
             }

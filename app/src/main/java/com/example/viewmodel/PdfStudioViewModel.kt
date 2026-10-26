@@ -5,9 +5,12 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.HistoryKind
+import com.example.data.HistoryRepository
 import com.example.model.PdfDocumentItem
 import com.example.model.PdfExportConfig
 import com.example.service.PdfConverterService
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -110,9 +113,12 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
         _config.value = newConfig
     }
 
+    private var generationJob: Job? = null
+
     fun generatePdf() {
-        if (_items.value.isEmpty()) return
-        viewModelScope.launch {
+        if (_items.value.isEmpty() || _isGenerating.value) return
+        _generationProgress.value = Pair(0, _items.value.size)
+        generationJob = viewModelScope.launch {
             _isGenerating.value = true
             _errorMessage.value = null
             _lastGeneratedUri.value = null
@@ -123,11 +129,24 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
 
             result.onSuccess { uri ->
                 _lastGeneratedUri.value = uri
+                HistoryRepository.record(getApplication<Application>(), uri, "Immagini in PDF", HistoryKind.PDF, "${_config.value.title.ifBlank { "Documento" }}.pdf")
             }.onFailure { err ->
                 _errorMessage.value = err.localizedMessage ?: "PDF generation failed"
             }
             _isGenerating.value = false
         }
+    }
+
+    fun cancelGeneration() {
+        generationJob?.cancel()
+        generationJob = null
+        _isGenerating.value = false
+        _generationProgress.value = Pair(0, 0)
+    }
+
+    /** Leaves the result screen but keeps the pages so the user can tweak and export again. */
+    fun backToEditor() {
+        _lastGeneratedUri.value = null
     }
 
     fun dismissError() {

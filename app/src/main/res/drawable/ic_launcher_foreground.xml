@@ -4,23 +4,11 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Centered within 66dp safe zone (21 to 87) -->
-    <!-- Hexagonal outer badge -->
-    <path
-        android:strokeColor="#38BDF8"
-        android:strokeWidth="3.5"
-        android:strokeLineJoin="round"
-        android:strokeLineCap="round"
-        android:fillColor="#00000000"
-        android:pathData="M54,26 L78,40 L78,68 L54,82 L30,68 L30,40 Z" />
-
-    <!-- Conversion Arrow 1: Top right pointing right -->
-    <path
-        android:fillColor="#38BDF8"
-        android:pathData="M43,45 L61,45 L56,40 L59,37 L69,47 L59,57 L56,54 L61,49 L43,49 Z" />
-
-    <!-- Conversion Arrow 2: Bottom left pointing left -->
+    <!-- Morph swap arrows, centered within the 66dp safe zone -->
     <path
         android:fillColor="#FFFFFF"
-        android:pathData="M65,63 L47,63 L52,68 L49,71 L39,61 L49,51 L52,54 L47,59 L65,59 Z" />
+        android:pathData="M38,44 L64,44 L58,38 L62,34 L75,46.5 L62,59 L58,55 L64,49 L38,49 Z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M70,64 L44,64 L50,70 L46,74 L33,61.5 L46,49 L50,53 L44,59 L70,59 Z" />
 </vector>

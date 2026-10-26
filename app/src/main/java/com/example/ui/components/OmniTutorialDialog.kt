@@ -96,55 +96,55 @@ fun OmniTutorialDialog(
         listOf(
             TutorialStep(
                 stepIndex = 1,
-                title = "Images to PDF",
-                subtitle = "Smart orientation, book scan splitting & scan cleanup",
+                title = "Immagini in PDF",
+                subtitle = "Orientamento automatico, modalità libro e pulizia scansioni",
                 icon = Icons.Default.PictureAsPdf,
                 tintColor = TintPdf,
                 highlights = listOf(
-                    "Smart Auto Orientation" to "Horizontal images are automatically given landscape pages with zero vertical distortion.",
-                    "Book Mode (Spread Split)" to "Split wide two-page book scans into left and right sequential pages with one tap.",
-                    "Auto Contrast Clean" to "Removes yellow paper cast and enhances dark text contrast for crystal clear reading."
+                    "Orientamento automatico" to "Le immagini orizzontali ricevono automaticamente pagine orizzontali, senza distorsioni.",
+                    "Modalità libro (dividi pagine)" to "Dividi le scansioni a doppia pagina in pagina sinistra e destra con un tocco.",
+                    "Pulizia automatica" to "Toglie la dominante gialla della carta e rende il testo più nitido."
                 ),
-                proTip = "Pro tip: Select 'Original' page size if you want borderless PDFs matching the exact pixel dimensions of your pictures."
+                proTip = "Consiglio: scegli il formato 'Originale' per PDF senza bordi con le dimensioni esatte delle foto."
             ),
             TutorialStep(
                 stepIndex = 2,
-                title = "Merge PDF & Security",
-                subtitle = "Combine documents and protect with 128-bit encryption",
+                title = "Unisci PDF e sicurezza",
+                subtitle = "Combina documenti e proteggili con crittografia a 128 bit",
                 icon = Icons.AutoMirrored.Filled.MergeType,
                 tintColor = TintMerge,
                 highlights = listOf(
-                    "Offline Merging" to "Fast, private document merging done 100% on-device without uploading to the cloud.",
-                    "Order Management" to "Easily reorder files and preview total page counts before merging.",
-                    "Password Protection" to "Encrypt merged documents with standard 128-bit password security."
+                    "Unione offline" to "Unione veloce e privata, 100% sul dispositivo senza caricare nulla online.",
+                    "Ordine dei file" to "Riordina i file e controlla il numero di pagine prima di unirli.",
+                    "Protezione con password" to "Proteggi i documenti uniti con una password a 128 bit."
                 ),
-                proTip = "Pro tip: Drag or use arrow keys to adjust file order before hitting 'Merge Documents'."
+                proTip = "Consiglio: usa le frecce per sistemare l'ordine prima di unire i documenti."
             ),
             TutorialStep(
                 stepIndex = 3,
-                title = "Images & Audio Lab",
-                subtitle = "Modern formats, EXIF privacy & clean voice transcoding",
+                title = "Immagini e audio",
+                subtitle = "Formati moderni, privacy EXIF e audio pulito",
                 icon = Icons.Default.Image,
                 tintColor = TintImage,
                 highlights = listOf(
-                    "WebP Transcoding" to "WebP Lossy and Lossless compress up to 35% smaller than JPEG and PNG.",
-                    "Strip EXIF Metadata" to "Removes GPS location and camera identifiers for safe sharing.",
-                    "Voice Downmixing" to "Downmix stereo to mono for 50% smaller voice recordings and podcasts."
+                    "Conversione WebP" to "WebP pesa fino al 35% in meno di JPEG e PNG.",
+                    "Rimuovi metadati EXIF" to "Rimuove posizione GPS e dati della fotocamera per condividere in sicurezza.",
+                    "Audio mono per la voce" to "Converti in mono per dimezzare il peso di registrazioni vocali e podcast."
                 ),
-                proTip = "Pro tip: 128 kbps M4A is the optimal bitrate for spoken audio, tutorials, and interviews."
+                proTip = "Consiglio: M4A a 128 kbps è ideale per lezioni, tutorial e interviste."
             ),
             TutorialStep(
                 stepIndex = 4,
-                title = "ZIP & AI Studio Context",
-                subtitle = "Deflate archives, LLM wrappers & Gemini pipelines",
+                title = "ZIP e contesto per l'AI",
+                subtitle = "Archivi ZIP, prompt per AI e pipeline Gemini",
                 icon = Icons.Default.AutoAwesome,
                 tintColor = TintAi,
                 highlights = listOf(
-                    "Prompt Wrappers" to "Format notes and PDF chapters into Claude XML, ChatGPT System, or Gemini Brief.",
-                    "Free-tier Gemini Hub" to "Integrated multi-model AI with automatic quota fallback and connection tests.",
-                    "Multi-Doc Study Pipelines" to "Generate executive summaries, flashcards, quizzes, and critique reports."
+                    "Formati prompt" to "Formatta appunti e capitoli PDF per Claude, ChatGPT o Gemini.",
+                    "Gemini gratuito integrato" to "AI multi-modello con fallback automatico della quota.",
+                    "Pipeline di studio" to "Genera riassunti, flashcard, quiz e simulazioni di interrogazione."
                 ),
-                proTip = "Pro tip: Extract Markdown in 'Markdown for AI' and tap 'Send to Gemini' to analyze instantly!"
+                proTip = "Consiglio: estrai il Markdown con 'PDF in Markdown' e tocca 'Invia a Gemini' per analizzarlo subito!"
             )
         )
     }
@@ -196,13 +196,13 @@ fun OmniTutorialDialog(
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
                             Text(
-                                text = "OmniConvert Studio Guide",
+                                text = "Guida di OmniConvert Studio",
                                 fontSize = 16.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = OmniText
                             )
                             Text(
-                                text = "Step ${currentStep + 1} of ${steps.size}",
+                                text = "Passo ${currentStep + 1} di ${steps.size}",
                                 fontSize = 12.sp,
                                 color = OmniTextMuted
                             )
@@ -215,7 +215,7 @@ fun OmniTutorialDialog(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Close,
-                            contentDescription = "Close guide",
+                            contentDescription = "Chiudi guida",
                             tint = OmniTextMuted,
                             modifier = Modifier.size(20.dp)
                         )
@@ -370,14 +370,14 @@ fun OmniTutorialDialog(
                             border = BorderStroke(1.dp, OmniBorder),
                             modifier = Modifier.height(44.dp)
                         ) {
-                            Text("Previous", fontSize = 14.sp, color = OmniText)
+                            Text("Indietro", fontSize = 14.sp, color = OmniText)
                         }
                     } else {
                         TextButton(
                             onClick = onDismiss,
                             modifier = Modifier.height(44.dp)
                         ) {
-                            Text("Skip Tour", fontSize = 14.sp, color = OmniTextMuted)
+                            Text("Salta", fontSize = 14.sp, color = OmniTextMuted)
                         }
                     }
 
@@ -400,7 +400,7 @@ fun OmniTutorialDialog(
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = if (currentStep < steps.size - 1) "Next" else "Start Converting",
+                                text = if (currentStep < steps.size - 1) "Avanti" else "Inizia",
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.SemiBold
                             )

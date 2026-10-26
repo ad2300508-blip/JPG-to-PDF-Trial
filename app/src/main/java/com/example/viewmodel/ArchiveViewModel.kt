@@ -5,6 +5,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.HistoryKind
+import com.example.data.HistoryRepository
 import com.example.model.ArchiveConfig
 import com.example.model.ArchiveItem
 import com.example.service.ArchiveService
@@ -80,12 +82,17 @@ class ArchiveViewModel(application: Application) : AndroidViewModel(application)
 
             res.onSuccess { pair ->
                 _lastGeneratedUri.value = pair.first
+                HistoryRepository.record(getApplication<Application>(), pair.first, "Archivio ZIP", HistoryKind.ZIP, "${_config.value.zipFileName}.zip", pair.second)
             }.onFailure { err ->
                 _errorMessage.value = err.localizedMessage ?: "Failed to generate ZIP"
             }
 
             _isArchiving.value = false
         }
+    }
+
+    fun dismissSuccess() {
+        _lastGeneratedUri.value = null
     }
 
     fun dismissError() {

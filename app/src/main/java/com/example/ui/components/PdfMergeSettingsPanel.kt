@@ -36,7 +36,7 @@ fun PdfMergeSettingsPanel(
     ) {
         Column {
             Text(
-                text = "MERGE CONFIGURATION",
+                text = "IMPOSTAZIONI UNIONE",
                 style = MaterialTheme.typography.labelSmall,
                 color = Slate400
             )
@@ -49,7 +49,7 @@ fun PdfMergeSettingsPanel(
                 onValueChange = { newValue: String ->
                     onSettingsChange(settings.copy(outputFileName = newValue))
                 },
-                label = { Text("Output PDF Name") },
+                label = { Text("Nome del PDF") },
                 placeholder = { Text("Merged_Document") },
                 singleLine = true,
                 modifier = Modifier
@@ -66,12 +66,12 @@ fun PdfMergeSettingsPanel(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "PDF Password Protection",
+                        text = "Protezione con password",
                         style = MaterialTheme.typography.titleMedium,
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Text(
-                        text = "Encrypt the merged document with a 128-bit security password.",
+                        text = "Proteggi il documento unito con una password a 128 bit.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = Slate400
                     )
@@ -97,8 +97,8 @@ fun PdfMergeSettingsPanel(
                     onValueChange = { newValue: String ->
                         onSettingsChange(settings.copy(userPassword = newValue))
                     },
-                    label = { Text("User Open Password") },
-                    placeholder = { Text("Enter secret password") },
+                    label = { Text("Password di apertura") },
+                    placeholder = { Text("Inserisci la password") },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()
@@ -112,8 +112,8 @@ fun PdfMergeSettingsPanel(
                     onValueChange = { newValue: String ->
                         onSettingsChange(settings.copy(ownerPassword = newValue))
                     },
-                    label = { Text("Permissions Owner Password (Optional)") },
-                    placeholder = { Text("Optional owner permissions key") },
+                    label = { Text("Password proprietario (facoltativa)") },
+                    placeholder = { Text("Chiave permessi proprietario (facoltativa)") },
                     singleLine = true,
                     modifier = Modifier
                         .fillMaxWidth()

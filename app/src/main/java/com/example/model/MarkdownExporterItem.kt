@@ -4,20 +4,20 @@ import android.net.Uri
 
 enum class LlmPromptWrapper(val displayName: String, val description: String) {
     CLAUDE_XML(
-        displayName = "Claude XML Tags",
+        displayName = "Tag XML per Claude",
         description = "Wraps context in <documents><document index=\"n\"><source>...</source><document_content> tags."
     ),
     CHATGPT_SYSTEM(
-        displayName = "ChatGPT / OpenAI System Block",
-        description = "Prepend developer context instructions with markdown sections and file headers."
+        displayName = "Blocco di sistema ChatGPT",
+        description = "Aggiunge istruzioni di contesto con sezioni Markdown e intestazioni dei file."
     ),
     GEMINI_BRIEF(
-        displayName = "Gemini Context Brief",
+        displayName = "Brief di contesto per Gemini",
         description = "Optimized with hierarchical delimiters (=== DOCUMENT: [NAME] ===) and executive summary prefix."
     ),
     RAW_MARKDOWN(
-        displayName = "Pure Markdown",
-        description = "Clean markdown without AI instruction framing, separated by horizontal rules."
+        displayName = "Markdown puro",
+        description = "Markdown pulito senza istruzioni per l'AI, separato da linee orizzontali."
     )
 }
 

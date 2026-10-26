@@ -109,7 +109,7 @@ fun MarkdownExporterScreen(
             OmniToast(
                 message = errorNotice!!,
                 isError = true,
-                actionLabel = "Dismiss",
+                actionLabel = "Chiudi",
                 onAction = { viewModel.dismissErrorNotice() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -127,9 +127,9 @@ fun MarkdownExporterScreen(
 
         if (savedUri != null) {
             OmniToast(
-                message = "Markdown file saved to Downloads/OmniConvert/Markdown",
+                message = "File Markdown salvato in Download/OmniConvert/Markdown",
                 isError = false,
-                actionLabel = "Clear",
+                actionLabel = "Svuota",
                 onAction = { viewModel.clearAll() },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
@@ -138,23 +138,23 @@ fun MarkdownExporterScreen(
         if (isIngesting) {
             OmniProgressBanner(
                 progress = extractionProgress,
-                statusText = extractionStatusText.ifBlank { "Extracting and formatting markdown..." },
+                statusText = extractionStatusText.ifBlank { "Estraggo e formatto il Markdown…" },
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp)
             )
         }
 
         ToolLayout(
-            title = "Markdown for AI",
-            description = "Extract and structure textbook chapters, PDFs, and notes into prompt-ready context.",
+            title = "PDF in Markdown",
+            description = "Estrai testo pulito da PDF, appunti e foto",
             isEmpty = items.isEmpty(),
-            phoneTabTitles = listOf("Preview", "Prompt Wrappers"),
+            phoneTabTitles = listOf("Anteprima", "Formati prompt"),
             emptyDropzone = {
                 Dropzone(
                     icon = Icons.Default.SmartToy,
-                    headline = "No documents loaded yet",
-                    helpText = "Import PDF chapters, research papers, or notes to extract clean Markdown formatted for LLM prompts",
+                    headline = "Aggiungi i tuoi documenti",
+                    helpText = "Importa capitoli PDF, appunti o foto: estraggo un Markdown pulito pronto per l'AI",
                     supportedFormats = "PDF · TXT · MD · DOCX",
-                    actionLabel = "Import Documents",
+                    actionLabel = "Scegli file",
                     tintColor = TintAi,
                     onAction = { filePicker.launch("*/*") },
                     testTag = "markdown_add_docs_button"
@@ -188,13 +188,13 @@ fun MarkdownExporterScreen(
                             ) {
                                 Icon(Icons.AutoMirrored.Filled.NoteAdd, contentDescription = null, modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Add More", fontSize = 13.sp, fontWeight = FontWeight.Medium)
+                                Text("Aggiungi", fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                             TextButton(
                                 onClick = { viewModel.clearAll() },
                                 modifier = Modifier.height(36.dp)
                             ) {
-                                Text("Clear", color = OmniTextMuted, fontSize = 13.sp)
+                                Text("Svuota", color = OmniTextMuted, fontSize = 13.sp)
                             }
                         }
                     }
@@ -216,7 +216,7 @@ fun MarkdownExporterScreen(
                                 .padding(14.dp)
                         ) {
                             Text(
-                                text = compiledResult?.wrappedPrompt?.ifBlank { "Compiling structured markdown..." } ?: "Import documents to generate markdown",
+                                text = compiledResult?.wrappedPrompt?.ifBlank { "Compilo il Markdown strutturato…" } ?: "Importa documenti per generare il Markdown",
                                 fontFamily = FontFamily.Monospace,
                                 fontSize = 13.sp,
                                 lineHeight = 18.sp,
@@ -246,7 +246,7 @@ fun MarkdownExporterScreen(
                     verticalArrangement = Arrangement.spacedBy(14.dp)
                 ) {
                     Text(
-                        text = "AI Prompt Wrapper",
+                        text = "Formato prompt AI",
                         style = MaterialTheme.typography.titleMedium,
                         color = OmniText
                     )
@@ -254,42 +254,42 @@ fun MarkdownExporterScreen(
                     // Radio cards for wrappers
                     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         RadioCard(
-                            title = "Claude XML Tags",
-                            description = "Wraps documents in indexed <documents> tags for Anthropic models",
+                            title = "Tag XML per Claude",
+                            description = "Racchiude i documenti in tag <documents> per i modelli Anthropic",
                             isSelected = settings.promptWrapper == LlmPromptWrapper.CLAUDE_XML,
                             onClick = { viewModel.updateSettings(settings.copy(promptWrapper = LlmPromptWrapper.CLAUDE_XML)) }
                         )
                         RadioCard(
-                            title = "ChatGPT System Block",
-                            description = "Formatted developer sections for GPT-4 and ChatGPT",
+                            title = "Blocco di sistema ChatGPT",
+                            description = "Sezioni formattate per ChatGPT",
                             isSelected = settings.promptWrapper == LlmPromptWrapper.CHATGPT_SYSTEM,
                             onClick = { viewModel.updateSettings(settings.copy(promptWrapper = LlmPromptWrapper.CHATGPT_SYSTEM)) }
                         )
                         RadioCard(
-                            title = "Gemini Context Brief",
-                            description = "Optimized with hierarchical delimiters for Gemini Flash and Pro",
+                            title = "Brief di contesto per Gemini",
+                            description = "Ottimizzato con delimitatori gerarchici per Gemini",
                             isSelected = settings.promptWrapper == LlmPromptWrapper.GEMINI_BRIEF,
                             onClick = { viewModel.updateSettings(settings.copy(promptWrapper = LlmPromptWrapper.GEMINI_BRIEF)) },
-                            badgeText = "Recommended"
+                            badgeText = "Consigliato"
                         )
                         RadioCard(
-                            title = "Pure Markdown",
-                            description = "Clean markdown without model-specific instruction tags",
+                            title = "Markdown puro",
+                            description = "Markdown pulito senza istruzioni specifiche per un modello",
                             isSelected = settings.promptWrapper == LlmPromptWrapper.RAW_MARKDOWN,
                             onClick = { viewModel.updateSettings(settings.copy(promptWrapper = LlmPromptWrapper.RAW_MARKDOWN)) }
                         )
                     }
 
                     OptionRow(
-                        label = "Include document metadata header",
-                        description = "Embeds file names and page counts",
+                        label = "Includi intestazione con metadati",
+                        description = "Include nomi dei file e numero di pagine",
                         checked = settings.includeMetadataHeader,
                         onCheckedChange = { viewModel.updateSettings(settings.copy(includeMetadataHeader = it)) }
                     )
 
                     OptionRow(
-                        label = "Generate table of contents",
-                        description = "Creates high-level heading navigation",
+                        label = "Genera indice",
+                        description = "Crea un indice con i titoli principali",
                         checked = settings.includeTableOfContents,
                         onCheckedChange = { viewModel.updateSettings(settings.copy(includeTableOfContents = it)) }
                     )
@@ -325,7 +325,7 @@ fun MarkdownExporterScreen(
                             ) {
                                 Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Copy", fontSize = 14.sp)
+                                Text("Copia", fontSize = 14.sp)
                             }
 
                             OutlinedButton(
@@ -339,7 +339,7 @@ fun MarkdownExporterScreen(
                             ) {
                                 Icon(Icons.Default.Save, contentDescription = null, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(6.dp))
-                                Text("Save .md", fontSize = 14.sp)
+                                Text("Salva .md", fontSize = 14.sp)
                             }
                         }
 
@@ -362,7 +362,7 @@ fun MarkdownExporterScreen(
                         ) {
                             Icon(Icons.Default.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Send to AI Studio", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
+                            Text("Invia a Gemini", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
                         }
                     }
                 }

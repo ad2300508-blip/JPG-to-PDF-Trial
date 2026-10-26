@@ -6,6 +6,8 @@ import android.net.Uri
 import android.provider.OpenableColumns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.HistoryKind
+import com.example.data.HistoryRepository
 import com.example.model.ImageConversionSettings
 import com.example.model.ImageConvertItem
 import com.example.service.ImageConverterService
@@ -95,6 +97,7 @@ class ImageLabViewModel(application: Application) : AndroidViewModel(application
 
                 val res = imageService.convertImage(item, _settings.value)
                 res.onSuccess { pair ->
+                    HistoryRepository.record(getApplication<Application>(), pair.first, "Converti immagini", HistoryKind.IMAGE, item.name, pair.second)
                     _items.value = _items.value.map {
                         if (it.id == item.id) it.copy(isProcessing = false, convertedSizeBytes = pair.second, error = null) else it
                     }
