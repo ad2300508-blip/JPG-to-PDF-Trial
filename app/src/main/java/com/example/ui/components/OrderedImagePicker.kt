@@ -25,6 +25,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material.icons.filled.ArrowDownward
 import androidx.compose.material.icons.filled.OpenInFull
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.input.pointer.PointerEventPass
 import com.example.ui.theme.OmniAccentOnInk
 import com.example.ui.theme.OmniInk
@@ -332,6 +333,10 @@ private fun OrderedImagePickerDialog(
                     onRemove = { uri ->
                         selected.remove(uri)
                         haptics(Haptic.TICK)
+                    },
+                    onMove = { from, to ->
+                        selected.add(to, selected.removeAt(from))
+                        haptics(Haptic.TICK)
                     }
                 )
 
@@ -407,7 +412,7 @@ private fun DragHint(visible: Boolean) {
         ) {
             Icon(Icons.Default.TouchApp, contentDescription = null, tint = OmniAccent, modifier = Modifier.size(16.dp))
             Spacer(modifier = Modifier.width(6.dp))
-            Text("Tieni premuto e trascina per selezionarne tante insieme", fontSize = 12.sp, color = OmniTextMuted)
+            Text("Tieni premuto e trascina per selezionarne tante; in basso trascina per riordinare", fontSize = 12.sp, color = OmniTextMuted)
         }
     }
 }
@@ -577,9 +582,13 @@ private fun DayHeader(label: String, allSelected: Boolean, onToggleDay: () -> Un
 
 /** The chosen pages in order, as a strip of thumbnails; tapping one removes it. */
 @Composable
-private fun SelectionTray(selected: List<Uri>, onRemove: (Uri) -> Unit) {
+private fun SelectionTray(selected: List<Uri>, onRemove: (Uri) -> Unit, onMove: (Int, Int) -> Unit) {
     val context = LocalContext.current
     val rowState = rememberLazyListState()
+    // Long-press a thumbnail and drag it sideways to change the page order.
+    var draggingKey by remember { mutableStateOf<String?>(null) }
+    var dragOffset by remember { mutableFloatStateOf(0f) }
+    val currentSelected by androidx.compose.runtime.rememberUpdatedState(selected)
     LaunchedEffect(selected.size) {
         if (selected.isNotEmpty()) rowState.animateScrollToItem(selected.lastIndex)
     }
@@ -591,11 +600,47 @@ private fun SelectionTray(selected: List<Uri>, onRemove: (Uri) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .background(OmniSurface2.copy(alpha = 0.6f))
+                .pointerInput(Unit) {
+                    fun itemAt(x: Float) = rowState.layoutInfo.visibleItemsInfo.firstOrNull { x >= it.offset && x < it.offset + it.size }
+                    detectDragGesturesAfterLongPress(
+                        onDragStart = { offset ->
+                            draggingKey = itemAt(offset.x)?.key as? String
+                            dragOffset = 0f
+                        },
+                        onDrag = { change, amount ->
+                            val key = draggingKey ?: return@detectDragGesturesAfterLongPress
+                            change.consume()
+                            dragOffset += amount.x
+                            val items = rowState.layoutInfo.visibleItemsInfo
+                            val current = items.firstOrNull { it.key == key } ?: return@detectDragGesturesAfterLongPress
+                            val center = current.offset + current.size / 2f + dragOffset
+                            val target = items.firstOrNull { center >= it.offset && center < it.offset + it.size }
+                            if (target != null && target.key != key) {
+                                val from = currentSelected.indexOfFirst { it.toString() == key }
+                                val to = currentSelected.indexOfFirst { it.toString() == target.key }
+                                if (from >= 0 && to >= 0) {
+                                    onMove(from, to)
+                                    // The item jumped to its new slot: keep it under the finger.
+                                    dragOffset += current.offset - target.offset
+                                }
+                            }
+                        },
+                        onDragEnd = { draggingKey = null; dragOffset = 0f },
+                        onDragCancel = { draggingKey = null; dragOffset = 0f }
+                    )
+                }
         ) {
             rowItemsIndexed(selected, key = { _, uri -> uri.toString() }) { index, uri ->
+                val isDragging = draggingKey == uri.toString()
+                val lift by animateFloatAsState(if (isDragging) 1.12f else 1f, motionSpec(Motion.bouncy()), label = "tray_lift")
                 Box(
                     modifier = Modifier
-                        .animateItem()
+                        .then(if (isDragging) Modifier.zIndex(1f) else Modifier.animateItem())
+                        .graphicsLayer {
+                            translationX = if (isDragging) dragOffset else 0f
+                            scaleX = lift
+                            scaleY = lift
+                        }
                         .size(56.dp)
                         .clip(RoundedCornerShape(10.dp))
                         .background(OmniSurface)
