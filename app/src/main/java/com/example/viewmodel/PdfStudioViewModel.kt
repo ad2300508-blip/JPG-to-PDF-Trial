@@ -19,6 +19,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class PdfStudioViewModel(application: Application) : AndroidViewModel(application) {
@@ -49,18 +51,24 @@ class PdfStudioViewModel(application: Application) : AndroidViewModel(applicatio
 
     private var generationJob: Job? = null
 
+    private val addMutex = Mutex()
+
     fun addImages(uris: List<Uri>) {
         if (uris.isEmpty()) return
         val app = getApplication<Application>()
         viewModelScope.launch {
-            val newItems = withContext(Dispatchers.IO) {
-                uris.map { uri ->
-                    val info = app.queryUriInfo(uri, "Immagine")
-                    PdfDocumentItem(uri = uri, name = info.name, sizeBytes = info.sizeBytes)
+            // Batches are appended one at a time, in the order they were picked, so a quick second
+            // pick can never land before the first one; inside a batch the picker's order is kept.
+            addMutex.withLock {
+                val newItems = withContext(Dispatchers.IO) {
+                    uris.distinct().map { uri ->
+                        val info = app.queryUriInfo(uri, "Immagine")
+                        PdfDocumentItem(uri = uri, name = info.name, sizeBytes = info.sizeBytes)
+                    }
                 }
+                _items.update { it + newItems }
+                _lastGeneratedUri.value = null
             }
-            _items.update { it + newItems }
-            _lastGeneratedUri.value = null
         }
     }
 

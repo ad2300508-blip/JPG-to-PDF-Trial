@@ -1,6 +1,7 @@
 package com.example.ui.home
 
 import android.net.Uri
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -138,7 +139,8 @@ fun HomeScreen(
     var query by rememberSaveable { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf(ALL_FILTER) }
 
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+    // Photo picker: pages follow the order in which the photos are tapped.
+    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
         if (uris.isNotEmpty()) onImagesForPdf(uris)
     }
     val launchCamera = rememberCameraCapture { uri -> onImagesForPdf(listOf(uri)) }
@@ -206,7 +208,7 @@ fun HomeScreen(
                                 FeaturedHero(
                                     tool = OmniTool.IMAGES_TO_PDF,
                                     horizontal = isTablet,
-                                    onChooseFiles = { imagePicker.launch("image/*") },
+                                    onChooseFiles = { imagePicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
                                     onCamera = launchCamera,
                                     modifier = Modifier.enterAnimation(1)
                                 )

@@ -1,5 +1,6 @@
 package com.example.ui
 
+import androidx.activity.result.PickVisualMediaRequest
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -273,11 +274,19 @@ private fun PdfEditor(
     val lastRemoved by viewModel.lastRemoved.collectAsState()
     val haptics = rememberHaptics()
 
+    // The system photo picker numbers the photos as you tap them and returns them in that order,
+    // so the PDF pages follow the selection order. The file browser cannot guarantee it.
+    val galleryLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickMultipleVisualMedia()
+    ) { uris ->
+        if (uris.isNotEmpty()) viewModel.addImages(uris)
+    }
     val pickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris ->
         if (uris.isNotEmpty()) viewModel.addImages(uris)
     }
+    val pickFromGallery = { galleryLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }
     val launchCamera = rememberCameraCapture { uri -> viewModel.addImages(listOf(uri)) }
 
     val pageSizes = listOf("A4", "Letter", "Original")
@@ -360,12 +369,25 @@ private fun PdfEditor(
                     headline = "Aggiungi le tue immagini",
                     helpText = "Scegli scansioni, foto o pagine di quaderno: le unisco in un PDF impaginato.",
                     supportedFormats = "JPG · PNG · WEBP · HEIC",
-                    actionLabel = "Scegli file",
+                    actionLabel = "Scegli foto",
                     tintColor = OmniAccent,
-                    onAction = { pickerLauncher.launch("image/*") },
+                    onAction = pickFromGallery,
                     testTag = "pdf_add_images_button",
                     secondaryIcon = Icons.Default.CameraAlt,
-                    onSecondaryAction = launchCamera
+                    onSecondaryAction = launchCamera,
+                    footer = {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = "Le pagine seguono l'ordine in cui tocchi le foto (1, 2, 3…)",
+                                fontSize = 13.sp,
+                                color = OmniTextMuted,
+                                textAlign = TextAlign.Center
+                            )
+                            TextButton(onClick = { pickerLauncher.launch("image/*") }) {
+                                Text("Oppure scegli da File", color = OmniAccent, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
                 )
             },
             fileList = {
@@ -420,7 +442,7 @@ private fun PdfEditor(
                         item(key = "add_tile") {
                             AddPageTile(
                                 modifier = Modifier.animateItem(),
-                                onAdd = { pickerLauncher.launch("image/*") },
+                                onAdd = pickFromGallery,
                                 onCamera = launchCamera
                             )
                         }
